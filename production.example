@@ -1,0 +1,27 @@
+# 生产环境配置示例
+# 此文件用于记录您的生产环境配置
+
+## 服务器信息
+- 域名: januslab.cn
+- 用户名: jlee
+- SSH 端口: 22
+- 项目路径: ~/griffin
+
+## GitHub Secrets 配置
+在 GitHub 仓库的 Settings → Secrets and variables → Actions 中配置：
+
+| Secret 名称 | 值 | 说明 |
+|------------|-----|------|
+| SERVER_HOST | januslab.cn | 服务器域名 |
+| SERVER_USER | jlee | SSH 用户名 |
+| SSH_PRIVATE_KEY | (私钥内容) | SSH 私钥完整内容 |
+| SERVER_PORT | 22 | SSH 端口（可选） |
+
+## 数据库配置
+在 docker-compose.yml 中修改：
+- POSTGRES_PASSWORD: 使用强密码替换默认密码
+
+## 访问地址
+- HTTP: http://januslab.cn
+- HTTPS: https://januslab.cn（配置 SSL 后）
+

@@ -96,12 +96,8 @@ sudo systemctl start docker
 # 4. 安装 Docker Compose
 sudo apt install docker-compose-plugin -y
 
-# 5. 创建项目目录
-sudo mkdir -p /opt/griffin
-sudo chown $USER:$USER /opt/griffin
-
-# 6. 克隆项目
-cd /opt
+# 5. 克隆项目到用户目录
+cd ~
 git clone https://github.com/YOUR_USERNAME/griffin.git
 cd griffin
 
@@ -154,10 +150,10 @@ ssh-keygen -t ed25519 -C "github-actions"
 # 按提示操作，建议不设置密码
 
 # 2. 复制公钥到服务器
-ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@your-server-ip
+ssh-copy-id -i ~/.ssh/id_ed25519.pub jlee@januslab.cn
 
 # 3. 测试连接
-ssh -i ~/.ssh/id_ed25519 ubuntu@your-server-ip
+ssh -i ~/.ssh/id_ed25519 jlee@januslab.cn
 
 # 4. 复制私钥内容（用于下一步）
 cat ~/.ssh/id_ed25519
@@ -172,12 +168,12 @@ cat ~/.ssh/id_ed25519
 
 | 名称 | 值 | 说明 |
 |------|-----|------|
-| `SERVER_HOST` | `123.456.789.012` | 服务器公网 IP |
-| `SERVER_USER` | `ubuntu` | SSH 登录用户名 |
-| `SERVER_SSH_KEY` | `(私钥内容)` | SSH 私钥（完整内容） |
+| `SERVER_HOST` | `januslab.cn` | 服务器域名或公网 IP |
+| `SERVER_USER` | `jlee` | SSH 登录用户名 |
+| `SSH_PRIVATE_KEY` | `(私钥内容)` | SSH 私钥（完整内容） |
 | `SERVER_PORT` | `22` | SSH 端口（可选，默认 22） |
 
-**添加 `SERVER_SSH_KEY` 的注意事项：**
+**添加 `SSH_PRIVATE_KEY` 的注意事项：**
 - 复制完整的私钥内容，包括：
   ```
   -----BEGIN OPENSSH PRIVATE KEY-----
@@ -258,10 +254,10 @@ git push origin main
 
 ```bash
 # SSH 连接到服务器
-ssh ubuntu@your-server-ip
+ssh jlee@januslab.cn
 
 # 进入项目目录
-cd /opt/griffin
+cd ~/griffin
 
 # 查看服务状态
 docker-compose ps
@@ -301,10 +297,10 @@ ssh -T git@github.com
 **检查服务器：**
 ```bash
 # 测试 SSH 连接
-ssh -i ~/.ssh/id_ed25519 ubuntu@your-server-ip
+ssh -i ~/.ssh/id_ed25519 jlee@januslab.cn
 
-# 检查 /opt/griffin 目录权限
-ls -la /opt/griffin
+# 检查 ~/griffin 目录权限
+ls -la ~/griffin
 ```
 
 **查看详细日志：**
@@ -334,10 +330,10 @@ docker-compose logs
 
 ```bash
 # 在服务器上
-cd /opt/griffin
+cd ~/griffin
 
 # 查看提交历史
-git log --oneline
+git log --online
 
 # 回滚到特定提交
 git checkout <commit-hash>

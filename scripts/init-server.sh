@@ -45,17 +45,16 @@ else
   echo "Git 已安装"
 fi
 
-# 创建项目目录
-echo "5. 创建项目目录..."
-mkdir -p /opt/griffin
-chown $SUDO_USER:$SUDO_USER /opt/griffin
+# 项目将克隆到用户主目录
+echo "5. 准备完成..."
+echo "项目将克隆到用户主目录 ~/griffin"
 
 echo ""
 echo "=== 初始化完成 ==="
 echo ""
 echo "下一步："
-echo "1. 克隆项目：cd /opt && git clone https://github.com/YOUR_USERNAME/griffin.git"
-echo "2. 配置环境变量：编辑 /opt/griffin/docker-compose.yml"
-echo "3. 启动服务：cd /opt/griffin && docker-compose up -d --build"
+echo "1. 克隆项目：cd ~ && git clone https://github.com/YOUR_USERNAME/griffin.git"
+echo "2. 配置环境变量：编辑 ~/griffin/docker-compose.yml"
+echo "3. 启动服务：cd ~/griffin && docker-compose up -d --build"
 echo ""
 

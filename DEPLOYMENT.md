@@ -34,12 +34,10 @@ git config --global user.email "your@email.com"
 ### 3. 克隆项目
 
 ```bash
-# 创建项目目录
-sudo mkdir -p /opt/griffin
-sudo chown $USER:$USER /opt/griffin
+# 进入用户目录
+cd ~
 
 # 克隆项目
-cd /opt
 git clone https://github.com/YOUR_USERNAME/griffin.git
 cd griffin
 ```
@@ -81,9 +79,9 @@ docker-compose ps
 
 进入 GitHub 仓库 → Settings → Secrets and variables → Actions，添加以下 secrets：
 
-- `SERVER_HOST`: 服务器 IP 地址
-- `SERVER_USER`: SSH 用户名（通常是 `ubuntu` 或 `root`）
-- `SERVER_SSH_KEY`: SSH 私钥（已配置在 GitHub）
+- `SERVER_HOST`: 服务器域名或 IP 地址（如：januslab.cn）
+- `SERVER_USER`: SSH 用户名（如：jlee）
+- `SSH_PRIVATE_KEY`: SSH 私钥（已配置在 GitHub）
 - `SERVER_PORT`: SSH 端口（可选，默认 22）
 
 ### 2. 服务器端配置
@@ -91,7 +89,9 @@ docker-compose ps
 确保服务器上的项目目录有正确的权限：
 
 ```bash
-sudo chown -R $USER:$USER /opt/griffin
+# 项目在用户主目录下，通常已有正确权限
+cd ~/griffin
+ls -la
 ```
 
 ### 3. 推送代码自动部署
@@ -234,15 +234,16 @@ sudo certbot --nginx -d your-domain.com
 
 ### 1. 设置定期备份
 
-创建备份脚本 `/opt/griffin/backup.sh`：
+创建备份脚本 `~/griffin/backup.sh`：
 
 ```bash
 #!/bin/bash
-BACKUP_DIR="/opt/griffin/backups"
+BACKUP_DIR="$HOME/griffin/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p $BACKUP_DIR
 
+cd $HOME/griffin
 docker-compose exec -T postgres pg_dump -U griffin griffin | gzip > $BACKUP_DIR/griffin_$DATE.sql.gz
 
 # 保留最近 7 天的备份
@@ -252,10 +253,10 @@ find $BACKUP_DIR -name "griffin_*.sql.gz" -mtime +7 -delete
 添加到 crontab：
 
 ```bash
-chmod +x /opt/griffin/backup.sh
+chmod +x ~/griffin/backup.sh
 crontab -e
 # 添加：每天凌晨 2 点备份
-0 2 * * * /opt/griffin/backup.sh
+0 2 * * * $HOME/griffin/backup.sh
 ```
 
 ### 2. 监控磁盘空间

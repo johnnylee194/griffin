@@ -153,7 +153,7 @@ docker-compose up -d --build
 sudo bash scripts/init-server.sh
 
 # 2. 克隆项目
-cd /opt
+cd ~
 git clone <your-repo-url> griffin
 cd griffin
 
@@ -165,9 +165,9 @@ docker-compose up -d --build
 
 # 5. 配置 GitHub Actions（在 GitHub 仓库设置中）
 # 添加 Secrets：
-# - SERVER_HOST: 服务器IP
-# - SERVER_USER: SSH用户名
-# - SERVER_SSH_KEY: SSH私钥
+# - SERVER_HOST: januslab.cn（服务器域名）
+# - SERVER_USER: jlee（SSH用户名）
+# - SSH_PRIVATE_KEY: SSH私钥
 # - SERVER_PORT: SSH端口（可选）
 
 # 之后每次推送代码到 main 分支，会自动部署！

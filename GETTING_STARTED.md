@@ -106,7 +106,7 @@ docker-compose up -d --build
 docker-compose logs -f
 ```
 
-**访问应用：** http://your-server-ip
+**访问应用：** http://januslab.cn
 
 #### B. 配置自动部署（推荐）
 
@@ -118,9 +118,9 @@ docker-compose logs -f
 
 | Secret 名称 | 值 | 说明 |
 |------------|-----|------|
-| `SERVER_HOST` | your-server-ip | 服务器 IP 地址 |
-| `SERVER_USER` | ubuntu | SSH 用户名 |
-| `SERVER_SSH_KEY` | (私钥内容) | SSH 私钥 |
+| `SERVER_HOST` | januslab.cn | 服务器域名或 IP 地址 |
+| `SERVER_USER` | jlee | SSH 用户名 |
+| `SSH_PRIVATE_KEY` | (私钥内容) | SSH 私钥 |
 | `SERVER_PORT` | 22 | SSH 端口（可选） |
 
 **之后每次推送代码到 `main` 分支，会自动部署到服务器！**
