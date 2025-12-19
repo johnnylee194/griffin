@@ -1,45 +1,47 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import db from '../database';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // 获取玩家统计数据
-router.get('/player/:playerId', async (req, res) => {
+router.get('/player/:playerId', (req, res) => {
   try {
     const { playerId } = req.params;
     const { startDate, endDate } = req.query;
 
     // 构建查询条件
-    const whereClause: any = {
-      playerId,
-      game: {}
-    };
-
+    let dateFilter = '';
+    const params: any[] = [playerId];
+    
     if (startDate || endDate) {
-      whereClause.game.createdAt = {};
-      if (startDate) {
-        whereClause.game.createdAt.gte = new Date(startDate as string);
-      }
-      if (endDate) {
-        whereClause.game.createdAt.lte = new Date(endDate as string);
+      if (startDate && endDate) {
+        dateFilter = ' AND g.created_at BETWEEN ? AND ?';
+        params.push(startDate as string, endDate as string);
+      } else if (startDate) {
+        dateFilter = ' AND g.created_at >= ?';
+        params.push(startDate as string);
+      } else if (endDate) {
+        dateFilter = ' AND g.created_at <= ?';
+        params.push(endDate as string);
       }
     }
 
     // 获取所有记录
-    const records = await prisma.playerRecord.findMany({
-      where: whereClause,
-      include: {
-        game: {
-          include: {
-            location: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    const records = db.prepare(`
+      SELECT 
+        pr.id,
+        pr.score,
+        pr.chips,
+        pr.created_at as createdAt,
+        g.id as gameId,
+        g.created_at as gameCreatedAt,
+        l.name as locationName
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      JOIN locations l ON g.location_id = l.id
+      WHERE pr.player_id = ?${dateFilter}
+      ORDER BY g.created_at DESC
+    `).all(...params) as any[];
 
     // 计算统计数据
     const totalGames = records.length;
@@ -50,8 +52,8 @@ router.get('/player/:playerId', async (req, res) => {
     const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
 
     // 按地点统计
-    const locationStats = records.reduce((acc: any, r) => {
-      const locName = r.game.location.name;
+    const locationStatsMap = records.reduce((acc: any, r) => {
+      const locName = r.locationName;
       if (!acc[locName]) {
         acc[locName] = {
           games: 0,
@@ -70,8 +72,8 @@ router.get('/player/:playerId', async (req, res) => {
     }, {});
 
     // 按日期统计
-    const dailyStats = records.reduce((acc: any, r) => {
-      const date = r.game.createdAt.toISOString().split('T')[0];
+    const dailyStatsMap = records.reduce((acc: any, r) => {
+      const date = r.gameCreatedAt.split('T')[0];
       if (!acc[date]) {
         acc[date] = {
           games: 0,
@@ -100,44 +102,49 @@ router.get('/player/:playerId', async (req, res) => {
         avgScore: totalGames > 0 ? Math.round((totalScore / totalGames) * 100) / 100 : 0,
         avgChips: totalGames > 0 ? Math.round((totalChips / totalGames) * 100) / 100 : 0
       },
-      byLocation: locationStats,
-      byDate: dailyStats
+      byLocation: locationStatsMap,
+      byDate: dailyStatsMap
     });
   } catch (error) {
-    console.error(error);
+    console.error('Failed to fetch player stats:', error);
     res.status(500).json({ error: 'Failed to fetch player stats' });
   }
 });
 
 // 获取总体统计
-router.get('/overview', async (req, res) => {
+router.get('/overview', (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
-    const whereClause: any = {};
+    let dateFilter = '';
+    const params: any[] = [];
+    
     if (startDate || endDate) {
-      whereClause.createdAt = {};
-      if (startDate) {
-        whereClause.createdAt.gte = new Date(startDate as string);
-      }
-      if (endDate) {
-        whereClause.createdAt.lte = new Date(endDate as string);
+      if (startDate && endDate) {
+        dateFilter = ' WHERE created_at BETWEEN ? AND ?';
+        params.push(startDate as string, endDate as string);
+      } else if (startDate) {
+        dateFilter = ' WHERE created_at >= ?';
+        params.push(startDate as string);
+      } else if (endDate) {
+        dateFilter = ' WHERE created_at <= ?';
+        params.push(endDate as string);
       }
     }
 
-    const totalGames = await prisma.game.count({ where: whereClause });
-    const totalPlayers = await prisma.player.count();
-    const totalLocations = await prisma.location.count();
+    const totalGames = db.prepare(`SELECT COUNT(*) as count FROM games${dateFilter}`).get(...params) as { count: number };
+    const totalPlayers = db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number };
+    const totalLocations = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
 
     res.json({
-      totalGames,
-      totalPlayers,
-      totalLocations
+      totalGames: totalGames.count,
+      totalPlayers: totalPlayers.count,
+      totalLocations: totalLocations.count
     });
   } catch (error) {
+    console.error('Failed to fetch overview stats:', error);
     res.status(500).json({ error: 'Failed to fetch overview stats' });
   }
 });
 
 export default router;
-

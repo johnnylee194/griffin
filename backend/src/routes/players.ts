@@ -1,113 +1,208 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import db, { generateId } from '../database';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // 获取所有玩家
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
   try {
-    const players = await prisma.player.findMany({
-      orderBy: [
-        { isMe: 'desc' }, // 本人排在最前面
-        { updatedAt: 'desc' }
-      ]
-    });
-    res.json(players);
+    const players = db.prepare(`
+      SELECT 
+        id,
+        name,
+        avatar,
+        is_me as isMe,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM players
+      ORDER BY is_me DESC, updated_at DESC
+    `).all();
+    
+    res.json(players.map(p => ({
+      ...p,
+      isMe: Boolean(p.isMe)
+    })));
   } catch (error) {
+    console.error('Failed to fetch players:', error);
     res.status(500).json({ error: 'Failed to fetch players' });
   }
 });
 
-// 获取单个玩家
-router.get('/:id', async (req, res) => {
+// 获取单个玩家（包含其游戏记录）
+router.get('/:id', (req, res) => {
   try {
-    const player = await prisma.player.findUnique({
-      where: { id: req.params.id },
-      include: {
-        records: {
-          include: {
-            game: true
-          }
-        }
-      }
-    });
+    const player = db.prepare(`
+      SELECT 
+        id,
+        name,
+        avatar,
+        is_me as isMe,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM players
+      WHERE id = ?
+    `).get(req.params.id);
+
     if (!player) {
       return res.status(404).json({ error: 'Player not found' });
     }
-    res.json(player);
+
+    // 获取玩家的游戏记录
+    const records = db.prepare(`
+      SELECT 
+        pr.id,
+        pr.game_id as gameId,
+        pr.player_id as playerId,
+        pr.score,
+        pr.chips,
+        pr.created_at as createdAt,
+        g.location_id as locationId,
+        g.chip_rate as chipRate,
+        g.is_complete as isComplete,
+        g.is_balanced as isBalanced,
+        g.note,
+        g.created_at as gameCreatedAt
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+      ORDER BY g.created_at DESC
+    `).all(req.params.id);
+
+    res.json({
+      ...player,
+      isMe: Boolean(player.isMe),
+      records: records.map(r => ({
+        ...r,
+        isComplete: Boolean(r.isComplete),
+        isBalanced: r.isBalanced !== null ? Boolean(r.isBalanced) : null
+      }))
+    });
   } catch (error) {
+    console.error('Failed to fetch player:', error);
     res.status(500).json({ error: 'Failed to fetch player' });
   }
 });
 
 // 创建玩家
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
   try {
     const { name, avatar, isMe } = req.body;
     
-    // 如果是创建本人，先将其他玩家的isMe设为false
-    if (isMe) {
-      await prisma.player.updateMany({
-        where: { isMe: true },
-        data: { isMe: false }
-      });
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
     }
 
-    const player = await prisma.player.create({
-      data: {
+    // 如果是创建本人，先将其他玩家的isMe设为false
+    if (isMe) {
+      db.prepare(`
+        UPDATE players SET is_me = 0 WHERE is_me = 1
+      `).run();
+    }
+
+    const id = generateId();
+    const now = new Date().toISOString();
+    
+    db.prepare(`
+      INSERT INTO players (id, name, avatar, is_me, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, name, avatar || null, isMe ? 1 : 0, now, now);
+
+    const player = db.prepare(`
+      SELECT 
+        id,
         name,
         avatar,
-        isMe: isMe || false
-      }
+        is_me as isMe,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM players
+      WHERE id = ?
+    `).get(id);
+
+    res.status(201).json({
+      ...player,
+      isMe: Boolean(player.isMe)
     });
-    res.status(201).json(player);
   } catch (error) {
+    console.error('Failed to create player:', error);
     res.status(500).json({ error: 'Failed to create player' });
   }
 });
 
 // 更新玩家
-router.put('/:id', async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
     const { name, avatar, isMe } = req.body;
     
     // 如果要设置为本人，先将其他玩家的isMe设为false
     if (isMe) {
-      await prisma.player.updateMany({
-        where: { 
-          isMe: true,
-          NOT: { id: req.params.id }
-        },
-        data: { isMe: false }
-      });
+      db.prepare(`
+        UPDATE players SET is_me = 0 WHERE is_me = 1 AND id != ?
+      `).run(req.params.id);
     }
 
-    const player = await prisma.player.update({
-      where: { id: req.params.id },
-      data: {
+    const now = new Date().toISOString();
+    
+    const updateFields: string[] = [];
+    const values: any[] = [];
+    
+    if (name !== undefined) {
+      updateFields.push('name = ?');
+      values.push(name);
+    }
+    if (avatar !== undefined) {
+      updateFields.push('avatar = ?');
+      values.push(avatar);
+    }
+    if (isMe !== undefined) {
+      updateFields.push('is_me = ?');
+      values.push(isMe ? 1 : 0);
+    }
+    
+    updateFields.push('updated_at = ?');
+    values.push(now);
+    values.push(req.params.id);
+
+    db.prepare(`
+      UPDATE players SET ${updateFields.join(', ')} WHERE id = ?
+    `).run(...values);
+
+    const player = db.prepare(`
+      SELECT 
+        id,
         name,
         avatar,
-        isMe
-      }
+        is_me as isMe,
+        created_at as createdAt,
+        updated_at as updatedAt
+      FROM players
+      WHERE id = ?
+    `).get(req.params.id);
+
+    res.json({
+      ...player,
+      isMe: Boolean(player.isMe)
     });
-    res.json(player);
   } catch (error) {
+    console.error('Failed to update player:', error);
     res.status(500).json({ error: 'Failed to update player' });
   }
 });
 
 // 删除玩家
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
-    await prisma.player.delete({
-      where: { id: req.params.id }
-    });
+    const result = db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
     res.status(204).send();
   } catch (error) {
+    console.error('Failed to delete player:', error);
     res.status(500).json({ error: 'Failed to delete player' });
   }
 });
 
 export default router;
-

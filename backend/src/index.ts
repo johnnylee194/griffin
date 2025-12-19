@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { PrismaClient } from '@prisma/client';
+import { initDatabase, seedDefaultData } from './database';
 import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
 import gameRoutes from './routes/games';
@@ -10,9 +10,12 @@ import statsRoutes from './routes/stats';
 
 dotenv.config();
 
+// 初始化数据库
+initDatabase();
+seedDefaultData();
+
 const app = express();
 const port = process.env.PORT || 3000;
-const prisma = new PrismaClient();
 
 // 中间件
 app.use(cors());
@@ -46,11 +49,5 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // 启动服务器
 app.listen(port, () => {
   console.log(`🚀 Griffin API server is running on port ${port}`);
-});
-
-// 优雅关闭
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
 });
 

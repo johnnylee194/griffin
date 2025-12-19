@@ -1,6 +1,0 @@
-# Database (SQLite)
-DATABASE_URL="file:./data/griffin.db"
-
-# Server
-PORT=3000
-NODE_ENV=development
