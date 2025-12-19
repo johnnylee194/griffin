@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { playersApi, statsApi, Player } from '../api/client'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 
 export default function StatsPage() {
   const [players, setPlayers] = useState<Player[]>([])
