@@ -1,0 +1,87 @@
+import axios from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// 类型定义
+export interface Player {
+  id: string;
+  name: string;
+  avatar?: string;
+  isMe: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface PlayerRecord {
+  id: string;
+  gameId: string;
+  playerId: string;
+  score: number;
+  chips: number;
+  player: Player;
+}
+
+export interface Game {
+  id: string;
+  locationId: string;
+  chipRate: number;
+  isComplete: boolean;
+  isBalanced: boolean | null;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+  location: Location;
+  records: PlayerRecord[];
+}
+
+// API 方法
+export const playersApi = {
+  getAll: () => apiClient.get<Player[]>('/players'),
+  getOne: (id: string) => apiClient.get<Player>(`/players/${id}`),
+  create: (data: Partial<Player>) => apiClient.post<Player>('/players', data),
+  update: (id: string, data: Partial<Player>) => apiClient.put<Player>(`/players/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/players/${id}`),
+};
+
+export const locationsApi = {
+  getAll: () => apiClient.get<Location[]>('/locations'),
+  create: (data: Partial<Location>) => apiClient.post<Location>('/locations', data),
+  update: (id: string, data: Partial<Location>) => apiClient.put<Location>(`/locations/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/locations/${id}`),
+};
+
+export const gamesApi = {
+  getAll: (params?: { limit?: number; offset?: number }) => 
+    apiClient.get<Game[]>('/games', { params }),
+  getOne: (id: string) => apiClient.get<Game>(`/games/${id}`),
+  create: (data: {
+    locationId: string;
+    chipRate: number;
+    records: { playerId: string; score: number }[];
+    note?: string;
+  }) => apiClient.post<Game>('/games', data),
+  update: (id: string, data: any) => apiClient.put<Game>(`/games/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/games/${id}`),
+};
+
+export const statsApi = {
+  getPlayerStats: (playerId: string, params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get(`/stats/player/${playerId}`, { params }),
+  getOverview: (params?: { startDate?: string; endDate?: string }) =>
+    apiClient.get('/stats/overview', { params }),
+};
+

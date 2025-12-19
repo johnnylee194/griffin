@@ -1,0 +1,43 @@
+# Dependencies
+node_modules
+npm-debug.log
+
+# Build output
+dist
+build
+
+# Environment variables
+.env
+.env.local
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+postgres-data
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+
+# Documentation
+*.md
+!README.md
+
+# CI/CD
+.github
+

@@ -1,0 +1,70 @@
+// Prisma Schema for Griffin
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 玩家
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  avatar    String?  // 头像 URL
+  isMe      Boolean  @default(false) // 是否是本人
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  records PlayerRecord[]
+
+  @@map("players")
+}
+
+// 地点
+model Location {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  games Game[]
+
+  @@map("locations")
+}
+
+// 对局
+model Game {
+  id           String   @id @default(cuid())
+  locationId   String
+  chipRate     Int      @default(100) // 筹码比率: 100 或 200
+  isComplete   Boolean  @default(false) // 是否完整记录（4个玩家）
+  isBalanced   Boolean? // 是否平账（完整记录时检查）
+  note         String? // 备注
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  location Location       @relation(fields: [locationId], references: [id])
+  records  PlayerRecord[]
+
+  @@map("games")
+}
+
+// 玩家记录（每个玩家在每场对局中的得分）
+model PlayerRecord {
+  id        String   @id @default(cuid())
+  gameId    String
+  playerId  String
+  score     Int      // 原始分数（正数为赢，负数为输）
+  chips     Int      // 筹码金额（score * chipRate）
+  createdAt DateTime @default(now())
+
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([gameId, playerId]) // 每场对局中每个玩家只能有一条记录
+  @@map("player_records")
+}
+

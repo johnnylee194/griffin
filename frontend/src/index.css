@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark text-white;
+  }
+}
+
+@layer components {
+  /* 按钮样式 */
+  .btn-primary {
+    @apply bg-gold hover:bg-gold-light text-dark font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-dark-light hover:bg-dark-lighter border border-gold/30 text-gold font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+
+  /* 卡片样式 */
+  .card {
+    @apply bg-dark-lighter border border-gold/20 rounded-xl p-4 shadow-lg;
+  }
+
+  /* 输入框样式 */
+  .input {
+    @apply bg-dark-light border border-gold/30 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold;
+  }
+
+  /* 数字键盘按钮 */
+  .numpad-btn {
+    @apply bg-dark-light hover:bg-dark-lighter active:bg-gold active:text-dark border border-gold/30 text-gold font-bold text-2xl rounded-lg h-16 transition-all duration-150;
+  }
+}
+

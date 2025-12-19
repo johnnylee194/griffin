@@ -1,0 +1,134 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { gamesApi, statsApi, Game } from '../api/client'
+
+export default function HomePage() {
+  const [recentGames, setRecentGames] = useState<Game[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    try {
+      const [gamesRes, statsRes] = await Promise.all([
+        gamesApi.getAll({ limit: 5 }),
+        statsApi.getOverview()
+      ])
+      setRecentGames(gamesRes.data)
+      setStats(statsRes.data)
+    } catch (error) {
+      console.error('Failed to load data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gold text-xl">加载中...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+      {/* 欢迎横幅 */}
+      <div className="card bg-gradient-to-br from-gold-dark/20 to-dark-lighter">
+        <h2 className="text-2xl font-bold text-gold mb-2">欢迎回来！</h2>
+        <p className="text-gray-300">让我们继续追踪你的胜利</p>
+      </div>
+
+      {/* 统计概览 */}
+      {stats && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="card text-center">
+            <div className="text-3xl font-bold text-gold">{stats.totalGames}</div>
+            <div className="text-sm text-gray-400 mt-1">总局数</div>
+          </div>
+          <div className="card text-center">
+            <div className="text-3xl font-bold text-gold">{stats.totalPlayers}</div>
+            <div className="text-sm text-gray-400 mt-1">玩家数</div>
+          </div>
+          <div className="card text-center">
+            <div className="text-3xl font-bold text-gold">{stats.totalLocations}</div>
+            <div className="text-sm text-gray-400 mt-1">地点数</div>
+          </div>
+        </div>
+      )}
+
+      {/* 快速操作 */}
+      <div>
+        <h3 className="text-xl font-semibold text-gold mb-3">快速操作</h3>
+        <Link to="/new-game" className="btn-primary w-full block text-center text-lg py-4">
+          ➕ 记录新对局
+        </Link>
+      </div>
+
+      {/* 最近对局 */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xl font-semibold text-gold">最近对局</h3>
+          <Link to="/history" className="text-gold text-sm hover:underline">
+            查看全部 →
+          </Link>
+        </div>
+        
+        {recentGames.length === 0 ? (
+          <div className="card text-center text-gray-400 py-8">
+            还没有对局记录，<Link to="/new-game" className="text-gold hover:underline">开始记录第一局</Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentGames.map(game => (
+              <GameCard key={game.id} game={game} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GameCard({ game }: { game: Game }) {
+  const date = new Date(game.createdAt)
+  const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+  const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center space-x-2">
+          <span className="text-gold font-semibold">📍 {game.location.name}</span>
+          <span className="text-xs text-gray-400">
+            {dateStr} {timeStr}
+          </span>
+        </div>
+        <div className="text-xs text-gray-400">
+          {game.chipRate === 100 ? '一分100' : '一分200'}
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {game.records.map(record => (
+          <div key={record.id} className="flex items-center justify-between text-sm">
+            <span className={record.player.isMe ? 'text-gold font-semibold' : 'text-gray-300'}>
+              {record.player.name}
+            </span>
+            <span className={record.chips >= 0 ? 'text-green-500' : 'text-red-500'}>
+              {record.chips >= 0 ? '+' : ''}{record.chips}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {!game.isBalanced && game.isComplete && (
+        <div className="mt-2 text-xs text-red-400">⚠️ 未平账</div>
+      )}
+    </div>
+  )
+}
+

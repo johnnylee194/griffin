@@ -1,0 +1,10 @@
+# Database
+DATABASE_URL="postgresql://griffin:griffin@localhost:5432/griffin?schema=public"
+
+# Server
+PORT=3000
+NODE_ENV=development
+
+# CORS
+CORS_ORIGIN=http://localhost:5173
+

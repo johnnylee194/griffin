@@ -1,0 +1,40 @@
+name: Deploy to Tencent Cloud
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            # 进入项目目录
+            cd /opt/griffin || exit 1
+            
+            # 拉取最新代码
+            git pull origin main
+            
+            # 停止现有容器
+            docker-compose down
+            
+            # 构建并启动新容器
+            docker-compose up -d --build
+            
+            # 清理旧镜像
+            docker image prune -f
+            
+            echo "Deployment completed successfully!"
+
