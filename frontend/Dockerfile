@@ -3,11 +3,17 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# 替换 Alpine 镜像源为腾讯云
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.cloud.tencent.com/g' /etc/apk/repositories
+
 # 复制依赖文件
 COPY package*.json ./
 
+# 配置淘宝 NPM 镜像
+RUN npm config set registry https://registry.npmmirror.com
+
 # 安装依赖
-RUN npm ci
+RUN npm install
 
 # 复制源代码
 COPY . .
