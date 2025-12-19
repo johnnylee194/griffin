@@ -1,5 +1,5 @@
 # --- Stage 1: Build Frontend ---
-FROM node:20-alpine AS frontend-builder
+FROM node:18-alpine AS frontend-builder
 WORKDIR /app/client
 
 # 替换 Alpine 镜像源为腾讯云
@@ -14,7 +14,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- Stage 2: Build Backend ---
-FROM node:20-alpine AS backend-builder
+FROM node:18-alpine AS backend-builder
 WORKDIR /app
 
 # 替换 Alpine 镜像源为腾讯云
@@ -33,7 +33,7 @@ COPY backend/ ./
 RUN npm run build
 
 # --- Stage 3: Runtime ---
-FROM node:20-alpine
+FROM node:18-alpine
 WORKDIR /app
 
 # 替换 Alpine 镜像源为腾讯云
