@@ -14,9 +14,9 @@ router.get('/', (req, res) => {
         created_at as createdAt
       FROM locations
       ORDER BY is_default DESC, created_at DESC
-    `).all();
+    `).all() as any[];
     
-    res.json(locations.map(l => ({
+    res.json(locations.map((l: any) => ({
       ...l,
       isDefault: Boolean(l.isDefault)
     })));
@@ -62,7 +62,7 @@ router.post('/', (req, res) => {
         created_at as createdAt
       FROM locations
       WHERE id = ?
-    `).get(id);
+    `).get(id) as any;
 
     res.status(201).json({
       ...location,
@@ -118,7 +118,7 @@ router.put('/:id', (req, res) => {
         created_at as createdAt
       FROM locations
       WHERE id = ?
-    `).get(req.params.id);
+    `).get(req.params.id) as any;
 
     if (!location) {
       return res.status(404).json({ error: 'Location not found' });

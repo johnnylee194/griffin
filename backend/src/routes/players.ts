@@ -16,9 +16,9 @@ router.get('/', (req, res) => {
         updated_at as updatedAt
       FROM players
       ORDER BY is_me DESC, updated_at DESC
-    `).all();
+    `).all() as any[];
     
-    res.json(players.map(p => ({
+    res.json(players.map((p: any) => ({
       ...p,
       isMe: Boolean(p.isMe)
     })));
@@ -41,7 +41,7 @@ router.get('/:id', (req, res) => {
         updated_at as updatedAt
       FROM players
       WHERE id = ?
-    `).get(req.params.id);
+    `).get(req.params.id) as any;
 
     if (!player) {
       return res.status(404).json({ error: 'Player not found' });
@@ -66,12 +66,12 @@ router.get('/:id', (req, res) => {
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ?
       ORDER BY g.created_at DESC
-    `).all(req.params.id);
+    `).all(req.params.id) as any[];
 
     res.json({
       ...player,
       isMe: Boolean(player.isMe),
-      records: records.map(r => ({
+      records: records.map((r: any) => ({
         ...r,
         isComplete: Boolean(r.isComplete),
         isBalanced: r.isBalanced !== null ? Boolean(r.isBalanced) : null
@@ -117,7 +117,7 @@ router.post('/', (req, res) => {
         updated_at as updatedAt
       FROM players
       WHERE id = ?
-    `).get(id);
+    `).get(id) as any;
 
     res.status(201).json({
       ...player,
@@ -177,7 +177,7 @@ router.put('/:id', (req, res) => {
         updated_at as updatedAt
       FROM players
       WHERE id = ?
-    `).get(req.params.id);
+    `).get(req.params.id) as any;
 
     res.json({
       ...player,

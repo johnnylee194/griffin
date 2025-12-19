@@ -22,7 +22,7 @@ function getGameWithDetails(gameId: string) {
     FROM games g
     JOIN locations l ON g.location_id = l.id
     WHERE g.id = ?
-  `).get(gameId);
+  `).get(gameId) as any;
 
   if (!game) return null;
 
@@ -44,7 +44,7 @@ function getGameWithDetails(gameId: string) {
     JOIN players p ON pr.player_id = p.id
     WHERE pr.game_id = ?
     ORDER BY pr.created_at ASC
-  `).all(gameId);
+  `).all(gameId) as any[];
 
   // 重构数据结构
   return {
@@ -62,7 +62,7 @@ function getGameWithDetails(gameId: string) {
       isDefault: Boolean(game['location.isDefault']),
       createdAt: game['location.createdAt']
     },
-    records: records.map(r => ({
+    records: records.map((r: any) => ({
       id: r.id,
       gameId: r.gameId,
       playerId: r.playerId,
