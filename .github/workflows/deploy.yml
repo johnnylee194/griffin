@@ -21,6 +21,9 @@ jobs:
             # 拉取最新代码
             git pull origin main
             
+            # 创建数据目录
+            mkdir -p data
+            
             # 停止现有容器
             docker compose down
             

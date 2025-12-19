@@ -1,65 +1,16 @@
 version: '3.8'
 
 services:
-  # PostgreSQL 数据库
-  postgres:
-    image: postgres:16-alpine
-    container_name: griffin-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: griffin
-      POSTGRES_PASSWORD: griffin_password_change_me
-      POSTGRES_DB: griffin
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - griffin-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U griffin"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # 后端服务
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: griffin-backend
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://griffin:griffin_password_change_me@postgres:5432/griffin?schema=public
-      PORT: 3000
-      NODE_ENV: production
-      CORS_ORIGIN: http://localhost
+  app:
+    container_name: griffin
+    build: .
+    restart: always
     ports:
       - "3000:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - griffin-network
-
-  # 前端服务
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: /api
-    container_name: griffin-frontend
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - griffin-network
-
-volumes:
-  postgres_data:
-
-networks:
-  griffin-network:
-    driver: bridge
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=file:./data/griffin.db
 

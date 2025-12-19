@@ -27,8 +27,10 @@ Thumbs.db
 
 # Database
 *.db
+*.db-journal
 *.sqlite
 *.sqlite3
+data/
 postgres-data/
 
 # Logs

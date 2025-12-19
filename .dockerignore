@@ -24,8 +24,8 @@ Thumbs.db
 
 # Database
 *.db
-*.sqlite
-postgres-data
+*.db-journal
+data/
 
 # Logs
 logs
@@ -41,3 +41,8 @@ coverage
 # CI/CD
 .github
 
+# Old separate containers structure
+backend/Dockerfile
+frontend/Dockerfile
+backend/docker-entrypoint.sh
+frontend/nginx.conf

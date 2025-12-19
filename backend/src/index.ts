@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
@@ -14,21 +15,27 @@ const port = process.env.PORT || 3000;
 const prisma = new PrismaClient();
 
 // 中间件
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173'
-}));
+app.use(cors());
 app.use(express.json());
 
-// 路由
+// API 路由
 app.use('/api/players', playerRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/stats', statsRoutes);
 
 // 健康检查
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Griffin API is running' });
 });
+
+// 静态文件服务（生产环境）
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../../client/dist')));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
+  });
+}
 
 // 错误处理
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

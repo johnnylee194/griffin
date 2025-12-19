@@ -6,6 +6,9 @@ WORKDIR /app
 # 替换 Alpine 镜像源为腾讯云
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.cloud.tencent.com/g' /etc/apk/repositories
 
+# 安装 OpenSSL（Prisma 需要）
+RUN apk add --no-cache openssl libc6-compat
+
 # 复制依赖文件
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -32,6 +35,9 @@ WORKDIR /app
 
 # 替换 Alpine 镜像源为腾讯云
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.cloud.tencent.com/g' /etc/apk/repositories
+
+# 安装 OpenSSL（Prisma 需要）
+RUN apk add --no-cache openssl libc6-compat
 
 # 复制依赖文件
 COPY package*.json ./
