@@ -54,23 +54,30 @@
 
 ✅ **后端**
 - Node.js + Express + TypeScript
-- Prisma ORM
+- better-sqlite3 数据库
+- JWT 身份认证
 - RESTful API 设计
 - 完整的数据验证
 - 错误处理机制
 
 ✅ **数据库**
-- PostgreSQL 数据库
+- SQLite 轻量级数据库
 - 完整的数据模型设计
-- 自动迁移支持
+- 单文件数据存储
 - 初始数据种子
 
 ✅ **部署**
-- Docker 容器化
-- Docker Compose 编排
+- Docker 单容器架构
 - Nginx 反向代理
+- HTTPS/SSL 支持
 - GitHub Actions 自动部署
 - 生产环境优化
+
+✅ **PWA 支持**
+- Service Worker 离线缓存
+- 应用图标和启动画面
+- 可安装到桌面/主屏幕
+- 移动端完美适配
 
 ## 📂 项目文件结构
 
@@ -332,6 +339,34 @@ isBalanced = (总分 === 0)
 2. 查看 [DEPLOYMENT.md](./DEPLOYMENT.md) 的详细说明
 3. 提交 GitHub Issue
 4. 查看项目文档
+
+## 📋 版本历史
+
+### v0.3 (2025-12) - PWA 支持与移动端优化
+- ✅ 添加 PWA 支持（可安装应用）
+- ✅ Service Worker 离线缓存
+- ✅ 应用图标和启动画面
+- ✅ 修复移动端 100vh 视口问题
+- ✅ 优化移动端响应式布局
+- ✅ 完美支持下拉刷新和 PWA 安装
+
+### v0.2 (2025-12) - 身份认证
+- ✅ JWT 登录系统
+- ✅ 密码加密存储 (bcrypt)
+- ✅ 路由保护中间件
+- ✅ Token 验证与刷新
+
+### v0.1 (2025-12) - 单容器架构重构
+- ✅ 从 PostgreSQL + Prisma 迁移到 SQLite + better-sqlite3
+- ✅ 单容器 Docker 架构（简化部署）
+- ✅ 优化构建流程和镜像大小
+- ✅ 数据持久化本地存储
+
+### v0.0 - 初始版本
+- ✅ 核心功能：记录对局、历史记录、数据统计、设置管理
+- ✅ 完整的前后端分离架构
+- ✅ Docker + GitHub Actions 自动部署
+- ✅ 响应式设计，黑金配色方案
 
 ## 🎉 项目状态
 
