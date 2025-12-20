@@ -9,6 +9,38 @@ export const apiClient = axios.create({
   },
 });
 
+// 请求拦截器：添加 token
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    console.log(`🌐 [API] ${config.method?.toUpperCase()} ${config.url}`, config.params || config.data || '');
+    return config;
+  },
+  (error) => {
+    console.error('❌ [API] 请求错误:', error);
+    return Promise.reject(error);
+  }
+);
+
+// 响应拦截器：统一处理响应和错误
+apiClient.interceptors.response.use(
+  (response) => {
+    console.log(`✅ [API] ${response.config.url} 响应:`, response.data);
+    return response;
+  },
+  (error) => {
+    console.error('❌ [API] 响应错误:', error.response?.status, error.response?.data || error.message);
+    if (error.response?.status === 401) {
+      console.warn('⚠️ [API] Token 过期或无效，需要重新登录');
+      // 可以在这里触发登出逻辑
+    }
+    return Promise.reject(error);
+  }
+);
+
 // 类型定义
 export interface Player {
   id: string;
