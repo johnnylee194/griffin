@@ -35,54 +35,54 @@ export default function HomePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-3 sm:py-6 space-y-3 sm:space-y-6">
+    <div className="max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-6">
       {/* 欢迎横幅 */}
-      <div className="card bg-gradient-to-br from-gold-dark/20 to-dark-lighter py-3 sm:py-4">
-        <h2 className="text-xl sm:text-2xl font-bold text-gold mb-1">欢迎回来！</h2>
-        <p className="text-sm sm:text-base text-gray-300">让我们继续追踪你的胜利</p>
+      <div className="card bg-gradient-to-br from-gold-dark/20 to-dark-lighter py-2 sm:py-4">
+        <h2 className="text-lg sm:text-2xl font-bold text-gold mb-0.5 sm:mb-1">欢迎回来！</h2>
+        <p className="text-xs sm:text-base text-gray-300">让我们继续追踪你的胜利</p>
       </div>
 
       {/* 统计概览 */}
       {stats && (
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
-          <div className="card text-center py-3 sm:py-4">
-            <div className="text-2xl sm:text-3xl font-bold text-gold">{stats.totalGames}</div>
-            <div className="text-xs sm:text-sm text-gray-400 mt-1">总局数</div>
+          <div className="card text-center py-2 sm:py-4">
+            <div className="text-xl sm:text-3xl font-bold text-gold">{stats.totalGames}</div>
+            <div className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">总局数</div>
           </div>
-          <div className="card text-center py-3 sm:py-4">
-            <div className="text-2xl sm:text-3xl font-bold text-gold">{stats.totalPlayers}</div>
-            <div className="text-xs sm:text-sm text-gray-400 mt-1">玩家数</div>
+          <div className="card text-center py-2 sm:py-4">
+            <div className="text-xl sm:text-3xl font-bold text-gold">{stats.totalPlayers}</div>
+            <div className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">玩家数</div>
           </div>
-          <div className="card text-center py-3 sm:py-4">
-            <div className="text-2xl sm:text-3xl font-bold text-gold">{stats.totalLocations}</div>
-            <div className="text-xs sm:text-sm text-gray-400 mt-1">地点数</div>
+          <div className="card text-center py-2 sm:py-4">
+            <div className="text-xl sm:text-3xl font-bold text-gold">{stats.totalLocations}</div>
+            <div className="text-xs sm:text-sm text-gray-400 mt-0.5 sm:mt-1">地点数</div>
           </div>
         </div>
       )}
 
       {/* 快速操作 */}
       <div>
-        <h3 className="text-lg sm:text-xl font-semibold text-gold mb-2">快速操作</h3>
-        <Link to="/new-game" className="btn-primary w-full block text-center text-base sm:text-lg py-3 sm:py-4">
+        <h3 className="text-base sm:text-xl font-semibold text-gold mb-1.5 sm:mb-2">快速操作</h3>
+        <Link to="/new-game" className="btn-primary w-full block text-center text-base sm:text-lg py-2.5 sm:py-4">
           ➕ 记录新对局
         </Link>
       </div>
 
       {/* 最近对局 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg sm:text-xl font-semibold text-gold">最近对局</h3>
-          <Link to="/history" className="text-gold text-sm hover:underline">
+      <div className="pb-2">
+        <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+          <h3 className="text-base sm:text-xl font-semibold text-gold">最近对局</h3>
+          <Link to="/history" className="text-gold text-xs sm:text-sm hover:underline">
             查看全部 →
           </Link>
         </div>
         
         {recentGames.length === 0 ? (
-          <div className="card text-center text-gray-400 py-6 sm:py-8">
+          <div className="card text-center text-gray-400 py-4 sm:py-8 text-xs sm:text-base">
             还没有对局记录，<Link to="/new-game" className="text-gold hover:underline">开始记录第一局</Link>
           </div>
         ) : (
-          <div className="space-y-2 sm:space-y-3">
+          <div className="space-y-1.5 sm:space-y-3">
             {recentGames.map(game => (
               <GameCard key={game.id} game={game} />
             ))}
