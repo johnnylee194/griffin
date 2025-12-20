@@ -59,27 +59,51 @@ function AppContent() {
       const nav = document.querySelector('nav');
       const main = document.querySelector('main');
       const container = main?.querySelector('div'); // 首页的容器
+      const appContainer = main?.parentElement; // App 根容器
       
       setDebugInfo({
-        version: 'v0.3.2-debug',
+        version: 'v0.3.3-debug',
         timestamp: new Date().toLocaleString('zh-CN'),
+        
+        // === 基础信息 ===
         windowSize: `${window.innerWidth}x${window.innerHeight}`,
         viewportHeight: `${document.documentElement.clientHeight}px`,
+        
+        // === HTML/Body ===
+        htmlHeight: `${document.documentElement.offsetHeight}px`,
         bodyHeight: `${document.body.scrollHeight}px`,
+        bodyClientHeight: `${document.body.clientHeight}px`,
         bodyOverflow: window.getComputedStyle(document.body).overflow,
-        // Header/Nav 高度
-        headerHeight: header ? `${header.offsetHeight}px` : 'N/A',
-        navHeight: nav ? `${nav.offsetHeight}px` : 'N/A',
-        // Main 高度
-        mainHeight: main ? `${main.scrollHeight}px` : 'N/A',
-        mainClientHeight: main ? `${main.clientHeight}px` : 'N/A',
-        mainOffsetHeight: main ? `${main.offsetHeight}px` : 'N/A',
+        
+        // === App 容器 (h-screen flex flex-col) ===
+        appHeight: appContainer ? `${(appContainer as HTMLElement).offsetHeight}px` : 'N/A',
+        appDisplay: appContainer ? window.getComputedStyle(appContainer).display : 'N/A',
+        appFlexDirection: appContainer ? window.getComputedStyle(appContainer).flexDirection : 'N/A',
+        
+        // === Header/Nav ===
+        headerH: header ? `${header.offsetHeight}px` : 'N/A',
+        navH: nav ? `${nav.offsetHeight}px` : 'N/A',
+        
+        // === Main (flex-1) ===
+        mainH: main ? `${main.scrollHeight}px` : 'N/A',
+        mainClientH: main ? `${main.clientHeight}px` : 'N/A',
+        mainComputedH: main ? window.getComputedStyle(main).height : 'N/A',
+        mainFlex: main ? window.getComputedStyle(main).flex : 'N/A',
+        mainFlexBasis: main ? window.getComputedStyle(main).flexBasis : 'N/A',
         mainOverflow: main ? window.getComputedStyle(main).overflow : 'N/A',
-        // Container 高度
-        containerHeight: container ? `${container.scrollHeight}px` : 'N/A',
-        containerClientHeight: container ? `${container.clientHeight}px` : 'N/A',
+        
+        // === Container (h-full overflow-y-auto) ===
+        containerH: container ? `${container.scrollHeight}px` : 'N/A',
+        containerClientH: container ? `${container.clientHeight}px` : 'N/A',
+        containerComputedH: container ? window.getComputedStyle(container).height : 'N/A',
         containerOverflow: container ? window.getComputedStyle(container).overflowY : 'N/A',
-        // 其他
+        
+        // === 加载信息 ===
+        loadType: performance.navigation ? 
+          (performance.navigation.type === 1 ? 'reload' : 'navigate') : 'unknown',
+        loadTime: `${Math.round(performance.now())}ms`,
+        
+        // === 其他 ===
         isPWA: window.matchMedia('(display-mode: standalone)').matches,
         pathname: location.pathname
       });
