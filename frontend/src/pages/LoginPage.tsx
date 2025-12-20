@@ -13,9 +13,13 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
+    console.log('开始登录:', { username, password: '***' });
+
     try {
       await login(username, password);
+      console.log('登录成功');
     } catch (err: any) {
+      console.error('登录失败:', err);
       setError(err.response?.data?.error || '登录失败，请重试');
     } finally {
       setIsLoading(false);
@@ -46,7 +50,7 @@ export default function LoginPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
               placeholder="请输入用户名"
               required
               disabled={isLoading}
@@ -62,7 +66,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
               placeholder="请输入密码"
               required
               disabled={isLoading}

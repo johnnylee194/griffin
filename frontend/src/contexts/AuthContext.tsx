@@ -43,13 +43,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (username: string, password: string) => {
-    const response = await apiClient.post('/auth/login', { username, password });
-    const { token: newToken, user: newUser } = response.data;
-    
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    console.log('AuthContext: 调用登录API');
+    try {
+      const response = await apiClient.post('/auth/login', { username, password });
+      console.log('AuthContext: 登录API响应:', response.data);
+      const { token: newToken, user: newUser } = response.data;
+      
+      setToken(newToken);
+      setUser(newUser);
+      localStorage.setItem('token', newToken);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      console.log('AuthContext: 登录状态已更新');
+    } catch (error) {
+      console.error('AuthContext: 登录API错误:', error);
+      throw error;
+    }
   };
 
   const logout = () => {
