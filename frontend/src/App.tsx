@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
@@ -40,8 +40,15 @@ function App() {
 function AppContent() {
   const [activeTab, setActiveTab] = useState('home')
   const location = useLocation()
-  const { logout } = useAuth()
+  const { logout, token } = useAuth()
   const isLoginPage = location.pathname === '/login'
+  
+  // 如果已登录且在登录页，跳转到首页
+  useEffect(() => {
+    if (token && isLoginPage) {
+      window.location.href = '/';
+    }
+  }, [token, isLoginPage]);
 
   const handleLogout = () => {
     if (confirm('确定要退出登录吗？')) {
