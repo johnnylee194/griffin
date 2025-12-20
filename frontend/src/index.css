@@ -24,7 +24,7 @@
 
   /* 卡片样式 */
   .card {
-    @apply bg-dark-lighter border border-gold/20 rounded-xl p-4 shadow-lg;
+    @apply bg-dark-lighter border border-gold/20 rounded-xl p-3 sm:p-4 shadow-lg;
   }
 
   /* 输入框样式 */
