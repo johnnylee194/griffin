@@ -55,18 +55,32 @@ function AppContent() {
   // 更新调试信息
   useEffect(() => {
     const updateDebugInfo = () => {
+      const header = document.querySelector('header');
+      const nav = document.querySelector('nav');
+      const main = document.querySelector('main');
+      const container = main?.querySelector('div'); // 首页的容器
+      
       setDebugInfo({
-        version: 'v0.3.1-debug',
+        version: 'v0.3.2-debug',
         timestamp: new Date().toLocaleString('zh-CN'),
         windowSize: `${window.innerWidth}x${window.innerHeight}`,
-        screenSize: `${window.screen.width}x${window.screen.height}`,
         viewportHeight: `${document.documentElement.clientHeight}px`,
         bodyHeight: `${document.body.scrollHeight}px`,
-        mainHeight: document.querySelector('main') ? `${(document.querySelector('main') as HTMLElement).scrollHeight}px` : 'N/A',
+        bodyOverflow: window.getComputedStyle(document.body).overflow,
+        // Header/Nav 高度
+        headerHeight: header ? `${header.offsetHeight}px` : 'N/A',
+        navHeight: nav ? `${nav.offsetHeight}px` : 'N/A',
+        // Main 高度
+        mainHeight: main ? `${main.scrollHeight}px` : 'N/A',
+        mainClientHeight: main ? `${main.clientHeight}px` : 'N/A',
+        mainOffsetHeight: main ? `${main.offsetHeight}px` : 'N/A',
+        mainOverflow: main ? window.getComputedStyle(main).overflow : 'N/A',
+        // Container 高度
+        containerHeight: container ? `${container.scrollHeight}px` : 'N/A',
+        containerClientHeight: container ? `${container.clientHeight}px` : 'N/A',
+        containerOverflow: container ? window.getComputedStyle(container).overflowY : 'N/A',
+        // 其他
         isPWA: window.matchMedia('(display-mode: standalone)').matches,
-        userAgent: navigator.userAgent.substring(0, 60) + '...',
-        sw: 'serviceWorker' in navigator ? 'supported' : 'not supported',
-        online: navigator.onLine,
         pathname: location.pathname
       });
     };
