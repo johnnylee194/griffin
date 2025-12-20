@@ -39,6 +39,8 @@ function App() {
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('home')
+  const [showDebug, setShowDebug] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<any>({})
   const location = useLocation()
   const { logout, token } = useAuth()
   const isLoginPage = location.pathname === '/login'
@@ -49,6 +51,34 @@ function AppContent() {
       window.location.href = '/';
     }
   }, [token, isLoginPage]);
+
+  // 更新调试信息
+  useEffect(() => {
+    const updateDebugInfo = () => {
+      setDebugInfo({
+        version: 'v0.3.1-debug',
+        timestamp: new Date().toLocaleString('zh-CN'),
+        windowSize: `${window.innerWidth}x${window.innerHeight}`,
+        screenSize: `${window.screen.width}x${window.screen.height}`,
+        viewportHeight: `${document.documentElement.clientHeight}px`,
+        bodyHeight: `${document.body.scrollHeight}px`,
+        mainHeight: document.querySelector('main') ? `${(document.querySelector('main') as HTMLElement).scrollHeight}px` : 'N/A',
+        isPWA: window.matchMedia('(display-mode: standalone)').matches,
+        userAgent: navigator.userAgent.substring(0, 60) + '...',
+        sw: 'serviceWorker' in navigator ? 'supported' : 'not supported',
+        online: navigator.onLine,
+        pathname: location.pathname
+      });
+    };
+    
+    updateDebugInfo();
+    const timer = setInterval(updateDebugInfo, 1000); // 每秒更新
+    window.addEventListener('resize', updateDebugInfo);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('resize', updateDebugInfo);
+    };
+  }, [location.pathname]);
 
   const handleLogout = () => {
     if (confirm('确定要退出登录吗？')) {
@@ -66,6 +96,22 @@ function AppContent() {
 
   return (
     <div className="h-screen flex flex-col bg-dark overflow-hidden">
+      {/* 调试面板 */}
+      {showDebug && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 text-white p-2 text-[10px] overflow-auto max-h-[40vh] border-b-2 border-gold">
+          <div className="flex justify-between items-start mb-1">
+            <strong className="text-gold">🐛 调试信息</strong>
+            <button onClick={() => setShowDebug(false)} className="text-red-400 text-sm">✕</button>
+          </div>
+          {Object.entries(debugInfo).map(([key, value]) => (
+            <div key={key} className="mb-0.5 flex">
+              <span className="text-gold w-32 flex-shrink-0">{key}:</span>
+              <span className="break-all">{String(value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      
       {/* 顶部导航栏 */}
       <header className="flex-shrink-0 bg-dark-lighter border-b border-gold/20 px-4 py-2 sm:py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -73,7 +119,13 @@ function AppContent() {
             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-gold to-gold-dark rounded-lg flex items-center justify-center">
               <span className="text-xl sm:text-2xl">🦅</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gold">Griffin</h1>
+            <h1 
+              className="text-xl sm:text-2xl font-bold text-gold cursor-pointer"
+              onClick={() => setShowDebug(!showDebug)}
+              title="点击显示/隐藏调试信息"
+            >
+              Griffin
+            </h1>
           </div>
           <button
             onClick={handleLogout}
