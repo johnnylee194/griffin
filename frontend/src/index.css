@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  html, body {
+    @apply h-full overflow-hidden;
+  }
+  
   body {
     @apply bg-dark text-white;
   }

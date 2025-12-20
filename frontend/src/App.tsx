@@ -75,7 +75,7 @@ function AppContent() {
         bodyClientHeight: `${document.body.clientHeight}px`,
         bodyOverflow: window.getComputedStyle(document.body).overflow,
         
-        // === App 容器 (h-screen flex flex-col) ===
+        // === App 容器 (fixed inset-0 flex flex-col) ===
         appHeight: appContainer ? `${(appContainer as HTMLElement).offsetHeight}px` : 'N/A',
         appDisplay: appContainer ? window.getComputedStyle(appContainer).display : 'N/A',
         appFlexDirection: appContainer ? window.getComputedStyle(appContainer).flexDirection : 'N/A',
@@ -133,7 +133,7 @@ function AppContent() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-dark overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-dark overflow-hidden">
       {/* 调试面板 */}
       {showDebug && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-black/95 text-white p-2 text-[10px] overflow-auto max-h-[40vh] border-b-2 border-gold">
