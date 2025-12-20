@@ -11,14 +11,15 @@ cd "$(dirname "$0")/../frontend/public"
 SIZES=(72 96 128 144 152 192 384 512)
 
 for size in "${SIZES[@]}"; do
-  # Create a simple colored square as placeholder
-  # Gold color (#d4af37) with Griffin text
+  # Create a golden griffin icon with dark background
+  # Background: dark (#1a1a1a), Icon: gold (#d4af37)
   convert -size ${size}x${size} \
-    xc:"#1a1a1a" \
+    -background "#1a1a1a" \
     -fill "#d4af37" \
+    -font "DejaVu-Sans" \
     -gravity center \
-    -pointsize $((size / 4)) \
-    -annotate +0+0 "🦅" \
+    -pointsize $((size * 6 / 10)) \
+    label:"🦅" \
     "icon-${size}x${size}.png"
   
   echo "Generated icon-${size}x${size}.png"
