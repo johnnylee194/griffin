@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { randomBytes } from 'crypto';
+import bcrypt from 'bcryptjs';
 
 const dbDir = path.join(__dirname, '../data');
 if (!fs.existsSync(dbDir)) {
@@ -16,6 +17,16 @@ export function generateId(): string {
 }
 
 export const initDatabase = () => {
+  // 创建用户表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // 创建玩家表
   db.exec(`
     CREATE TABLE IF NOT EXISTS players (
@@ -81,6 +92,21 @@ export const initDatabase = () => {
 
 // 初始化默认数据
 export const seedDefaultData = () => {
+  // 检查是否已有用户
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
+  
+  if (userCount.count === 0) {
+    // 创建默认用户（用户名: admin, 密码: admin123）
+    const userId = generateId();
+    const hashedPassword = bcrypt.hashSync('admin123', 10);
+    db.prepare(`
+      INSERT INTO users (id, username, password, created_at)
+      VALUES (?, ?, ?, datetime('now'))
+    `).run(userId, 'admin', hashedPassword);
+    
+    console.log('✅ Default user "admin" created (password: admin123)');
+  }
+
   // 检查是否已有数据
   const locationCount = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
   

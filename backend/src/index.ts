@@ -3,10 +3,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { initDatabase, seedDefaultData } from './database';
+import authRoutes from './routes/auth';
 import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
 import gameRoutes from './routes/games';
 import statsRoutes from './routes/stats';
+import { authMiddleware } from './middleware/auth';
 
 dotenv.config();
 
@@ -21,16 +23,19 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// API 路由
-app.use('/api/players', playerRoutes);
-app.use('/api/locations', locationRoutes);
-app.use('/api/games', gameRoutes);
-app.use('/api/stats', statsRoutes);
+// 公开路由（不需要认证）
+app.use('/api/auth', authRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Griffin API is running' });
 });
+
+// 受保护的路由（需要认证）
+app.use('/api/players', authMiddleware, playerRoutes);
+app.use('/api/locations', authMiddleware, locationRoutes);
+app.use('/api/games', authMiddleware, gameRoutes);
+app.use('/api/stats', authMiddleware, statsRoutes);
 
 // 静态文件服务（生产环境）
 if (process.env.NODE_ENV === 'production') {
