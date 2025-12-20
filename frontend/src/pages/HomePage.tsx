@@ -35,7 +35,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-6">
+    <div className="h-full max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-6 overflow-y-auto">
       {/* 欢迎横幅 */}
       <div className="card bg-gradient-to-br from-gold-dark/20 to-dark-lighter py-2 sm:py-4">
         <h2 className="text-lg sm:text-2xl font-bold text-gold mb-0.5 sm:mb-1">欢迎回来！</h2>
