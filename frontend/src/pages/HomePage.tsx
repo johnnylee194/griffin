@@ -13,21 +13,14 @@ export default function HomePage() {
 
   const loadData = async () => {
     try {
-      console.log('🔍 [HomePage] 开始加载数据...')
       const [gamesRes, statsRes] = await Promise.all([
         gamesApi.getAll({ limit: 5 }),
         statsApi.getOverview()
       ])
-      console.log('📊 [HomePage] 对局数据:', gamesRes.data)
-      console.log('📈 [HomePage] 统计数据:', statsRes.data)
       setRecentGames(gamesRes.data)
       setStats(statsRes.data)
     } catch (error) {
-      console.error('❌ [HomePage] 加载数据失败:', error)
-      if ((error as any).response) {
-        console.error('   - 响应状态:', (error as any).response.status)
-        console.error('   - 响应数据:', (error as any).response.data)
-      }
+      console.error('Failed to load data:', error)
     } finally {
       setLoading(false)
     }

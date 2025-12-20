@@ -16,25 +16,19 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log(`🌐 [API] ${config.method?.toUpperCase()} ${config.url}`, config.params || config.data || '');
     return config;
   },
   (error) => {
-    console.error('❌ [API] 请求错误:', error);
     return Promise.reject(error);
   }
 );
 
-// 响应拦截器：统一处理响应和错误
+// 响应拦截器：统一处理错误
 apiClient.interceptors.response.use(
-  (response) => {
-    console.log(`✅ [API] ${response.config.url} 响应:`, response.data);
-    return response;
-  },
+  (response) => response,
   (error) => {
-    console.error('❌ [API] 响应错误:', error.response?.status, error.response?.data || error.message);
     if (error.response?.status === 401) {
-      console.warn('⚠️ [API] Token 过期或无效，需要重新登录');
+      console.warn('⚠️ Token 过期或无效，需要重新登录');
       // 可以在这里触发登出逻辑
     }
     return Promise.reject(error);

@@ -13,17 +13,10 @@ export default function HistoryPage() {
 
   const loadGames = async () => {
     try {
-      console.log('🔍 [HistoryPage] 开始加载对局列表...')
       const res = await gamesApi.getAll()
-      console.log('📊 [HistoryPage] 对局数据:', res.data)
-      console.log('📊 [HistoryPage] 对局数量:', res.data.length)
       setGames(res.data)
     } catch (error) {
-      console.error('❌ [HistoryPage] 加载对局失败:', error)
-      if ((error as any).response) {
-        console.error('   - 响应状态:', (error as any).response.status)
-        console.error('   - 响应数据:', (error as any).response.data)
-      }
+      console.error('Failed to load games:', error)
     } finally {
       setLoading(false)
     }
