@@ -33,6 +33,10 @@ Thumbs.db
 data/
 postgres-data/
 
+# Excel files
+*.xls
+*.xlsx
+
 # Logs
 logs/
 *.log
