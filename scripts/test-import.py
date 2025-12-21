@@ -6,7 +6,14 @@ import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-DB_PATH = os.path.join(PROJECT_ROOT, 'backend', 'data', 'griffin.db')
+
+# 自动检测数据库路径
+if 'DB_PATH' in os.environ:
+    DB_PATH = os.path.expanduser(os.environ['DB_PATH'])
+else:
+    production_db = os.path.join(PROJECT_ROOT, 'data', 'griffin.db')
+    dev_db = os.path.join(PROJECT_ROOT, 'backend', 'data', 'griffin.db')
+    DB_PATH = production_db if os.path.exists(production_db) else dev_db
 
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()

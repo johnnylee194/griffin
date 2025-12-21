@@ -16,11 +16,24 @@ import secrets
 
 # ============= 配置 =============
 
-# 脚本在 scripts/ 目录，数据库在 backend/data/griffin.db
+# 数据库路径：优先使用环境变量，否则自动检测
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-DB_PATH = os.path.join(PROJECT_ROOT, 'backend', 'data', 'griffin.db')
-DATA_DIR = os.path.join(PROJECT_ROOT, 'backend', 'data')
+
+if 'DB_PATH' in os.environ:
+    DB_PATH = os.path.expanduser(os.environ['DB_PATH'])
+    DATA_DIR = os.path.dirname(DB_PATH)
+else:
+    # 自动检测：先检查 data/griffin.db（生产环境），再检查 backend/data/griffin.db（本地开发）
+    production_db = os.path.join(PROJECT_ROOT, 'data', 'griffin.db')
+    dev_db = os.path.join(PROJECT_ROOT, 'backend', 'data', 'griffin.db')
+    
+    if os.path.exists(production_db):
+        DB_PATH = production_db
+        DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+    else:
+        DB_PATH = dev_db
+        DATA_DIR = os.path.join(PROJECT_ROOT, 'backend', 'data')
 
 if len(sys.argv) < 2:
     print('[ERROR] 请提供 Excel 文件路径')
