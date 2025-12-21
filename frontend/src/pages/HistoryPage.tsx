@@ -53,7 +53,7 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gold text-xl">加载中...</div>
+        <div className="text-primary text-xl">加载中...</div>
       </div>
     )
   }
@@ -61,8 +61,8 @@ export default function HistoryPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gold">对局历史</h2>
-        <div className="text-sm text-gray-400">共 {games.length} 局</div>
+        <h2 className="text-2xl font-bold text-text">对局历史</h2>
+        <div className="text-sm text-text-light">共 {games.length} 局</div>
       </div>
 
       {/* 筛选器 */}
@@ -70,7 +70,7 @@ export default function HistoryPage() {
         <button
           onClick={() => setFilter('all')}
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'all' ? 'bg-gold text-dark' : 'bg-dark-light text-gold border border-gold/30'
+            filter === 'all' ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
           }`}
         >
           全部
@@ -78,7 +78,7 @@ export default function HistoryPage() {
         <button
           onClick={() => setFilter('win')}
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'win' ? 'bg-gold text-dark' : 'bg-dark-light text-gold border border-gold/30'
+            filter === 'win' ? 'bg-accent-green text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
           }`}
         >
           盈利
@@ -86,7 +86,7 @@ export default function HistoryPage() {
         <button
           onClick={() => setFilter('lose')}
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'lose' ? 'bg-gold text-dark' : 'bg-dark-light text-gold border border-gold/30'
+            filter === 'lose' ? 'bg-accent-red text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
           }`}
         >
           亏损
@@ -95,7 +95,7 @@ export default function HistoryPage() {
 
       {/* 游戏列表 */}
       {filteredGames.length === 0 ? (
-        <div className="card text-center text-gray-400 py-8">
+        <div className="card text-center text-text-light py-8">
           没有找到记录
         </div>
       ) : (
@@ -107,19 +107,19 @@ export default function HistoryPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center space-x-2 mb-1">
-                      <span className="text-gold font-semibold">📍 {game.location.name}</span>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-primary font-semibold">📍 {game.location.name}</span>
+                      <span className="text-xs text-text-light">
                         {format(new Date(game.createdAt), 'yyyy-MM-dd HH:mm')}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-text-light">
                       {game.chipRate === 100 ? '一分100' : '一分200'}
                       {!game.isBalanced && game.isComplete && ' · ⚠️ 未平账'}
                     </div>
                   </div>
                   <button
                     onClick={() => handleDelete(game.id)}
-                    className="text-red-400 hover:text-red-300 text-sm"
+                    className="text-accent-red hover:text-red-600 text-sm"
                   >
                     删除
                   </button>
@@ -127,14 +127,14 @@ export default function HistoryPage() {
 
                 {/* 我的成绩 */}
                 {myRecord && (
-                  <div className="bg-dark-light rounded-lg p-3 mb-2">
+                  <div className="bg-primary/5 rounded-lg p-3 mb-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-gold font-semibold">我的成绩</span>
+                      <span className="text-primary font-semibold">我的成绩</span>
                       <div className="text-right">
-                        <div className={`text-2xl font-bold ${myRecord.chips >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <div className={`text-2xl font-bold ${myRecord.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                           {myRecord.chips >= 0 ? '+' : ''}{myRecord.chips}
                         </div>
-                        <div className="text-xs text-gray-400">
+                        <div className="text-xs text-text-light">
                           {myRecord.score >= 0 ? '+' : ''}{myRecord.score} 分
                         </div>
                       </div>
@@ -146,8 +146,8 @@ export default function HistoryPage() {
                 <div className="grid grid-cols-3 gap-2">
                   {game.records.filter(r => !r.player.isMe).map(record => (
                     <div key={record.id} className="flex flex-col items-center text-sm">
-                      <span className="text-gray-300 mb-1">{record.player.name}</span>
-                      <span className={record.chips >= 0 ? 'text-green-500' : 'text-red-500'}>
+                      <span className="text-text-secondary mb-1">{record.player.name}</span>
+                      <span className={record.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
                         {record.chips >= 0 ? '+' : ''}{record.chips}
                       </span>
                     </div>
@@ -155,7 +155,7 @@ export default function HistoryPage() {
                 </div>
 
                 {game.note && (
-                  <div className="mt-2 text-sm text-gray-400 border-t border-gold/10 pt-2">
+                  <div className="mt-2 text-sm text-text-secondary border-t border-gray-200 pt-2">
                     📝 {game.note}
                   </div>
                 )}

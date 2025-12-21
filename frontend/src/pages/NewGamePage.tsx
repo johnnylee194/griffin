@@ -111,18 +111,18 @@ export default function NewGamePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gold text-xl">加载中...</div>
+        <div className="text-primary text-xl">加载中...</div>
       </div>
     )
   }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-      <h2 className="text-2xl font-bold text-gold">记录新对局</h2>
+      <h2 className="text-2xl font-bold text-text">记录新对局</h2>
 
       {/* 地点选择 */}
       <div className="card">
-        <label className="block text-gold font-semibold mb-2">📍 地点</label>
+        <label className="block text-text font-semibold mb-2">📍 地点</label>
         <select
           value={selectedLocation}
           onChange={(e) => setSelectedLocation(e.target.value)}
@@ -137,12 +137,12 @@ export default function NewGamePage() {
 
       {/* 筹码比率 */}
       <div className="card">
-        <label className="block text-gold font-semibold mb-2">💰 筹码比率</label>
+        <label className="block text-text font-semibold mb-2">💰 筹码比率</label>
         <div className="flex space-x-4">
           <button
             onClick={() => setChipRate(100)}
             className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-              chipRate === 100 ? 'bg-gold text-dark' : 'bg-dark-light text-gold border border-gold/30'
+              chipRate === 100 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
             }`}
           >
             一分100
@@ -150,7 +150,7 @@ export default function NewGamePage() {
           <button
             onClick={() => setChipRate(200)}
             className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-              chipRate === 200 ? 'bg-gold text-dark' : 'bg-dark-light text-gold border border-gold/30'
+              chipRate === 200 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
             }`}
           >
             一分200
@@ -160,7 +160,7 @@ export default function NewGamePage() {
 
       {/* 玩家选择 */}
       <div className="card">
-        <label className="block text-gold font-semibold mb-3">👥 玩家</label>
+        <label className="block text-text font-semibold mb-3">👥 玩家</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
           {players.map(player => {
             const isSelected = selectedPlayers.find(p => p.playerId === player.id)
@@ -171,8 +171,8 @@ export default function NewGamePage() {
                 disabled={player.isMe}
                 className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
                   isSelected
-                    ? 'bg-gold text-dark'
-                    : 'bg-dark-light text-gold border border-gold/30 hover:bg-dark-lighter'
+                    ? 'bg-primary text-white'
+                    : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
                 } ${player.isMe ? 'opacity-100 cursor-default' : ''}`}
               >
                 {player.name} {player.isMe && '(我)'}
@@ -185,21 +185,21 @@ export default function NewGamePage() {
       {/* 分数输入 */}
       {selectedPlayers.length > 0 && (
         <div className="card">
-          <label className="block text-gold font-semibold mb-3">🎯 分数</label>
+          <label className="block text-text font-semibold mb-3">🎯 分数</label>
           <div className="space-y-2">
             {selectedPlayers.map(player => (
-              <div key={player.playerId} className="flex items-center justify-between p-3 bg-dark-light rounded-lg">
-                <span className={player.isMe ? 'text-gold font-semibold' : 'text-white'}>
+              <div key={player.playerId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span className={player.isMe ? 'text-primary font-semibold' : 'text-text'}>
                   {player.name}
                 </span>
                 <button
                   onClick={() => setCurrentPlayer(player.playerId)}
                   className={`px-4 py-2 rounded font-mono ${
                     player.score === 0
-                      ? 'bg-dark text-gray-400'
+                      ? 'bg-white text-text-light border border-gray-200'
                       : player.score > 0
-                      ? 'bg-green-900/30 text-green-400'
-                      : 'bg-red-900/30 text-red-400'
+                      ? 'bg-green-50 text-accent-green border border-green-200'
+                      : 'bg-red-50 text-accent-red border border-red-200'
                   }`}
                 >
                   {player.score > 0 ? '+' : ''}{player.score}
@@ -212,9 +212,9 @@ export default function NewGamePage() {
           {selectedPlayers.length === 4 && (
             <div className="mt-3 text-sm">
               {selectedPlayers.reduce((sum, p) => sum + p.score, 0) === 0 ? (
-                <span className="text-green-400">✓ 已平账</span>
+                <span className="text-accent-green">✓ 已平账</span>
               ) : (
-                <span className="text-red-400">
+                <span className="text-accent-red">
                   ⚠️ 未平账 (差 {selectedPlayers.reduce((sum, p) => sum + p.score, 0)} 分)
                 </span>
               )}
@@ -225,7 +225,7 @@ export default function NewGamePage() {
 
       {/* 备注 */}
       <div className="card">
-        <label className="block text-gold font-semibold mb-2">📝 备注（可选）</label>
+        <label className="block text-text font-semibold mb-2">📝 备注（可选）</label>
         <input
           type="text"
           value={note}

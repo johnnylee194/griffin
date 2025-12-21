@@ -4,8 +4,8 @@
   "description": "守护你的财富，狩猎你的胜利",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a1a",
-  "theme_color": "#d4af37",
+  "background_color": "#F8F9FA",
+  "theme_color": "#4285F4",
   "orientation": "portrait",
   "icons": [
     {

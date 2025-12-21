@@ -7,16 +7,26 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Griffin 品牌配色：黑金
-        gold: {
-          DEFAULT: '#D4AF37',
-          light: '#FFD700',
-          dark: '#B8960F',
+        // Griffin 品牌配色：Google Home 风格
+        primary: {
+          DEFAULT: '#4285F4', // 蓝色
+          light: '#669DF6',
+          dark: '#1967D2',
         },
-        dark: {
-          DEFAULT: '#0A0A0A',
-          lighter: '#1F1F1F',
-          light: '#2A2A2A',
+        accent: {
+          red: '#EA4335',
+          yellow: '#FBBC04',
+          green: '#34A853',
+        },
+        bg: {
+          DEFAULT: '#F8F9FA',
+          card: '#FFFFFF',
+          dark: '#202124',
+        },
+        text: {
+          DEFAULT: '#202124',
+          secondary: '#5F6368',
+          light: '#80868B',
         }
       },
       fontFamily: {

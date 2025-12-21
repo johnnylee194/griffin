@@ -46,18 +46,18 @@ export default function StatsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gold text-xl">加载中...</div>
+        <div className="text-primary text-xl">加载中...</div>
       </div>
     )
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <h2 className="text-2xl font-bold text-gold">数据统计</h2>
+      <h2 className="text-2xl font-bold text-text">数据统计</h2>
 
       {/* 玩家选择 */}
       <div className="card">
-        <label className="block text-gold font-semibold mb-2">选择玩家</label>
+        <label className="block text-text font-semibold mb-2">选择玩家</label>
         <select
           value={selectedPlayer}
           onChange={(e) => setSelectedPlayer(e.target.value)}
@@ -99,28 +99,28 @@ export default function StatsPage() {
           {/* 按地点统计 */}
           {Object.keys(stats.byLocation).length > 0 && (
             <div className="card">
-              <h3 className="text-xl font-semibold text-gold mb-4">按地点统计</h3>
+              <h3 className="text-xl font-semibold text-text mb-4">按地点统计</h3>
               <div className="space-y-3">
                 {Object.entries(stats.byLocation).map(([location, data]: [string, any]) => (
-                  <div key={location} className="bg-dark-light rounded-lg p-4">
+                  <div key={location} className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-gold font-semibold">📍 {location}</span>
-                      <span className="text-sm text-gray-400">{data.games} 局</span>
+                      <span className="text-primary font-semibold">📍 {location}</span>
+                      <span className="text-sm text-text-light">{data.games} 局</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-sm">
                       <div>
-                        <div className="text-gray-400">筹码</div>
-                        <div className={data.totalChips >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        <div className="text-text-light">筹码</div>
+                        <div className={data.totalChips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
                           {data.totalChips >= 0 ? '+' : ''}{data.totalChips}
                         </div>
                       </div>
                       <div>
-                        <div className="text-gray-400">胜/负</div>
-                        <div className="text-white">{data.wins} / {data.losses}</div>
+                        <div className="text-text-light">胜/负</div>
+                        <div className="text-text">{data.wins} / {data.losses}</div>
                       </div>
                       <div>
-                        <div className="text-gray-400">胜率</div>
-                        <div className="text-white">
+                        <div className="text-text-light">胜率</div>
+                        <div className="text-text">
                           {data.games > 0 ? Math.round((data.wins / data.games) * 100) : 0}%
                         </div>
                       </div>
@@ -134,7 +134,7 @@ export default function StatsPage() {
           {/* 按日期趋势 */}
           {Object.keys(stats.byDate).length > 0 && (
             <div className="card">
-              <h3 className="text-xl font-semibold text-gold mb-4">每日趋势</h3>
+              <h3 className="text-xl font-semibold text-text mb-4">每日趋势</h3>
               <div className="overflow-x-auto">
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart
@@ -144,14 +144,14 @@ export default function StatsPage() {
                     }))}
                     margin={{ top: 5, right: 5, bottom: 5, left: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" />
-                    <XAxis dataKey="date" stroke="#D4AF37" />
-                    <YAxis stroke="#D4AF37" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                    <XAxis dataKey="date" stroke="#5F6368" />
+                    <YAxis stroke="#5F6368" />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#1F1F1F', border: '1px solid #D4AF37' }}
-                      labelStyle={{ color: '#D4AF37' }}
+                      contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px' }}
+                      labelStyle={{ color: '#202124' }}
                     />
-                    <Line type="monotone" dataKey="chips" stroke="#D4AF37" strokeWidth={2} />
+                    <Line type="monotone" dataKey="chips" stroke="#4285F4" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -161,11 +161,11 @@ export default function StatsPage() {
                 {Object.entries(stats.byDate)
                   .sort(([a], [b]) => b.localeCompare(a))
                   .map(([date, data]: [string, any]) => (
-                    <div key={date} className="flex items-center justify-between text-sm bg-dark-light rounded-lg p-3">
-                      <span className="text-gray-300">{date}</span>
+                    <div key={date} className="flex items-center justify-between text-sm bg-gray-50 rounded-lg p-3">
+                      <span className="text-text-secondary">{date}</span>
                       <div className="flex items-center space-x-4">
-                        <span className="text-gray-400">{data.games} 局</span>
-                        <span className={data.totalChips >= 0 ? 'text-green-400 font-semibold' : 'text-red-400 font-semibold'}>
+                        <span className="text-text-light">{data.games} 局</span>
+                        <span className={data.totalChips >= 0 ? 'text-accent-green font-semibold' : 'text-accent-red font-semibold'}>
                           {data.totalChips >= 0 ? '+' : ''}{data.totalChips}
                         </span>
                       </div>
@@ -181,14 +181,14 @@ export default function StatsPage() {
 }
 
 function StatCard({ label, value, color, prefix }: any) {
-  const colorClass = color === 'green' ? 'text-green-400' : color === 'red' ? 'text-red-400' : 'text-gold'
+  const colorClass = color === 'green' ? 'text-accent-green' : color === 'red' ? 'text-accent-red' : 'text-primary'
   
   return (
     <div className="card text-center">
       <div className={`text-3xl font-bold ${colorClass}`}>
         {prefix}{value}
       </div>
-      <div className="text-sm text-gray-400 mt-1">{label}</div>
+      <div className="text-sm text-text-light mt-1">{label}</div>
     </div>
   )
 }

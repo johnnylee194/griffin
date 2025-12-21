@@ -65,21 +65,19 @@ function AppContent() {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-dark overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-bg overflow-hidden">
       {/* 顶部导航栏 */}
-      <header className="flex-shrink-0 bg-dark-lighter border-b border-gold/20 px-4 py-2 sm:py-3">
+      <header className="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-2 sm:py-3 shadow-sm">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-gold to-gold-dark rounded-lg flex items-center justify-center">
-              <span className="text-xl sm:text-2xl">🦅</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gold">
+            <img src="/griffin-logo.svg" alt="Griffin" className="w-8 h-8 sm:w-10 sm:h-10" />
+            <h1 className="text-xl sm:text-2xl font-bold text-primary">
               Griffin
             </h1>
           </div>
           <button
             onClick={handleLogout}
-            className="text-gold/60 hover:text-gold transition-colors text-sm"
+            className="text-text-secondary hover:text-primary transition-colors text-sm"
             title="退出登录"
           >
             <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -101,7 +99,7 @@ function AppContent() {
       </main>
 
       {/* 底部导航栏 */}
-      <nav className="flex-shrink-0 bg-dark-lighter border-t border-gold/20 px-2 py-1.5 sm:py-2">
+      <nav className="flex-shrink-0 bg-white border-t border-gray-200 px-2 py-1.5 sm:py-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="max-w-6xl mx-auto flex justify-around">
           <NavButton to="/" icon="🏠" label="首页" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
           <NavButton to="/new-game" icon="➕" label="记分" active={activeTab === 'new-game'} onClick={() => setActiveTab('new-game')} />
@@ -120,7 +118,7 @@ function NavButton({ to, icon, label, active, onClick }: any) {
       to={to}
       onClick={onClick}
       className={`flex flex-col items-center justify-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors ${
-        active ? 'text-gold bg-dark-light' : 'text-gray-400 hover:text-gold'
+        active ? 'text-primary bg-primary/10' : 'text-text-secondary hover:text-primary hover:bg-primary/5'
       }`}
     >
       <span className="text-xl sm:text-2xl mb-0.5 sm:mb-1">{icon}</span>

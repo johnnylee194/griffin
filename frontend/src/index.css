@@ -8,37 +8,37 @@
   }
   
   body {
-    @apply bg-dark text-white;
+    @apply bg-bg text-text;
   }
 }
 
 @layer components {
   /* 按钮样式 */
   .btn-primary {
-    @apply bg-gold hover:bg-gold-light text-dark font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-primary hover:bg-primary-light text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md;
   }
 
   .btn-secondary {
-    @apply bg-dark-light hover:bg-dark-lighter border border-gold/30 text-gold font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-white hover:bg-gray-50 border border-gray-300 text-text font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
   }
 
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-accent-red hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200;
   }
 
   /* 卡片样式 */
   .card {
-    @apply bg-dark-lighter border border-gold/20 rounded-xl p-3 sm:p-4 shadow-lg;
+    @apply bg-bg-card border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-shadow;
   }
 
   /* 输入框样式 */
   .input {
-    @apply bg-dark-light border border-gold/30 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold;
+    @apply bg-white border border-gray-300 text-text rounded-lg px-4 py-2 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20;
   }
 
   /* 数字键盘按钮 */
   .numpad-btn {
-    @apply bg-dark-light hover:bg-dark-lighter active:bg-gold active:text-dark border border-gold/30 text-gold font-bold text-2xl rounded-lg h-16 transition-all duration-150;
+    @apply bg-white hover:bg-gray-50 active:bg-primary active:text-white border border-gray-300 text-text font-bold text-2xl rounded-lg h-16 transition-all duration-150 shadow-sm;
   }
 }
 

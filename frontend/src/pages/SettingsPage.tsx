@@ -119,18 +119,18 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gold text-xl">加载中...</div>
+        <div className="text-primary text-xl">加载中...</div>
       </div>
     )
   }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-      <h2 className="text-2xl font-bold text-gold">设置</h2>
+      <h2 className="text-2xl font-bold text-text">设置</h2>
 
       {/* 玩家管理 */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-gold mb-4">👥 玩家管理</h3>
+        <h3 className="text-xl font-semibold text-text mb-4">👥 玩家管理</h3>
         
         {/* 添加玩家 */}
         <div className="flex space-x-2 mb-4">
@@ -150,20 +150,20 @@ export default function SettingsPage() {
         {/* 玩家列表 */}
         <div className="space-y-2">
           {players.map(player => (
-            <div key={player.id} className="flex items-center justify-between bg-dark-light rounded-lg p-3">
+            <div key={player.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
               <div className="flex items-center space-x-3">
-                <span className={player.isMe ? 'text-gold font-semibold' : 'text-white'}>
+                <span className={player.isMe ? 'text-primary font-semibold' : 'text-text'}>
                   {player.name}
                 </span>
                 {player.isMe && (
-                  <span className="text-xs bg-gold text-dark px-2 py-1 rounded">我</span>
+                  <span className="text-xs bg-primary text-white px-2 py-1 rounded">我</span>
                 )}
               </div>
               <div className="flex items-center space-x-2">
                 {!player.isMe && (
                   <button
                     onClick={() => handleSetMe(player.id)}
-                    className="text-gold hover:text-gold-light text-sm px-3 py-1 border border-gold/30 rounded"
+                    className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
                   >
                     设为本人
                   </button>
@@ -171,7 +171,7 @@ export default function SettingsPage() {
                 <button
                   onClick={() => handleDeletePlayer(player.id, player.isMe)}
                   disabled={player.isMe}
-                  className="text-red-400 hover:text-red-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="text-accent-red hover:text-red-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   删除
                 </button>
@@ -183,7 +183,7 @@ export default function SettingsPage() {
 
       {/* 地点管理 */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-gold mb-4">📍 地点管理</h3>
+        <h3 className="text-xl font-semibold text-text mb-4">📍 地点管理</h3>
         
         {/* 添加地点 */}
         <div className="flex space-x-2 mb-4">
@@ -203,25 +203,25 @@ export default function SettingsPage() {
         {/* 地点列表 */}
         <div className="space-y-2">
           {locations.map(location => (
-            <div key={location.id} className="flex items-center justify-between bg-dark-light rounded-lg p-3">
+            <div key={location.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
               <div className="flex items-center space-x-3">
-                <span className="text-white">{location.name}</span>
+                <span className="text-text">{location.name}</span>
                 {location.isDefault && (
-                  <span className="text-xs bg-gold text-dark px-2 py-1 rounded">默认</span>
+                  <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
                 )}
               </div>
               <div className="flex items-center space-x-2">
                 {!location.isDefault && (
                   <button
                     onClick={() => handleSetDefaultLocation(location.id)}
-                    className="text-gold hover:text-gold-light text-sm px-3 py-1 border border-gold/30 rounded"
+                    className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
                   >
                     设为默认
                   </button>
                 )}
                 <button
                   onClick={() => handleDeleteLocation(location.id)}
-                  className="text-red-400 hover:text-red-300 text-sm"
+                  className="text-accent-red hover:text-red-600 text-sm"
                 >
                   删除
                 </button>
@@ -233,11 +233,11 @@ export default function SettingsPage() {
 
       {/* 关于 */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-gold mb-4">ℹ️ 关于</h3>
-        <div className="space-y-2 text-gray-300">
-          <p><strong className="text-gold">Griffin</strong> - 麻将记分与数据分析应用</p>
-          <p className="text-sm text-gray-400">Version 1.0.0</p>
-          <p className="text-sm text-gold/60 italic">守护你的财富，狩猎你的胜利</p>
+        <h3 className="text-xl font-semibold text-text mb-4">ℹ️ 关于</h3>
+        <div className="space-y-2 text-text-secondary">
+          <p><strong className="text-primary">Griffin</strong> - 麻将记分与数据分析应用</p>
+          <p className="text-sm text-text-light">Version 1.0.0</p>
+          <p className="text-sm text-primary/60 italic">守护你的财富，狩猎你的胜利</p>
         </div>
       </div>
     </div>

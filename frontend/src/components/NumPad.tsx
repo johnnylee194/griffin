@@ -48,11 +48,11 @@ export default function NumPad({ onClose, onSubmit, initialValue = 0 }: NumPadPr
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-dark-lighter border border-gold/30 rounded-t-2xl sm:rounded-2xl w-full sm:w-96 p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-bg-card border border-gray-200 rounded-t-2xl sm:rounded-2xl w-full sm:w-96 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         {/* 显示屏 */}
         <div className="mb-4">
-          <div className="bg-dark border border-gold/30 rounded-lg p-4 text-right">
-            <div className={`text-4xl font-mono font-bold ${isNegative ? 'text-red-400' : 'text-green-400'}`}>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-right">
+            <div className={`text-4xl font-mono font-bold ${isNegative ? 'text-accent-red' : 'text-accent-green'}`}>
               {displayValue}
             </div>
           </div>
@@ -66,7 +66,7 @@ export default function NumPad({ onClose, onSubmit, initialValue = 0 }: NumPadPr
               {num}
             </button>
           ))}
-          <button onClick={handleClear} className="numpad-btn col-span-1 text-red-400">
+          <button onClick={handleClear} className="numpad-btn col-span-1 text-accent-red">
             C
           </button>
 
@@ -88,13 +88,13 @@ export default function NumPad({ onClose, onSubmit, initialValue = 0 }: NumPadPr
             ±
           </button>
 
-          <button onClick={onClose} className="numpad-btn col-span-1 text-gray-400">
+          <button onClick={onClose} className="numpad-btn col-span-1 text-text-light">
             取消
           </button>
           <button onClick={() => handleNumber('0')} className="numpad-btn col-span-1">
             0
           </button>
-          <button onClick={handleSubmit} className="numpad-btn col-span-2 bg-gold text-dark hover:bg-gold-light">
+          <button onClick={handleSubmit} className="numpad-btn col-span-2 bg-primary text-white hover:bg-primary-light">
             确定
           </button>
         </div>
