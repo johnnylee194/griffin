@@ -240,15 +240,8 @@ router.get('/annual', (req, res) => {
       LIMIT 5
     `).all(currentUserId) as any[];
     
-    // 调试：查看数据库中实际的数据格式
-    const sampleRecords = db.prepare(`
-      SELECT g.created_at, pr.chips
-      FROM player_records pr
-      JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ?
-      ORDER BY g.created_at DESC
-      LIMIT 5
-    `).all(currentUserId) as any[];
+    // 打印实际执行的SQL查询
+    console.log(`📊 SQL Query: SELECT pr.chips, l.name as locationName FROM player_records pr JOIN games g ON pr.game_id = g.id JOIN locations l ON g.location_id = l.id WHERE pr.player_id = '${currentUserId}' AND g.created_at >= '${startDate}' AND g.created_at < '${endDate}' ORDER BY g.created_at ASC`);
     
     console.log(`📊 Annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
     console.log(`📊 Sample records from DB:`, sampleRecords.map(r => ({ date: r.created_at, chips: r.chips })));
@@ -334,8 +327,19 @@ router.get('/lunar-annual', (req, res) => {
       ORDER BY g.created_at ASC
     `).all(currentUserId, startDate, endDate) as any[];
 
+    // 调试：查看数据库中实际的数据格式
+    const sampleRecordsLunar = db.prepare(`
+      SELECT g.created_at, pr.chips
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+      ORDER BY g.created_at DESC
+      LIMIT 5
+    `).all(currentUserId) as any[];
+
     console.log(`🐉 Lunar annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
-    console.log(`🐉 Sample records from DB:`, sampleRecords.map(r => ({ date: r.created_at, chips: r.chips })));
+    console.log(`🐉 Sample records from DB:`, sampleRecordsLunar.map((r: any) => ({ date: r.created_at, chips: r.chips })));
+    console.log(`🐉 First 5 records from query:`, records.slice(0, 5).map((r: any) => ({ chips: r.chips, location: r.locationName })));
 
     // 计算总体统计
     let totalIncome = 0;
