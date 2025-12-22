@@ -2,16 +2,16 @@ version: '3.8'
 
 services:
   app:
-    container_name: griffin
+    container_name: griffin-dev
     build: .
     restart: always
     ports:
-      - "3000:3000"
+      - "3002:3000"
     volumes:
       - ./data:/app/data
     environment:
-      - NODE_ENV=production
-      - APP_ENV=production
+      - NODE_ENV=development
+      - APP_ENV=dev
       - PORT=3000
       - DATABASE_URL=file:./data/griffin.db
 
