@@ -6,9 +6,9 @@ Griffin 使用不同的 docker-compose 配置文件来管理多个环境。
 
 | 环境 | 配置文件 | 容器名称 | 端口 | 域名 |
 |------|---------|---------|------|------|
-| 生产环境 | `docker-compose.yml` | griffin | 3000 | https://griffin.januslab.cn |
-| 测试环境 | `docker-compose.test.yml` | griffin-test | 3001 | https://test.griffin.januslab.cn |
-| 本地开发 | `docker-compose.dev.yml` | griffin-dev | 3002 | http://localhost:3002 |
+| 生产环境 | `docker-compose.yml` | griffin | 4000 | https://griffin.januslab.cn |
+| 测试环境 | `docker-compose.test.yml` | griffin-test | 4001 | https://test.griffin.januslab.cn |
+| 本地开发 | `docker-compose.dev.yml` | griffin-dev | 4002 | http://localhost:4002 |
 
 ## 🚀 使用方式
 
