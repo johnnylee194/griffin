@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { playersApi, statsApi, Player } from '../api/client'
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } from 'recharts'
 
-type TrendType = 'daily-7' | 'daily-15' | 'daily-30' | 'weekly' | 'monthly'
+type TrendType = 'daily-7' | 'daily-15' | 'daily-30' | 'weekly-7' | 'weekly-15' | 'weekly-30' | 'monthly-7' | 'monthly-15' | 'monthly-30'
 
 export default function StatsPage() {
   const [players, setPlayers] = useState<Player[]>([])
@@ -128,11 +128,23 @@ export default function StatsPage() {
     return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
   }
 
-  // 生成年份选项
+  // 生成年份选项（基于实际数据的最早年份）
   const getYearOptions = () => {
     const currentYear = new Date().getFullYear()
+    let earliestYear = currentYear
+    
+    // 从stats.byDate中提取最早年份
+    if (stats?.byDate) {
+      const dates = Object.keys(stats.byDate)
+      if (dates.length > 0) {
+        const sortedDates = dates.sort()
+        const earliestDate = sortedDates[0]
+        earliestYear = parseInt(earliestDate.slice(0, 4))
+      }
+    }
+    
     const years = []
-    for (let i = currentYear; i >= 2020; i--) {
+    for (let i = currentYear; i >= earliestYear; i--) {
       years.push(i)
     }
     return years
