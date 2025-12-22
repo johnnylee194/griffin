@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { gamesApi, Game } from '../api/client'
-import axios from 'axios'
+import { gamesApi, apiClient, Game } from '../api/client'
 
 interface MonthlyStats {
   month: string
@@ -41,7 +40,7 @@ export default function HomePage() {
     try {
       const [gamesRes, statsRes] = await Promise.all([
         gamesApi.getAll({ limit: 5 }),
-        axios.get('/api/games/stats/monthly')
+        apiClient.get('/games/stats/monthly')
       ])
       setRecentGames(gamesRes.data)
       setMonthlyStats(statsRes.data)
