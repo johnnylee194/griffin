@@ -109,5 +109,7 @@ export const statsApi = {
     apiClient.get(`/stats/player/${playerId}`, { params }),
   getOverview: (params?: { startDate?: string; endDate?: string }) =>
     apiClient.get('/stats/overview', { params }),
+  getAnnual: () => apiClient.get('/stats/annual'),
+  getLunarAnnual: () => apiClient.get('/stats/lunar-annual'),
 };
 
