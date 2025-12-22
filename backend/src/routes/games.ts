@@ -6,10 +6,20 @@ const router = Router();
 // 辅助函数：获取中国本地时间（UTC+8）的ISO字符串（不带时区标识）
 function getLocalTimestamp(): string {
   const now = new Date();
-  // 转换为中国时间（UTC+8）
-  const chinaTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
-  // 返回不带时区标识的ISO格式
-  return chinaTime.toISOString().replace('Z', '');
+  // 获取UTC时间戳，加上8小时得到中国时间
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  const chinaTime = new Date(utcTime + (8 * 60 * 60 * 1000));
+  
+  // 手动格式化为ISO字符串（不带时区标识）
+  const year = chinaTime.getUTCFullYear();
+  const month = String(chinaTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(chinaTime.getUTCDate()).padStart(2, '0');
+  const hours = String(chinaTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(chinaTime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(chinaTime.getUTCSeconds()).padStart(2, '0');
+  const milliseconds = String(chinaTime.getUTCMilliseconds()).padStart(3, '0');
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
 // 辅助函数：获取对局的完整信息
