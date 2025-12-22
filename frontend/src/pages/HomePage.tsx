@@ -1,10 +1,36 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { gamesApi, statsApi, Game } from '../api/client'
+import { gamesApi, Game } from '../api/client'
+import axios from 'axios'
+
+interface MonthlyStats {
+  month: string
+  overall: {
+    totalIncome: number
+    totalExpense: number
+    profit: number
+    totalGames: number
+    winGames: number
+    loseGames: number
+    winRate: number
+  }
+  afternoon: {
+    totalGames: number
+    winGames: number
+    loseGames: number
+    winRate: number
+  }
+  evening: {
+    totalGames: number
+    winGames: number
+    loseGames: number
+    winRate: number
+  }
+}
 
 export default function HomePage() {
   const [recentGames, setRecentGames] = useState<Game[]>([])
-  const [stats, setStats] = useState<any>(null)
+  const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -15,10 +41,10 @@ export default function HomePage() {
     try {
       const [gamesRes, statsRes] = await Promise.all([
         gamesApi.getAll({ limit: 5 }),
-        statsApi.getOverview()
+        axios.get('/api/games/stats/monthly')
       ])
       setRecentGames(gamesRes.data)
-      setStats(statsRes.data)
+      setMonthlyStats(statsRes.data)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -35,27 +61,99 @@ export default function HomePage() {
   }
 
   return (
-    <div className="h-full max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-6 overflow-y-auto">
+    <div className="h-full max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-4 overflow-y-auto">
       {/* 欢迎横幅 */}
       <div className="card bg-gradient-to-br from-primary/10 to-accent-yellow/10 py-2 sm:py-4">
         <h2 className="text-lg sm:text-2xl font-bold text-primary mb-0.5 sm:mb-1">欢迎回来！</h2>
         <p className="text-xs sm:text-base text-text-secondary">让我们继续追踪你的胜利</p>
       </div>
 
-      {/* 统计概览 */}
-      {stats && (
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
-          <div className="card text-center py-2 sm:py-4">
-            <div className="text-xl sm:text-3xl font-bold text-primary">{stats.totalGames}</div>
-            <div className="text-xs sm:text-sm text-text-light mt-0.5 sm:mt-1">总局数</div>
+      {/* 本月统计 */}
+      {monthlyStats && (
+        <div className="space-y-2 sm:space-y-3">
+          <h3 className="text-base sm:text-lg font-semibold text-text">本月统计 ({monthlyStats.month})</h3>
+          
+          {/* 收支情况 */}
+          <div className="card">
+            <h4 className="text-sm font-semibold text-text-secondary mb-2">💰 收支情况</h4>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="text-lg sm:text-2xl font-bold text-accent-green">
+                  +{monthlyStats.overall.totalIncome.toLocaleString()}
+                </div>
+                <div className="text-xs text-text-light mt-1">收入</div>
+              </div>
+              <div>
+                <div className="text-lg sm:text-2xl font-bold text-accent-red">
+                  -{monthlyStats.overall.totalExpense.toLocaleString()}
+                </div>
+                <div className="text-xs text-text-light mt-1">支出</div>
+              </div>
+              <div>
+                <div className={`text-lg sm:text-2xl font-bold ${
+                  monthlyStats.overall.profit >= 0 ? 'text-accent-green' : 'text-accent-red'
+                }`}>
+                  {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
+                </div>
+                <div className="text-xs text-text-light mt-1">利润</div>
+              </div>
+            </div>
           </div>
-          <div className="card text-center py-2 sm:py-4">
-            <div className="text-xl sm:text-3xl font-bold text-accent-green">{stats.totalPlayers}</div>
-            <div className="text-xs sm:text-sm text-text-light mt-0.5 sm:mt-1">玩家数</div>
+
+          {/* 整体胜率 */}
+          <div className="card">
+            <h4 className="text-sm font-semibold text-text-secondary mb-2">🎲 整体胜率</h4>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 text-center">
+                <div className="text-xl sm:text-3xl font-bold text-primary">
+                  {monthlyStats.overall.winRate}%
+                </div>
+                <div className="text-xs text-text-light mt-1">胜率</div>
+              </div>
+              <div className="flex-1 text-center border-l border-gray-200">
+                <div className="text-sm text-text-secondary">
+                  {monthlyStats.overall.totalGames} 场
+                </div>
+                <div className="text-xs text-text-light mt-1">
+                  <span className="text-accent-green">{monthlyStats.overall.winGames}胜</span>
+                  {' / '}
+                  <span className="text-accent-red">{monthlyStats.overall.loseGames}负</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="card text-center py-2 sm:py-4">
-            <div className="text-xl sm:text-3xl font-bold text-accent-red">{stats.totalLocations}</div>
-            <div className="text-xs sm:text-sm text-text-light mt-0.5 sm:mt-1">地点数</div>
+
+          {/* 时段统计 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* 下午场 */}
+            <div className="card">
+              <h4 className="text-sm font-semibold text-text-secondary mb-2">🌆 下午场 (20:00前)</h4>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary mb-1">
+                  {monthlyStats.afternoon.winRate}%
+                </div>
+                <div className="text-xs text-text-light">
+                  {monthlyStats.afternoon.totalGames} 场 · 
+                  <span className="text-accent-green ml-1">{monthlyStats.afternoon.winGames}胜</span>
+                  <span className="text-accent-red ml-1">{monthlyStats.afternoon.loseGames}负</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 晚上场 */}
+            <div className="card">
+              <h4 className="text-sm font-semibold text-text-secondary mb-2">🌙 晚上场 (20:00后)</h4>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary mb-1">
+                  {monthlyStats.evening.winRate}%
+                </div>
+                <div className="text-xs text-text-light">
+                  {monthlyStats.evening.totalGames} 场 · 
+                  <span className="text-accent-green ml-1">{monthlyStats.evening.winGames}胜</span>
+                  <span className="text-accent-red ml-1">{monthlyStats.evening.loseGames}负</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

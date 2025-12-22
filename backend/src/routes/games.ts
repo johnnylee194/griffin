@@ -288,4 +288,124 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// 获取月度统计（首页用）
+router.get('/stats/monthly', (req, res) => {
+  try {
+    // 获取本月第一天和下月第一天
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+    
+    const firstDayOfMonth = new Date(year, month, 1);
+    const firstDayOfNextMonth = new Date(year, month + 1, 1);
+    
+    const startDate = firstDayOfMonth.toISOString();
+    const endDate = firstDayOfNextMonth.toISOString();
+    
+    // 获取当前用户（"我"）的ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: 'Current user not found' });
+    }
+    
+    // 获取本月所有对局记录（只统计"我"的记录）
+    const records = db.prepare(`
+      SELECT 
+        pr.chips,
+        g.created_at as createdAt
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+        AND g.created_at >= ?
+        AND g.created_at < ?
+      ORDER BY g.created_at ASC
+    `).all(mePlayer.id, startDate, endDate) as any[];
+    
+    // 计算总体统计
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let winGames = 0;
+    let loseGames = 0;
+    
+    // 下午场统计（20:00前）
+    let afternoonWins = 0;
+    let afternoonLoses = 0;
+    
+    // 晚上场统计（20:00后）
+    let eveningWins = 0;
+    let eveningLoses = 0;
+    
+    records.forEach(record => {
+      const chips = record.chips;
+      
+      // 收支统计
+      if (chips > 0) {
+        totalIncome += chips;
+        winGames++;
+      } else if (chips < 0) {
+        totalExpense += Math.abs(chips);
+        loseGames++;
+      }
+      
+      // 时间段统计
+      const gameTime = new Date(record.createdAt);
+      const hour = gameTime.getHours();
+      
+      if (hour < 20) {
+        // 下午场（20:00前）
+        if (chips > 0) {
+          afternoonWins++;
+        } else if (chips < 0) {
+          afternoonLoses++;
+        }
+      } else {
+        // 晚上场（20:00后）
+        if (chips > 0) {
+          eveningWins++;
+        } else if (chips < 0) {
+          eveningLoses++;
+        }
+      }
+    });
+    
+    const totalGames = winGames + loseGames;
+    const profit = totalIncome - totalExpense;
+    const winRate = totalGames > 0 ? Math.round((winGames / totalGames) * 100) : 0;
+    
+    const afternoonTotal = afternoonWins + afternoonLoses;
+    const afternoonWinRate = afternoonTotal > 0 ? Math.round((afternoonWins / afternoonTotal) * 100) : 0;
+    
+    const eveningTotal = eveningWins + eveningLoses;
+    const eveningWinRate = eveningTotal > 0 ? Math.round((eveningWins / eveningTotal) * 100) : 0;
+    
+    res.json({
+      month: `${year}-${String(month + 1).padStart(2, '0')}`,
+      overall: {
+        totalIncome,
+        totalExpense,
+        profit,
+        totalGames,
+        winGames,
+        loseGames,
+        winRate
+      },
+      afternoon: {
+        totalGames: afternoonTotal,
+        winGames: afternoonWins,
+        loseGames: afternoonLoses,
+        winRate: afternoonWinRate
+      },
+      evening: {
+        totalGames: eveningTotal,
+        winGames: eveningWins,
+        loseGames: eveningLoses,
+        winRate: eveningWinRate
+      }
+    });
+  } catch (error) {
+    console.error('Failed to get monthly stats:', error);
+    res.status(500).json({ error: 'Failed to get monthly stats' });
+  }
+});
+
 export default router;
