@@ -3,6 +3,15 @@ import db, { generateId } from '../database';
 
 const router = Router();
 
+// 辅助函数：获取中国本地时间（UTC+8）的ISO字符串（不带时区标识）
+function getLocalTimestamp(): string {
+  const now = new Date();
+  // 转换为中国时间（UTC+8）
+  const chinaTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+  // 返回不带时区标识的ISO格式
+  return chinaTime.toISOString().replace('Z', '');
+}
+
 // 获取所有地点
 router.get('/', (req, res) => {
   try {
@@ -47,7 +56,7 @@ router.post('/', (req, res) => {
     }
 
     const id = generateId();
-    const now = new Date().toISOString();
+    const now = getLocalTimestamp();
     
     db.prepare(`
       INSERT INTO locations (id, name, is_default, created_at)

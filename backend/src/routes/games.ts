@@ -3,6 +3,15 @@ import db, { generateId } from '../database';
 
 const router = Router();
 
+// 辅助函数：获取中国本地时间（UTC+8）的ISO字符串（不带时区标识）
+function getLocalTimestamp(): string {
+  const now = new Date();
+  // 转换为中国时间（UTC+8）
+  const chinaTime = new Date(now.getTime() + (8 * 60 * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+  // 返回不带时区标识的ISO格式
+  return chinaTime.toISOString().replace('Z', '');
+}
+
 // 辅助函数：获取对局的完整信息
 function getGameWithDetails(gameId: string) {
   const game = db.prepare(`
@@ -166,7 +175,7 @@ router.post('/', (req, res) => {
     }
 
     const gameId = generateId();
-    const now = new Date().toISOString();
+    const now = getLocalTimestamp();
 
     // 使用事务创建对局和记录
     const createGame = db.transaction(() => {
@@ -228,7 +237,7 @@ router.put('/:id', (req, res) => {
       isBalanced = totalScore === 0;
     }
 
-    const now = new Date().toISOString();
+    const now = getLocalTimestamp();
 
     // 使用事务更新对局和记录
     const updateGame = db.transaction(() => {
