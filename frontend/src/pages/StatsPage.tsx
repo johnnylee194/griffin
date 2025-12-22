@@ -75,8 +75,9 @@ export default function StatsPage() {
         date: item.date.slice(5), // MM-DD
         chips: item.chips
       }))
-    } else if (trendType === 'weekly') {
+    } else if (trendType.startsWith('weekly-')) {
       // 按周聚合
+      const weeks = trendType === 'weekly-7' ? 7 : trendType === 'weekly-15' ? 15 : 30
       const weeklyMap: { [key: string]: { chips: number; count: number } } = {}
       dateEntries.forEach(item => {
         const date = new Date(item.date)
@@ -96,9 +97,10 @@ export default function StatsPage() {
           date: week,
           chips: data.chips
         }))
-        .slice(-8) // 显示最近8周
+        .slice(-weeks) // 显示最近N周
     } else {
       // 按月聚合
+      const months = trendType === 'monthly-7' ? 7 : trendType === 'monthly-15' ? 15 : 30
       const monthlyMap: { [key: string]: { chips: number; count: number } } = {}
       dateEntries.forEach(item => {
         const monthKey = item.date.slice(0, 7) // YYYY-MM
@@ -115,7 +117,7 @@ export default function StatsPage() {
           date: month.slice(5), // MM
           chips: data.chips
         }))
-        .slice(-6) // 显示最近6个月
+        .slice(-months) // 显示最近N个月
     }
   }
 
@@ -159,11 +161,19 @@ export default function StatsPage() {
   }
 
   const trendData = getTrendData()
-  const trendTitle = trendType === 'daily-7' ? '每日趋势（最近7天）' 
-    : trendType === 'daily-15' ? '每日趋势（最近15天）'
-    : trendType === 'daily-30' ? '每日趋势（最近30天）'
-    : trendType === 'weekly' ? '每周趋势（最近8周）' 
-    : '每月趋势（最近6个月）'
+  const getTrendTitle = () => {
+    if (trendType.startsWith('daily-')) {
+      const days = trendType === 'daily-7' ? 7 : trendType === 'daily-15' ? 15 : 30
+      return `每日趋势（最近${days}天）`
+    } else if (trendType.startsWith('weekly-')) {
+      const weeks = trendType === 'weekly-7' ? 7 : trendType === 'weekly-15' ? 15 : 30
+      return `每周趋势（最近${weeks}周）`
+    } else {
+      const months = trendType === 'monthly-7' ? 7 : trendType === 'monthly-15' ? 15 : 30
+      return `每月趋势（最近${months}个月）`
+    }
+  }
+  const trendTitle = getTrendTitle()
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -237,24 +247,64 @@ export default function StatsPage() {
                     30日
                   </button>
                   <button
-                    onClick={() => setTrendType('weekly')}
+                    onClick={() => setTrendType('weekly-7')}
                     className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'weekly' 
+                      trendType === 'weekly-7' 
                         ? 'bg-blue-600 text-white' 
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    周
+                    7周
                   </button>
                   <button
-                    onClick={() => setTrendType('monthly')}
+                    onClick={() => setTrendType('weekly-15')}
                     className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'monthly' 
+                      trendType === 'weekly-15' 
                         ? 'bg-blue-600 text-white' 
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    月
+                    15周
+                  </button>
+                  <button
+                    onClick={() => setTrendType('weekly-30')}
+                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
+                      trendType === 'weekly-30' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    30周
+                  </button>
+                  <button
+                    onClick={() => setTrendType('monthly-7')}
+                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
+                      trendType === 'monthly-7' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    7月
+                  </button>
+                  <button
+                    onClick={() => setTrendType('monthly-15')}
+                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
+                      trendType === 'monthly-15' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    15月
+                  </button>
+                  <button
+                    onClick={() => setTrendType('monthly-30')}
+                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
+                      trendType === 'monthly-30' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    30月
                   </button>
                 </div>
               </div>
@@ -268,6 +318,7 @@ export default function StatsPage() {
                       contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px' }}
                       labelStyle={{ color: '#202124' }}
                     />
+                    <ReferenceLine y={0} stroke="#FF6B6B" strokeWidth={2} strokeDasharray="5 5" label={{ value: "0", position: "right", fill: "#FF6B6B", fontSize: 12 }} />
                     <Line type="monotone" dataKey="chips" stroke="#4285F4" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
