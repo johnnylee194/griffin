@@ -132,7 +132,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {/* 下午场 */}
             <div className="card">
-              <h4 className="text-sm font-semibold text-text-secondary mb-3">🌆 下午场 (20:00前)</h4>
+              <h4 className="text-sm font-semibold text-text-secondary mb-3">🌆 下午场</h4>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-text-light">胜率</span>
@@ -167,7 +167,7 @@ export default function HomePage() {
 
             {/* 晚上场 */}
             <div className="card">
-              <h4 className="text-sm font-semibold text-text-secondary mb-3">🌙 晚上场 (20:00后)</h4>
+              <h4 className="text-sm font-semibold text-text-secondary mb-3">🌙 晚上场</h4>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-text-light">胜率</span>
