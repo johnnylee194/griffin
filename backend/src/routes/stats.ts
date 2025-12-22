@@ -198,7 +198,7 @@ function getLunarYear(date: Date): { year: number; startDate: string; endDate: s
   return { year: lunarYear, startDate, endDate };
 }
 
-// 获取年度统计（本年，按地点分组）
+// 获取年度统计（支持年份参数）
 router.get('/annual', (req, res) => {
   try {
     // 统计都是针对"我"的，直接获取"我"的玩家ID
@@ -207,86 +207,56 @@ router.get('/annual', (req, res) => {
       return res.status(404).json({ error: 'Current user not found' });
     }
     const currentUserId = mePlayer.id;
-    
-    console.log(`📊 Getting player ID: ${currentUserId} (is_me=1)`);
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const startDate = `${year}-01-01T00:00:00`;
-    const endDate = `${year + 1}-01-01T00:00:00`;
+    // 支持年份参数，默认为当前年
+    const yearParam = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+    const startDate = `${yearParam}-01-01T00:00:00`;
+    const endDate = `${yearParam + 1}-01-01T00:00:00`;
 
-    // 获取本年的所有记录
+    // 获取该年的所有记录
     const records = db.prepare(`
       SELECT 
         pr.chips,
-        l.name as locationName
+        pr.score
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
-      JOIN locations l ON g.location_id = l.id
       WHERE pr.player_id = ?
         AND g.created_at >= ?
         AND g.created_at < ?
       ORDER BY g.created_at ASC
     `).all(currentUserId, startDate, endDate) as any[];
 
-    // 调试：查看数据库中实际的数据格式
-    const sampleRecords = db.prepare(`
-      SELECT g.created_at, pr.chips
-      FROM player_records pr
-      JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ?
-      ORDER BY g.created_at DESC
-      LIMIT 5
-    `).all(currentUserId) as any[];
-    
-    // 打印实际执行的SQL查询
-    console.log(`📊 SQL Query: SELECT pr.chips, l.name as locationName FROM player_records pr JOIN games g ON pr.game_id = g.id JOIN locations l ON g.location_id = l.id WHERE pr.player_id = '${currentUserId}' AND g.created_at >= '${startDate}' AND g.created_at < '${endDate}' ORDER BY g.created_at ASC`);
-    
-    console.log(`📊 Annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
-    console.log(`📊 Sample records from DB:`, sampleRecords.map(r => ({ date: r.created_at, chips: r.chips })));
-    console.log(`📊 First 5 records from query:`, records.slice(0, 5).map(r => ({ chips: r.chips, location: r.locationName })));
-
     // 计算总体统计
     let totalIncome = 0;
     let totalExpense = 0;
+    let wins = 0;
+    let losses = 0;
+    
     records.forEach(r => {
       if (r.chips > 0) {
         totalIncome += r.chips;
+        wins++;
       } else if (r.chips < 0) {
         totalExpense += Math.abs(r.chips);
+        losses++;
       }
     });
-    const profit = totalIncome - totalExpense;
     
-    console.log(`📊 Calculated stats: totalIncome=${totalIncome}, totalExpense=${totalExpense}, profit=${profit}`);
-
-    // 按地点统计
-    const locationStats: { [key: string]: { income: number; expense: number; profit: number } } = {};
-    records.forEach(r => {
-      const locName = r.locationName;
-      if (!locationStats[locName]) {
-        locationStats[locName] = { income: 0, expense: 0, profit: 0 };
-      }
-      if (r.chips > 0) {
-        locationStats[locName].income += r.chips;
-      } else if (r.chips < 0) {
-        locationStats[locName].expense += Math.abs(r.chips);
-      }
-    });
-
-    // 计算每个地点的利润
-    Object.keys(locationStats).forEach(loc => {
-      locationStats[loc].profit = locationStats[loc].income - locationStats[loc].expense;
-    });
+    const profit = totalIncome - totalExpense;
+    const totalGames = wins + losses;
+    const winRate = totalGames > 0 ? parseFloat(((wins / totalGames) * 100).toFixed(2)) : 0;
 
     res.json({
-      year,
+      year: yearParam,
       overall: {
         income: totalIncome,
         expense: totalExpense,
-        profit
-      },
-      byLocation: locationStats
+        profit,
+        wins,
+        losses,
+        totalGames,
+        winRate
+      }
     });
   } catch (error) {
     console.error('Failed to fetch annual stats:', error);
@@ -294,7 +264,7 @@ router.get('/annual', (req, res) => {
   }
 });
 
-// 获取农历年统计（本年农历年，按地点分组）
+// 获取农历年统计（支持年份参数）
 router.get('/lunar-annual', (req, res) => {
   try {
     // 统计都是针对"我"的，直接获取"我"的玩家ID
@@ -303,72 +273,72 @@ router.get('/lunar-annual', (req, res) => {
       return res.status(404).json({ error: 'Current user not found' });
     }
     const currentUserId = mePlayer.id;
-    
-    console.log(`🐉 Getting player ID: ${currentUserId} (is_me=1)`);
 
-    const now = new Date();
-    const lunarYearInfo = getLunarYear(now);
+    // 支持年份参数，默认为当前农历年
+    let lunarYearInfo;
+    if (req.query.year) {
+      const yearParam = parseInt(req.query.year as string);
+      // 根据年份计算农历年范围（简化版）
+      const springFestivalDates: { [key: number]: string } = {
+        2024: '2024-02-10',
+        2025: '2025-01-29',
+        2026: '2026-02-17',
+        2027: '2027-02-06',
+        2028: '2028-01-26',
+        2029: '2029-02-13',
+        2030: '2030-02-03'
+      };
+      const currentYearSpringFestival = springFestivalDates[yearParam];
+      const nextYearSpringFestival = springFestivalDates[yearParam + 1];
+      if (currentYearSpringFestival && nextYearSpringFestival) {
+        lunarYearInfo = {
+          year: yearParam,
+          startDate: currentYearSpringFestival,
+          endDate: nextYearSpringFestival
+        };
+      } else {
+        // 如果年份不在映射表中，使用默认逻辑
+        lunarYearInfo = getLunarYear(new Date(`${yearParam}-06-01`));
+      }
+    } else {
+      lunarYearInfo = getLunarYear(new Date());
+    }
+    
     const startDate = `${lunarYearInfo.startDate}T00:00:00`;
     const endDate = `${lunarYearInfo.endDate}T00:00:00`;
 
-    // 获取本农历年的所有记录
+    // 获取该农历年的所有记录
     const records = db.prepare(`
       SELECT 
         pr.chips,
-        l.name as locationName
+        pr.score
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
-      JOIN locations l ON g.location_id = l.id
       WHERE pr.player_id = ?
         AND g.created_at >= ?
         AND g.created_at < ?
       ORDER BY g.created_at ASC
     `).all(currentUserId, startDate, endDate) as any[];
 
-    // 调试：查看数据库中实际的数据格式
-    const sampleRecordsLunar = db.prepare(`
-      SELECT g.created_at, pr.chips
-      FROM player_records pr
-      JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ?
-      ORDER BY g.created_at DESC
-      LIMIT 5
-    `).all(currentUserId) as any[];
-
-    console.log(`🐉 Lunar annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
-    console.log(`🐉 Sample records from DB:`, sampleRecordsLunar.map((r: any) => ({ date: r.created_at, chips: r.chips })));
-    console.log(`🐉 First 5 records from query:`, records.slice(0, 5).map((r: any) => ({ chips: r.chips, location: r.locationName })));
-
     // 计算总体统计
     let totalIncome = 0;
     let totalExpense = 0;
+    let wins = 0;
+    let losses = 0;
+    
     records.forEach(r => {
       if (r.chips > 0) {
         totalIncome += r.chips;
+        wins++;
       } else if (r.chips < 0) {
         totalExpense += Math.abs(r.chips);
+        losses++;
       }
     });
+    
     const profit = totalIncome - totalExpense;
-
-    // 按地点统计
-    const locationStats: { [key: string]: { income: number; expense: number; profit: number } } = {};
-    records.forEach(r => {
-      const locName = r.locationName;
-      if (!locationStats[locName]) {
-        locationStats[locName] = { income: 0, expense: 0, profit: 0 };
-      }
-      if (r.chips > 0) {
-        locationStats[locName].income += r.chips;
-      } else if (r.chips < 0) {
-        locationStats[locName].expense += Math.abs(r.chips);
-      }
-    });
-
-    // 计算每个地点的利润
-    Object.keys(locationStats).forEach(loc => {
-      locationStats[loc].profit = locationStats[loc].income - locationStats[loc].expense;
-    });
+    const totalGames = wins + losses;
+    const winRate = totalGames > 0 ? parseFloat(((wins / totalGames) * 100).toFixed(2)) : 0;
 
     res.json({
       lunarYear: lunarYearInfo.year,
@@ -377,9 +347,12 @@ router.get('/lunar-annual', (req, res) => {
       overall: {
         income: totalIncome,
         expense: totalExpense,
-        profit
-      },
-      byLocation: locationStats
+        profit,
+        wins,
+        losses,
+        totalGames,
+        winRate
+      }
     });
   } catch (error) {
     console.error('Failed to fetch lunar annual stats:', error);

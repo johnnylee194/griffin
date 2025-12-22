@@ -130,13 +130,6 @@ router.get('/', (req, res) => {
     
     const games = db.prepare(query).all(...params);
     
-    // 调试日志
-    console.log('📊 Fetching games with limit:', limit);
-    console.log('📅 First 3 games createdAt:', games.slice(0, 3).map((g: any) => ({
-      id: g.id.substring(0, 8),
-      createdAt: g.createdAt
-    })));
-    
     // 为每个对局获取详细信息
     const gamesWithDetails = games.map((game: any) => getGameWithDetails(game.id));
     
