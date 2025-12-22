@@ -77,14 +77,14 @@ export default function StatsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard label="总局数" value={stats.overall.totalGames} />
             <StatCard 
-              label="总筹码" 
+              label="总金额" 
               value={stats.overall.totalChips} 
               color={stats.overall.totalChips >= 0 ? 'green' : 'red'}
               prefix={stats.overall.totalChips >= 0 ? '+' : ''}
             />
             <StatCard label="胜率" value={`${stats.overall.winRate}%`} />
             <StatCard 
-              label="平均筹码" 
+              label="平均金额" 
               value={Math.round(stats.overall.avgChips)}
               color={stats.overall.avgChips >= 0 ? 'green' : 'red'}
               prefix={stats.overall.avgChips >= 0 ? '+' : ''}
@@ -109,7 +109,7 @@ export default function StatsPage() {
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-sm">
                       <div>
-                        <div className="text-text-light">筹码</div>
+                        <div className="text-text-light">金额</div>
                         <div className={data.totalChips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
                           {data.totalChips >= 0 ? '+' : ''}{data.totalChips}
                         </div>

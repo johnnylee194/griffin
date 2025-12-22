@@ -102,8 +102,6 @@ function AppContent() {
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 px-2 py-1.5 sm:py-2 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div className="max-w-6xl mx-auto flex justify-around">
           <NavButton to="/" icon="🏠" label="首页" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
-          <NavButton to="/new-game" icon="➕" label="记分" active={activeTab === 'new-game'} onClick={() => setActiveTab('new-game')} />
-          <NavButton to="/history" icon="📋" label="历史" active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
           <NavButton to="/stats" icon="📊" label="统计" active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
           <NavButton to="/settings" icon="⚙️" label="设置" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
         </div>
