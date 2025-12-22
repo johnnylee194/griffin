@@ -258,7 +258,8 @@ for sheet_name in ['支出', '收入']:
             
             # 创建对局
             game_id = generate_id()
-            timestamp = parsed_date.isoformat()
+            # 使用带时区的ISO格式（Z表示UTC），确保与新记录格式一致
+            timestamp = parsed_date.isoformat() + 'Z'
             
             cursor.execute('''
                 INSERT INTO games (id, location_id, chip_rate, is_complete, is_balanced, note, created_at, updated_at)
