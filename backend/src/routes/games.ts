@@ -330,10 +330,14 @@ router.get('/stats/monthly', (req, res) => {
     // 下午场统计（20:00前）
     let afternoonWins = 0;
     let afternoonLoses = 0;
+    let afternoonIncome = 0;
+    let afternoonExpense = 0;
     
     // 晚上场统计（20:00后）
     let eveningWins = 0;
     let eveningLoses = 0;
+    let eveningIncome = 0;
+    let eveningExpense = 0;
     
     records.forEach(record => {
       const chips = record.chips;
@@ -355,15 +359,19 @@ router.get('/stats/monthly', (req, res) => {
         // 下午场（20:00前）
         if (chips > 0) {
           afternoonWins++;
+          afternoonIncome += chips;
         } else if (chips < 0) {
           afternoonLoses++;
+          afternoonExpense += Math.abs(chips);
         }
       } else {
         // 晚上场（20:00后）
         if (chips > 0) {
           eveningWins++;
+          eveningIncome += chips;
         } else if (chips < 0) {
           eveningLoses++;
+          eveningExpense += Math.abs(chips);
         }
       }
     });
@@ -374,9 +382,11 @@ router.get('/stats/monthly', (req, res) => {
     
     const afternoonTotal = afternoonWins + afternoonLoses;
     const afternoonWinRate = afternoonTotal > 0 ? Math.round((afternoonWins / afternoonTotal) * 100) : 0;
+    const afternoonProfit = afternoonIncome - afternoonExpense;
     
     const eveningTotal = eveningWins + eveningLoses;
     const eveningWinRate = eveningTotal > 0 ? Math.round((eveningWins / eveningTotal) * 100) : 0;
+    const eveningProfit = eveningIncome - eveningExpense;
     
     res.json({
       month: `${year}-${String(month + 1).padStart(2, '0')}`,
@@ -393,13 +403,19 @@ router.get('/stats/monthly', (req, res) => {
         totalGames: afternoonTotal,
         winGames: afternoonWins,
         loseGames: afternoonLoses,
-        winRate: afternoonWinRate
+        winRate: afternoonWinRate,
+        totalIncome: afternoonIncome,
+        totalExpense: afternoonExpense,
+        profit: afternoonProfit
       },
       evening: {
         totalGames: eveningTotal,
         winGames: eveningWins,
         loseGames: eveningLoses,
-        winRate: eveningWinRate
+        winRate: eveningWinRate,
+        totalIncome: eveningIncome,
+        totalExpense: eveningExpense,
+        profit: eveningProfit
       }
     });
   } catch (error) {
