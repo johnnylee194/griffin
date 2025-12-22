@@ -201,15 +201,14 @@ function getLunarYear(date: Date): { year: number; startDate: string; endDate: s
 // 获取年度统计（本年，按地点分组）
 router.get('/annual', (req, res) => {
   try {
-    let currentUserId = (req as any).user?.id;
-    if (!currentUserId) {
-      // 如果没有用户认证，使用"我"的ID
-      const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
-      if (!mePlayer) {
-        return res.status(404).json({ error: 'Current user not found' });
-      }
-      currentUserId = mePlayer.id;
+    // 统计都是针对"我"的，直接获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: 'Current user not found' });
     }
+    const currentUserId = mePlayer.id;
+    
+    console.log(`📊 Getting player ID: ${currentUserId} (is_me=1)`);
 
     const now = new Date();
     const year = now.getFullYear();
@@ -298,15 +297,14 @@ router.get('/annual', (req, res) => {
 // 获取农历年统计（本年农历年，按地点分组）
 router.get('/lunar-annual', (req, res) => {
   try {
-    let currentUserId = (req as any).user?.id;
-    if (!currentUserId) {
-      // 如果没有用户认证，使用"我"的ID
-      const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
-      if (!mePlayer) {
-        return res.status(404).json({ error: 'Current user not found' });
-      }
-      currentUserId = mePlayer.id;
+    // 统计都是针对"我"的，直接获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: 'Current user not found' });
     }
+    const currentUserId = mePlayer.id;
+    
+    console.log(`🐉 Getting player ID: ${currentUserId} (is_me=1)`);
 
     const now = new Date();
     const lunarYearInfo = getLunarYear(now);
