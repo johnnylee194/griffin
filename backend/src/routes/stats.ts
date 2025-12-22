@@ -230,6 +230,8 @@ router.get('/annual', (req, res) => {
       ORDER BY g.created_at ASC
     `).all(currentUserId, startDate, endDate) as any[];
 
+    console.log(`📊 Annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
+
     // 计算总体统计
     let totalIncome = 0;
     let totalExpense = 0;
@@ -307,6 +309,8 @@ router.get('/lunar-annual', (req, res) => {
         AND g.created_at < ?
       ORDER BY g.created_at ASC
     `).all(currentUserId, startDate, endDate) as any[];
+
+    console.log(`🐉 Lunar annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
 
     // 计算总体统计
     let totalIncome = 0;
