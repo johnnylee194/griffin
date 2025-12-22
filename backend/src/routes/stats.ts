@@ -230,7 +230,29 @@ router.get('/annual', (req, res) => {
       ORDER BY g.created_at ASC
     `).all(currentUserId, startDate, endDate) as any[];
 
+    // 调试：查看数据库中实际的数据格式
+    const sampleRecords = db.prepare(`
+      SELECT g.created_at, pr.chips
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+      ORDER BY g.created_at DESC
+      LIMIT 5
+    `).all(currentUserId) as any[];
+    
+    // 调试：查看数据库中实际的数据格式
+    const sampleRecords = db.prepare(`
+      SELECT g.created_at, pr.chips
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+      ORDER BY g.created_at DESC
+      LIMIT 5
+    `).all(currentUserId) as any[];
+    
     console.log(`📊 Annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
+    console.log(`📊 Sample records from DB:`, sampleRecords.map(r => ({ date: r.created_at, chips: r.chips })));
+    console.log(`📊 First 5 records from query:`, records.slice(0, 5).map(r => ({ chips: r.chips, location: r.locationName })));
 
     // 计算总体统计
     let totalIncome = 0;
@@ -243,6 +265,8 @@ router.get('/annual', (req, res) => {
       }
     });
     const profit = totalIncome - totalExpense;
+    
+    console.log(`📊 Calculated stats: totalIncome=${totalIncome}, totalExpense=${totalExpense}, profit=${profit}`);
 
     // 按地点统计
     const locationStats: { [key: string]: { income: number; expense: number; profit: number } } = {};
@@ -311,6 +335,7 @@ router.get('/lunar-annual', (req, res) => {
     `).all(currentUserId, startDate, endDate) as any[];
 
     console.log(`🐉 Lunar annual stats query: playerId=${currentUserId}, startDate=${startDate}, endDate=${endDate}, records=${records.length}`);
+    console.log(`🐉 Sample records from DB:`, sampleRecords.map(r => ({ date: r.created_at, chips: r.chips })));
 
     // 计算总体统计
     let totalIncome = 0;
