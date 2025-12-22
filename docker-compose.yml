@@ -6,7 +6,7 @@ services:
     build: .
     restart: always
     ports:
-      - "4000:3000"
+      - "10020:3000"
     volumes:
       - ./data:/app/data
     environment:
