@@ -6,9 +6,10 @@ const router = Router();
 // 辅助函数：获取中国本地时间（UTC+8）的ISO字符串（不带时区标识）
 function getLocalTimestamp(): string {
   const now = new Date();
+  const utcTime = now.getTime();
   // now.getTime() 返回 UTC 时间戳（毫秒）
   // 直接加上 8 小时（8 * 60 * 60 * 1000 毫秒）得到中国时间
-  const chinaTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  const chinaTime = new Date(utcTime + (8 * 60 * 60 * 1000));
   
   // 手动格式化为ISO字符串（不带时区标识）
   const year = chinaTime.getUTCFullYear();
@@ -19,7 +20,15 @@ function getLocalTimestamp(): string {
   const seconds = String(chinaTime.getUTCSeconds()).padStart(2, '0');
   const milliseconds = String(chinaTime.getUTCMilliseconds()).padStart(3, '0');
   
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
+  const result = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}`;
+  
+  // 调试日志
+  console.log('🕐 getLocalTimestamp Debug:');
+  console.log('  UTC时间戳:', utcTime, '->', now.toISOString());
+  console.log('  中国时间戳:', chinaTime.getTime(), '->', chinaTime.toISOString());
+  console.log('  返回结果:', result);
+  
+  return result;
 }
 
 // 获取所有地点
