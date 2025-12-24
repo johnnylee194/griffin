@@ -1,6 +1,6 @@
 // Service Worker for Griffin PWA
 // 版本号：每次更新代码时需要修改此版本号
-const CACHE_VERSION = 'griffin-v0.3.1';
+const CACHE_VERSION = 'griffin-v0.5.0';
 const CACHE_NAME = `${CACHE_VERSION}-static`;
 
 // 只缓存静态资源（图标、manifest）
@@ -14,7 +14,7 @@ const STATIC_CACHE_URLS = [
   '/icon-192x192.png',
   '/icon-384x384.png',
   '/icon-512x512.png',
-  '/griffin-icon.svg'
+  '/griffin-logo.svg'
 ];
 
 // 安装事件：缓存静态资源，立即激活
