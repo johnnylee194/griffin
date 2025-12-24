@@ -12,6 +12,8 @@ export default function NewGamePage() {
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([])
   const [myScore, setMyScore] = useState<number>(0)
   const [gameTime, setGameTime] = useState<string>('')
+  const [selectedDate, setSelectedDate] = useState<'today' | 'yesterday' | null>('today')
+  const [selectedTime, setSelectedTime] = useState<'afternoon' | 'evening' | null>('afternoon')
   const [showNumPad, setShowNumPad] = useState(false)
   const [showNewPlayerModal, setShowNewPlayerModal] = useState(false)
   const [showNoteModal, setShowNoteModal] = useState(false)
@@ -21,14 +23,12 @@ export default function NewGamePage() {
 
   useEffect(() => {
     loadData()
-    // 设置默认时间为当前时间
+    // 设置默认时间为今天下午
     const now = new Date()
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
-    const hours = String(now.getHours()).padStart(2, '0')
-    const minutes = String(now.getMinutes()).padStart(2, '0')
-    setGameTime(`${year}-${month}-${day}T${hours}:${minutes}`)
+    setGameTime(`${year}-${month}-${day}T18:00`)
   }, [])
 
   const loadData = async () => {
@@ -152,6 +152,7 @@ export default function NewGamePage() {
   }
 
   const setQuickDate = (type: 'today' | 'yesterday') => {
+    setSelectedDate(type)
     const date = new Date()
     if (type === 'yesterday') {
       date.setDate(date.getDate() - 1)
@@ -166,10 +167,37 @@ export default function NewGamePage() {
   }
 
   const setQuickTime = (type: 'afternoon' | 'evening') => {
+    setSelectedTime(type)
     const currentDate = gameTime ? gameTime.split('T')[0] : new Date().toISOString().split('T')[0]
     const hours = type === 'afternoon' ? '18' : '23'
     const minutes = '00'
     setGameTime(`${currentDate}T${hours}:${minutes}`)
+  }
+
+  // 当手动修改时间输入框时，清除快捷选项的选中状态
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setGameTime(e.target.value)
+    // 检查是否匹配快捷选项
+    const date = e.target.value.split('T')[0]
+    const time = e.target.value.split('T')[1]
+    const today = new Date().toISOString().split('T')[0]
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    
+    if (date === today) {
+      setSelectedDate('today')
+    } else if (date === yesterday) {
+      setSelectedDate('yesterday')
+    } else {
+      setSelectedDate(null)
+    }
+    
+    if (time === '18:00') {
+      setSelectedTime('afternoon')
+    } else if (time === '23:00') {
+      setSelectedTime('evening')
+    } else {
+      setSelectedTime(null)
+    }
   }
 
   return (
@@ -293,13 +321,21 @@ export default function NewGamePage() {
             <span className="text-sm text-text-secondary py-1.5">日期：</span>
             <button
               onClick={() => setQuickDate('today')}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedDate === 'today'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
             >
               今天
             </button>
             <button
               onClick={() => setQuickDate('yesterday')}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedDate === 'yesterday'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
             >
               昨天
             </button>
@@ -308,22 +344,30 @@ export default function NewGamePage() {
             <span className="text-sm text-text-secondary py-1.5">时间：</span>
             <button
               onClick={() => setQuickTime('afternoon')}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedTime === 'afternoon'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
             >
-              下午 (18:00)
+              下午
             </button>
             <button
               onClick={() => setQuickTime('evening')}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedTime === 'evening'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
             >
-              晚上 (23:00)
+              晚上
             </button>
           </div>
         </div>
         <input
           type="datetime-local"
           value={gameTime}
-          onChange={(e) => setGameTime(e.target.value)}
+          onChange={handleTimeChange}
           className="input w-full mt-2"
         />
       </div>
