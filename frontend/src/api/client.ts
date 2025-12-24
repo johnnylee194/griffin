@@ -121,5 +121,7 @@ export const statsApi = {
   getLunarAnnual: (year?: number) => apiClient.get('/stats/lunar-annual', { params: year ? { year } : {} }),
   getPlayerPerformance: () => apiClient.get('/stats/player-performance'),
   getTripleCombination: () => apiClient.get('/stats/triple-combination'),
+  getAfternoonEveningCorrelation: (locationId: string, score: number, scoreType: 'win' | 'lose') =>
+    apiClient.get('/stats/afternoon-evening-correlation', { params: { locationId, score, scoreType } }),
 };
 

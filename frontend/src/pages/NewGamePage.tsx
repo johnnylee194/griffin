@@ -151,14 +151,25 @@ export default function NewGamePage() {
     )
   }
 
+  const setQuickDate = (type: 'today' | 'yesterday') => {
+    const date = new Date()
+    if (type === 'yesterday') {
+      date.setDate(date.getDate() - 1)
+    }
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    
+    // 保持当前选择的时间部分
+    const currentTime = gameTime ? gameTime.split('T')[1] : '18:00'
+    setGameTime(`${year}-${month}-${day}T${currentTime}`)
+  }
+
   const setQuickTime = (type: 'afternoon' | 'evening') => {
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    const day = String(now.getDate()).padStart(2, '0')
+    const currentDate = gameTime ? gameTime.split('T')[0] : new Date().toISOString().split('T')[0]
     const hours = type === 'afternoon' ? '18' : '23'
     const minutes = '00'
-    setGameTime(`${year}-${month}-${day}T${hours}:${minutes}`)
+    setGameTime(`${currentDate}T${hours}:${minutes}`)
   }
 
   return (
@@ -277,25 +288,43 @@ export default function NewGamePage() {
       {/* 时间选择 */}
       <div className="card">
         <label className="block text-text font-semibold mb-2">🕐 对局时间</label>
-        <div className="flex gap-2 mb-2">
-          <button
-            onClick={() => setQuickTime('afternoon')}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
-          >
-            下午 (18:00)
-          </button>
-          <button
-            onClick={() => setQuickTime('evening')}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
-          >
-            晚上 (23:00)
-          </button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <span className="text-sm text-text-secondary py-1.5">日期：</span>
+            <button
+              onClick={() => setQuickDate('today')}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+            >
+              今天
+            </button>
+            <button
+              onClick={() => setQuickDate('yesterday')}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+            >
+              昨天
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-sm text-text-secondary py-1.5">时间：</span>
+            <button
+              onClick={() => setQuickTime('afternoon')}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+            >
+              下午 (18:00)
+            </button>
+            <button
+              onClick={() => setQuickTime('evening')}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+            >
+              晚上 (23:00)
+            </button>
+          </div>
         </div>
         <input
           type="datetime-local"
           value={gameTime}
           onChange={(e) => setGameTime(e.target.value)}
-          className="input w-full"
+          className="input w-full mt-2"
         />
       </div>
 

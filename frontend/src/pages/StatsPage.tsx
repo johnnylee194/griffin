@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { playersApi, statsApi, Player } from '../api/client'
+import { playersApi, statsApi, locationsApi, Player, Location } from '../api/client'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } from 'recharts'
 
 type TrendType = 'daily-7' | 'daily-15' | 'daily-30' | 'weekly-7' | 'weekly-15' | 'weekly-30' | 'monthly-7' | 'monthly-15' | 'monthly-30'
@@ -12,6 +12,11 @@ export default function StatsPage() {
   const [lunarAnnualStats, setLunarAnnualStats] = useState<any>(null)
   const [playerPerformance, setPlayerPerformance] = useState<any[]>([])
   const [tripleCombination, setTripleCombination] = useState<any[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
+  const [correlationLocationId, setCorrelationLocationId] = useState<string>('')
+  const [correlationScore, setCorrelationScore] = useState<string>('')
+  const [correlationScoreType, setCorrelationScoreType] = useState<'win' | 'lose'>('win')
+  const [correlationStats, setCorrelationStats] = useState<any>(null)
   const [trendType, setTrendType] = useState<TrendType>('daily-7')
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedLunarYear, setSelectedLunarYear] = useState<number>(new Date().getFullYear())
@@ -20,6 +25,7 @@ export default function StatsPage() {
 
   useEffect(() => {
     loadPlayers()
+    loadLocations()
   }, [])
 
   useEffect(() => {
@@ -48,6 +54,20 @@ export default function StatsPage() {
     }
   }
 
+  const loadLocations = async () => {
+    try {
+      const res = await locationsApi.getAll()
+      setLocations(res.data)
+      // 默认选择紫竹郡
+      const defaultLoc = res.data.find(l => l.name === '紫竹郡') || res.data.find(l => l.isDefault)
+      if (defaultLoc) {
+        setCorrelationLocationId(defaultLoc.id)
+      }
+    } catch (error) {
+      console.error('Failed to load locations:', error)
+    }
+  }
+
   const loadAllStats = async () => {
     try {
       const [playerStatsRes, annualRes, lunarAnnualRes] = await Promise.all([
@@ -73,6 +93,30 @@ export default function StatsPage() {
       setTripleCombination(tripleRes.data)
     } catch (error) {
       console.error('Failed to load player stats:', error)
+    }
+  }
+
+  const loadCorrelationStats = async () => {
+    if (!correlationLocationId || !correlationScore) {
+      return
+    }
+
+    try {
+      const score = parseInt(correlationScore)
+      if (isNaN(score) || score <= 0) {
+        alert('请输入有效的分数（大于0）')
+        return
+      }
+
+      const res = await statsApi.getAfternoonEveningCorrelation(
+        correlationLocationId,
+        score,
+        correlationScoreType
+      )
+      setCorrelationStats(res.data)
+    } catch (error: any) {
+      console.error('Failed to load correlation stats:', error)
+      alert(error.response?.data?.error || '加载统计失败')
     }
   }
 
@@ -418,7 +462,104 @@ export default function StatsPage() {
             )}
           </div>
 
-          {/* 3. 本年统计 */}
+          {/* 3. 下午晚上关联统计 */}
+          <div className="card">
+            <h3 className="text-xl font-semibold text-text mb-4">📊 下午-晚上关联统计</h3>
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-secondary">地点：</span>
+                  <select
+                    value={correlationLocationId}
+                    onChange={(e) => setCorrelationLocationId(e.target.value)}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                  >
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-secondary">分数类型：</span>
+                  <button
+                    onClick={() => setCorrelationScoreType('win')}
+                    className={`px-3 py-1 text-sm rounded-lg ${
+                      correlationScoreType === 'win'
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    赢
+                  </button>
+                  <button
+                    onClick={() => setCorrelationScoreType('lose')}
+                    className={`px-3 py-1 text-sm rounded-lg ${
+                      correlationScoreType === 'lose'
+                        ? 'bg-primary text-white'
+                        : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    输
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-text-secondary">分数：</span>
+                  <input
+                    type="number"
+                    value={correlationScore}
+                    onChange={(e) => setCorrelationScore(e.target.value)}
+                    placeholder="输入分数"
+                    className="w-24 text-sm border border-gray-300 rounded px-2 py-1"
+                    min="1"
+                  />
+                </div>
+                <button
+                  onClick={loadCorrelationStats}
+                  disabled={!correlationLocationId || !correlationScore}
+                  className="px-4 py-1 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  查询
+                </button>
+              </div>
+
+              {correlationStats && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="mb-3">
+                    <p className="text-sm text-text-secondary mb-1">
+                      统计条件：{locations.find(l => l.id === correlationLocationId)?.name}，下午{correlationScoreType === 'win' ? '赢' : '输'} ≥ {correlationStats.threshold}分
+                    </p>
+                    <p className="text-sm text-text-secondary">
+                      符合条件的日期数：{correlationStats.validDatesCount} 天
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-text">
+                        {correlationStats.eveningStats.totalGames}
+                      </div>
+                      <div className="text-xs text-text-light mt-1">晚上总场次</div>
+                    </div>
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${
+                        correlationStats.eveningStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'
+                      }`}>
+                        {correlationStats.eveningStats.winRate}%
+                      </div>
+                      <div className="text-xs text-text-light mt-1">晚上胜率</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm text-text">
+                        {correlationStats.eveningStats.wins}胜 {correlationStats.eveningStats.losses}负
+                      </div>
+                      <div className="text-xs text-text-light mt-1">晚上战绩</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 4. 本年统计 */}
           {annualStats && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">

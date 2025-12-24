@@ -526,4 +526,116 @@ router.get('/triple-combination', (req, res) => {
   }
 });
 
+// 根据下午分数统计晚上胜率
+router.get('/afternoon-evening-correlation', (req, res) => {
+  try {
+    const { locationId, score, scoreType } = req.query;
+    
+    if (!locationId || score === undefined) {
+      return res.status(400).json({ error: 'locationId 和 score 参数必填' });
+    }
+    
+    const scoreValue = parseInt(score as string);
+    const isWin = scoreType === 'win' || scoreValue > 0;
+    const threshold = Math.abs(scoreValue);
+    
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: '当前用户未找到' });
+    }
+    
+    // 获取指定地点的所有对局（只统计"我"的记录）
+    const allRecords = db.prepare(`
+      SELECT 
+        pr.score,
+        pr.chips,
+        g.created_at as createdAt,
+        DATE(g.created_at) as gameDate,
+        CAST(strftime('%H', g.created_at) AS INTEGER) as hour
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+        AND g.location_id = ?
+        AND pr.score IS NOT NULL
+      ORDER BY g.created_at ASC
+    `).all(mePlayer.id, locationId) as any[];
+    
+    // 按日期分组（同一天可能有多个下午场和晚上场）
+    const gamesByDate: Record<string, { afternoon: any[]; evening: any[] }> = {};
+    
+    allRecords.forEach(record => {
+      const date = record.gameDate;
+      if (!gamesByDate[date]) {
+        gamesByDate[date] = { afternoon: [], evening: [] };
+      }
+      
+      if (record.hour < 20) {
+        // 下午场（20:00前）
+        gamesByDate[date].afternoon.push(record);
+      } else {
+        // 晚上场（20:00后）
+        gamesByDate[date].evening.push(record);
+      }
+    });
+    
+    // 筛选：下午场满足条件的日期（只要这天下午有至少一场满足条件即可）
+    const validDates: string[] = [];
+    Object.entries(gamesByDate).forEach(([date, games]) => {
+      if (games.afternoon.length > 0) {
+        // 检查这天下午是否有满足条件的场次
+        const hasValidAfternoon = games.afternoon.some(record => {
+          const afternoonScore = Math.abs(record.score);
+          const afternoonIsWin = record.score > 0;
+          
+          // 检查是否满足条件
+          if (isWin && afternoonIsWin && afternoonScore >= threshold) {
+            return true;
+          } else if (!isWin && !afternoonIsWin && afternoonScore >= threshold) {
+            return true;
+          }
+          return false;
+        });
+        
+        if (hasValidAfternoon) {
+          validDates.push(date);
+        }
+      }
+    });
+    
+    // 统计这些日期所有晚上场的胜率
+    let eveningWins = 0;
+    let eveningTotal = 0;
+    
+    validDates.forEach(date => {
+      const games = gamesByDate[date];
+      games.evening.forEach(record => {
+        eveningTotal++;
+        if (record.score > 0) {
+          eveningWins++;
+        }
+      });
+    });
+    
+    const winRate = eveningTotal > 0 ? Math.round((eveningWins / eveningTotal) * 100) : 0;
+    
+    res.json({
+      locationId,
+      threshold: scoreValue,
+      scoreType: isWin ? 'win' : 'lose',
+      validDatesCount: validDates.length,
+      eveningStats: {
+        totalGames: eveningTotal,
+        wins: eveningWins,
+        losses: eveningTotal - eveningWins,
+        winRate
+      },
+      validDates: validDates.slice(0, 10) // 只返回前10个日期作为示例
+    });
+  } catch (error) {
+    console.error('Failed to fetch afternoon-evening correlation stats:', error);
+    res.status(500).json({ error: 'Failed to fetch afternoon-evening correlation stats' });
+  }
+});
+
 export default router;
