@@ -536,7 +536,8 @@ router.get('/afternoon-evening-correlation', (req, res) => {
     }
     
     const scoreValue = parseInt(score as string);
-    const isWin = scoreType === 'win' || scoreValue > 0;
+    // 只根据 scoreType 参数判断，不依赖 scoreValue 的正负
+    const isWin = scoreType === 'win';
     const threshold = Math.abs(scoreValue);
     
     // 获取"我"的玩家ID
