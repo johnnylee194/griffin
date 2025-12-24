@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { gamesApi, Game } from '../api/client'
 import { format } from 'date-fns'
 
 export default function HistoryPage() {
+  const navigate = useNavigate()
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'win' | 'lose'>('all')
@@ -117,12 +119,20 @@ export default function HistoryPage() {
                       {game.isComplete && ' · 四人局'}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(game.id)}
-                    className="text-accent-red hover:text-red-600 text-sm"
-                  >
-                    删除
-                  </button>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => navigate(`/edit-game/${game.id}`)}
+                      className="text-primary hover:text-blue-700 text-sm"
+                    >
+                      编辑
+                    </button>
+                    <button
+                      onClick={() => handleDelete(game.id)}
+                      className="text-accent-red hover:text-red-600 text-sm"
+                    >
+                      删除
+                    </button>
+                  </div>
                 </div>
 
                 {/* 我的成绩 */}

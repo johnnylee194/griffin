@@ -156,7 +156,7 @@ router.get('/:id', (req, res) => {
 // 创建对局
 router.post('/', (req, res) => {
   try {
-    const { locationId, chipRate, playerIds, myScore, note } = req.body;
+    const { locationId, chipRate, playerIds, myScore, note, createdAt } = req.body;
     
     // 验证参数
     if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length !== 4) {
@@ -180,6 +180,8 @@ router.post('/', (req, res) => {
 
     const gameId = generateId();
     const now = getLocalTimestamp();
+    // 使用自定义时间或当前时间
+    const gameTime = createdAt || now;
     const myChips = myScore * chipRate;
 
     // 使用事务创建对局和记录
@@ -193,7 +195,7 @@ router.post('/', (req, res) => {
         locationId,
         chipRate,
         note || null,
-        now,
+        gameTime,
         now
       );
 
@@ -207,10 +209,10 @@ router.post('/', (req, res) => {
         const recordId = generateId();
         if (playerId === mePlayer.id) {
           // 只有"我"记录score和chips
-          insertRecord.run(recordId, gameId, playerId, myScore, myChips, now);
+          insertRecord.run(recordId, gameId, playerId, myScore, myChips, gameTime);
         } else {
           // 其他玩家score和chips为NULL
-          insertRecord.run(recordId, gameId, playerId, null, null, now);
+          insertRecord.run(recordId, gameId, playerId, null, null, gameTime);
         }
       }
     });
@@ -230,7 +232,7 @@ router.post('/', (req, res) => {
 // 更新对局
 router.put('/:id', (req, res) => {
   try {
-    const { locationId, chipRate, playerIds, myScore, note } = req.body;
+    const { locationId, chipRate, playerIds, myScore, note, createdAt } = req.body;
     
     // 验证参数
     if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length !== 4) {
@@ -253,6 +255,8 @@ router.put('/:id', (req, res) => {
     }
 
     const now = getLocalTimestamp();
+    // 使用自定义时间或保持原有时间
+    const gameTime = createdAt || now;
     const myChips = myScore * chipRate;
 
     // 使用事务更新对局和记录
@@ -263,12 +267,13 @@ router.put('/:id', (req, res) => {
       // 更新对局
       db.prepare(`
         UPDATE games 
-        SET location_id = ?, chip_rate = ?, is_complete = 1, note = ?, updated_at = ?
+        SET location_id = ?, chip_rate = ?, is_complete = 1, note = ?, created_at = ?, updated_at = ?
         WHERE id = ?
       `).run(
         locationId,
         chipRate,
         note || null,
+        gameTime,
         now,
         req.params.id
       );
@@ -283,10 +288,10 @@ router.put('/:id', (req, res) => {
         const recordId = generateId();
         if (playerId === mePlayer.id) {
           // 只有"我"记录score和chips
-          insertRecord.run(recordId, req.params.id, playerId, myScore, myChips, now);
+          insertRecord.run(recordId, req.params.id, playerId, myScore, myChips, gameTime);
         } else {
           // 其他玩家score和chips为NULL
-          insertRecord.run(recordId, req.params.id, playerId, null, null, now);
+          insertRecord.run(recordId, req.params.id, playerId, null, null, gameTime);
         }
       }
     });

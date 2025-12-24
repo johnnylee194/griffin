@@ -99,6 +99,7 @@ export const gamesApi = {
     playerIds: string[];
     myScore: number;
     note?: string;
+    createdAt?: string;
   }) => apiClient.post<Game>('/games', data),
   update: (id: string, data: {
     locationId: string;
@@ -106,6 +107,7 @@ export const gamesApi = {
     playerIds: string[];
     myScore: number;
     note?: string;
+    createdAt?: string;
   }) => apiClient.put<Game>(`/games/${id}`, data),
   delete: (id: string) => apiClient.delete(`/games/${id}`),
 };

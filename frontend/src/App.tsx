@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './pages/LoginPage'
 import HomePage from './pages/HomePage'
 import NewGamePage from './pages/NewGamePage'
+import EditGamePage from './pages/EditGamePage'
 import HistoryPage from './pages/HistoryPage'
 import StatsPage from './pages/StatsPage'
 import SettingsPage from './pages/SettingsPage'
@@ -92,6 +93,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/new-game" element={<ProtectedRoute><NewGamePage /></ProtectedRoute>} />
+          <Route path="/edit-game/:id" element={<ProtectedRoute><EditGamePage /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
           <Route path="/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { playersApi, locationsApi, gamesApi, Player, Location } from '../api/client'
 import NumPad from '../components/NumPad'
 
-export default function NewGamePage() {
+export default function EditGamePage() {
   const navigate = useNavigate()
+  const { id } = useParams<{ id: string }>()
   const [players, setPlayers] = useState<Player[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [selectedLocation, setSelectedLocation] = useState<string>('')
@@ -20,38 +21,45 @@ export default function NewGamePage() {
 
   useEffect(() => {
     loadData()
-    // 设置默认时间为当前时间
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    const day = String(now.getDate()).padStart(2, '0')
-    const hours = String(now.getHours()).padStart(2, '0')
-    const minutes = String(now.getMinutes()).padStart(2, '0')
-    setGameTime(`${year}-${month}-${day}T${hours}:${minutes}`)
-  }, [])
+  }, [id])
 
   const loadData = async () => {
     try {
-      const [playersRes, locationsRes] = await Promise.all([
+      const [playersRes, locationsRes, gameRes] = await Promise.all([
         playersApi.getAll(),
-        locationsApi.getAll()
+        locationsApi.getAll(),
+        id ? gamesApi.getOne(id) : Promise.resolve(null)
       ])
+      
       setPlayers(playersRes.data)
       setLocations(locationsRes.data)
-      
-      // 自动选择默认地点
-      const defaultLoc = locationsRes.data.find(l => l.isDefault)
-      if (defaultLoc) {
-        setSelectedLocation(defaultLoc.id)
-      }
-      
-      // 自动添加本人
-      const me = playersRes.data.find(p => p.isMe)
-      if (me) {
-        setSelectedPlayerIds([me.id])
+
+      if (gameRes) {
+        const game = gameRes.data
+        setSelectedLocation(game.locationId)
+        setChipRate(game.chipRate as 100 | 200)
+        setSelectedPlayerIds(game.records.map(r => r.playerId))
+        setNote(game.note || '')
+        
+        // 设置我的分数
+        const myRecord = game.records.find(r => r.player.isMe)
+        if (myRecord && myRecord.score !== null) {
+          setMyScore(myRecord.score)
+        }
+        
+        // 设置时间（转换为 datetime-local 格式）
+        const gameDate = new Date(game.createdAt)
+        const year = gameDate.getFullYear()
+        const month = String(gameDate.getMonth() + 1).padStart(2, '0')
+        const day = String(gameDate.getDate()).padStart(2, '0')
+        const hours = String(gameDate.getHours()).padStart(2, '0')
+        const minutes = String(gameDate.getMinutes()).padStart(2, '0')
+        setGameTime(`${year}-${month}-${day}T${hours}:${minutes}`)
       }
     } catch (error) {
       console.error('Failed to load data:', error)
+      alert('加载数据失败')
+      navigate('/')
     } finally {
       setLoading(false)
     }
@@ -126,7 +134,7 @@ export default function NewGamePage() {
       const seconds = String(gameDateTime.getSeconds()).padStart(2, '0')
       const createdAt = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
 
-      await gamesApi.create({
+      await gamesApi.update(id!, {
         locationId: selectedLocation,
         chipRate,
         playerIds: selectedPlayerIds,
@@ -134,11 +142,11 @@ export default function NewGamePage() {
         note: note || undefined,
         createdAt
       })
-      alert('对局记录成功！')
+      alert('对局更新成功！')
       navigate('/')
     } catch (error: any) {
-      console.error('Failed to create game:', error)
-      alert(error.response?.data?.error || '记录失败，请重试')
+      console.error('Failed to update game:', error)
+      alert(error.response?.data?.error || '更新失败，请重试')
     }
   }
 
@@ -152,7 +160,7 @@ export default function NewGamePage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-      <h2 className="text-2xl font-bold text-text">记录新对局</h2>
+      <h2 className="text-2xl font-bold text-text">编辑对局</h2>
 
       {/* 地点选择 */}
       <div className="card">
@@ -295,13 +303,21 @@ export default function NewGamePage() {
       </div>
 
       {/* 提交按钮 */}
-      <button
-        onClick={handleSubmit}
-        disabled={!selectedLocation || selectedPlayerIds.length !== 4}
-        className="btn-primary w-full text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        保存对局
-      </button>
+      <div className="flex space-x-3">
+        <button
+          onClick={() => navigate('/')}
+          className="flex-1 py-4 rounded-lg border border-gray-300 text-text hover:bg-gray-50"
+        >
+          取消
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!selectedLocation || selectedPlayerIds.length !== 4}
+          className="flex-1 btn-primary text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          保存修改
+        </button>
+      </div>
 
       {/* 数字键盘弹窗 */}
       {showNumPad && (
