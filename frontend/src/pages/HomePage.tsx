@@ -256,21 +256,28 @@ function GameCard({ game }: { game: Game }) {
       </div>
       
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {game.records.map(record => (
-          <div key={record.id} className="flex items-center justify-between text-sm">
-            <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
-              {record.player.name}
-            </span>
-            <span className={record.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
-              {record.chips >= 0 ? '+' : ''}{record.chips}
-            </span>
-          </div>
-        ))}
+        {game.records.map(record => {
+          // 只显示有金额的记录（"我"的记录），其他玩家只显示名字
+          if (record.chips === null) {
+            return (
+              <div key={record.id} className="flex items-center justify-between text-sm">
+                <span className="text-text-secondary">{record.player.name}</span>
+                <span className="text-text-light">-</span>
+              </div>
+            )
+          }
+          return (
+            <div key={record.id} className="flex items-center justify-between text-sm">
+              <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
+                {record.player.name}
+              </span>
+              <span className={record.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
+                {record.chips >= 0 ? '+' : ''}{record.chips}
+              </span>
+            </div>
+          )
+        })}
       </div>
-
-      {!game.isBalanced && game.isComplete && (
-        <div className="mt-2 text-xs text-accent-red">⚠️ 未平账</div>
-      )}
     </div>
   )
 }
