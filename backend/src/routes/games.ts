@@ -331,10 +331,11 @@ router.delete('/:id', (req, res) => {
 // 获取月度统计（首页用）
 router.get('/stats/monthly', (req, res) => {
   try {
-    // 获取本月第一天和下月第一天
+    // 支持自定义年月参数，默认为当前月份
+    const { year: yearParam, month: monthParam } = req.query;
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-11
+    const year = yearParam ? parseInt(yearParam as string) : now.getFullYear();
+    const month = monthParam ? parseInt(monthParam as string) - 1 : now.getMonth(); // 0-11
     
     const firstDayOfMonth = new Date(year, month, 1);
     const firstDayOfNextMonth = new Date(year, month + 1, 1);

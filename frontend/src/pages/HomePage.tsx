@@ -37,16 +37,20 @@ export default function HomePage() {
   const [recentGames, setRecentGames] = useState<Game[]>([])
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [selectedYear, selectedMonth])
 
   const loadData = async () => {
     try {
       const [gamesRes, statsRes] = await Promise.all([
         gamesApi.getAll({ limit: 5 }),
-        apiClient.get('/games/stats/monthly')
+        apiClient.get('/games/stats/monthly', {
+          params: { year: selectedYear, month: selectedMonth }
+        })
       ])
       setRecentGames(gamesRes.data)
       setMonthlyStats(statsRes.data)
@@ -55,6 +59,23 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // 生成月份选项（最近12个月）
+  const getMonthOptions = () => {
+    const options = []
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
+    
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentYear, currentMonth - 1 - i, 1)
+      const year = date.getFullYear()
+      const month = date.getMonth() + 1
+      options.push({ year, month, label: `${year}年${month}月` })
+    }
+    
+    return options
   }
 
   if (loading) {
@@ -76,7 +97,24 @@ export default function HomePage() {
       {/* 本月统计 */}
       {monthlyStats && (
         <div className="space-y-2 sm:space-y-3">
-          <h3 className="text-base sm:text-lg font-semibold text-text">本月统计 ({monthlyStats.month})</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base sm:text-lg font-semibold text-text">月度统计</h3>
+            <select
+              value={`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`}
+              onChange={(e) => {
+                const [year, month] = e.target.value.split('-')
+                setSelectedYear(parseInt(year))
+                setSelectedMonth(parseInt(month))
+              }}
+              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+            >
+              {getMonthOptions().map(option => (
+                <option key={`${option.year}-${option.month}`} value={`${option.year}-${String(option.month).padStart(2, '0')}`}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           
           {/* 收支情况 */}
           <div className="card">

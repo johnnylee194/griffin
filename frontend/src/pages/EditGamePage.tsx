@@ -15,6 +15,7 @@ export default function EditGamePage() {
   const [gameTime, setGameTime] = useState<string>('')
   const [showNumPad, setShowNumPad] = useState(false)
   const [showNewPlayerModal, setShowNewPlayerModal] = useState(false)
+  const [showNoteModal, setShowNoteModal] = useState(false)
   const [newPlayerName, setNewPlayerName] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
@@ -158,46 +159,48 @@ export default function EditGamePage() {
     )
   }
 
+  const setQuickTime = (type: 'afternoon' | 'evening') => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const hours = type === 'afternoon' ? '18' : '23'
+    const minutes = '00'
+    setGameTime(`${year}-${month}-${day}T${hours}:${minutes}`)
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       <h2 className="text-2xl font-bold text-text">编辑对局</h2>
 
-      {/* 地点选择 */}
-      <div className="card">
-        <label className="block text-text font-semibold mb-2">📍 地点</label>
+      {/* 地点和筹码比率 - 合并为一行小按钮 */}
+      <div className="flex items-center gap-2">
         <select
           value={selectedLocation}
           onChange={(e) => setSelectedLocation(e.target.value)}
-          className="input w-full"
+          className="flex-1 text-sm py-2 px-3 rounded-lg border border-gray-300 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary"
         >
-          <option value="">选择地点</option>
+          <option value="">📍 选择地点</option>
           {locations.map(loc => (
             <option key={loc.id} value={loc.id}>{loc.name}</option>
           ))}
         </select>
-      </div>
-
-      {/* 筹码比率 */}
-      <div className="card">
-        <label className="block text-text font-semibold mb-2">💰 筹码比率</label>
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setChipRate(100)}
-            className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-              chipRate === 100 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            一分100
-          </button>
-          <button
-            onClick={() => setChipRate(200)}
-            className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-              chipRate === 200 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            一分200
-          </button>
-        </div>
+        <button
+          onClick={() => setChipRate(100)}
+          className={`px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${
+            chipRate === 100 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          100
+        </button>
+        <button
+          onClick={() => setChipRate(200)}
+          className={`px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${
+            chipRate === 200 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          200
+        </button>
       </div>
 
       {/* 玩家选择 */}
@@ -282,6 +285,20 @@ export default function EditGamePage() {
       {/* 时间选择 */}
       <div className="card">
         <label className="block text-text font-semibold mb-2">🕐 对局时间</label>
+        <div className="flex gap-2 mb-2">
+          <button
+            onClick={() => setQuickTime('afternoon')}
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+          >
+            下午 (18:00)
+          </button>
+          <button
+            onClick={() => setQuickTime('evening')}
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-text hover:bg-gray-50"
+          >
+            晚上 (23:00)
+          </button>
+        </div>
         <input
           type="datetime-local"
           value={gameTime}
@@ -290,16 +307,16 @@ export default function EditGamePage() {
         />
       </div>
 
-      {/* 备注 */}
-      <div className="card">
-        <label className="block text-text font-semibold mb-2">📝 备注（可选）</label>
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="输入备注..."
-          className="input w-full"
-        />
+      {/* 备注 - 小按钮 */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setShowNoteModal(true)}
+          className={`flex-1 text-sm py-2 px-3 rounded-lg border border-gray-300 text-left ${
+            note ? 'bg-primary/10 text-primary border-primary' : 'bg-white text-text-light hover:bg-gray-50'
+          }`}
+        >
+          {note || '📝 备注（可选）'}
+        </button>
       </div>
 
       {/* 提交按钮 */}
@@ -364,6 +381,38 @@ export default function EditGamePage() {
                 className="flex-1 py-2 px-4 rounded-lg bg-primary text-white hover:bg-primary/90"
               >
                 创建
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 备注弹窗 */}
+      {showNoteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-text mb-4">备注</h3>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="输入备注..."
+              className="input w-full mb-4"
+              autoFocus
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  setShowNoteModal(false)
+                }
+              }}
+            />
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowNoteModal(false)
+                }}
+                className="flex-1 py-2 px-4 rounded-lg border border-gray-300 text-text hover:bg-gray-50"
+              >
+                确定
               </button>
             </div>
           </div>
