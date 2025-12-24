@@ -6,6 +6,10 @@ export default function SettingsPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [newPlayerName, setNewPlayerName] = useState('')
   const [newLocationName, setNewLocationName] = useState('')
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null)
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(null)
+  const [editingPlayerName, setEditingPlayerName] = useState('')
+  const [editingLocationName, setEditingLocationName] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -116,6 +120,62 @@ export default function SettingsPage() {
     }
   }
 
+  const handleStartEditPlayer = (player: Player) => {
+    setEditingPlayerId(player.id)
+    setEditingPlayerName(player.name)
+  }
+
+  const handleCancelEditPlayer = () => {
+    setEditingPlayerId(null)
+    setEditingPlayerName('')
+  }
+
+  const handleSavePlayer = async (id: string) => {
+    if (!editingPlayerName.trim()) {
+      alert('请输入玩家名称')
+      return
+    }
+
+    try {
+      await playersApi.update(id, { name: editingPlayerName.trim() })
+      setEditingPlayerId(null)
+      setEditingPlayerName('')
+      loadData()
+      alert('修改成功')
+    } catch (error: any) {
+      console.error('Failed to update player:', error)
+      alert(error.response?.data?.error || '修改失败')
+    }
+  }
+
+  const handleStartEditLocation = (location: Location) => {
+    setEditingLocationId(location.id)
+    setEditingLocationName(location.name)
+  }
+
+  const handleCancelEditLocation = () => {
+    setEditingLocationId(null)
+    setEditingLocationName('')
+  }
+
+  const handleSaveLocation = async (id: string) => {
+    if (!editingLocationName.trim()) {
+      alert('请输入地点名称')
+      return
+    }
+
+    try {
+      await locationsApi.update(id, { name: editingLocationName.trim() })
+      setEditingLocationId(null)
+      setEditingLocationName('')
+      loadData()
+      alert('修改成功')
+    } catch (error: any) {
+      console.error('Failed to update location:', error)
+      alert(error.response?.data?.error || '修改失败')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -151,30 +211,71 @@ export default function SettingsPage() {
         <div className="space-y-2">
           {players.map(player => (
             <div key={player.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center space-x-3">
-                <span className={player.isMe ? 'text-primary font-semibold' : 'text-text'}>
-                  {player.name}
-                </span>
-                {player.isMe && (
-                  <span className="text-xs bg-primary text-white px-2 py-1 rounded">我</span>
+              <div className="flex items-center space-x-3 flex-1">
+                {editingPlayerId === player.id ? (
+                  <input
+                    type="text"
+                    value={editingPlayerName}
+                    onChange={(e) => setEditingPlayerName(e.target.value)}
+                    className="input flex-1 text-sm"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') handleSavePlayer(player.id)
+                      if (e.key === 'Escape') handleCancelEditPlayer()
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <>
+                    <span className={player.isMe ? 'text-primary font-semibold' : 'text-text'}>
+                      {player.name}
+                    </span>
+                    {player.isMe && (
+                      <span className="text-xs bg-primary text-white px-2 py-1 rounded">我</span>
+                    )}
+                  </>
                 )}
               </div>
               <div className="flex items-center space-x-2">
-                {!player.isMe && (
-                  <button
-                    onClick={() => handleSetMe(player.id)}
-                    className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                  >
-                    设为本人
-                  </button>
+                {editingPlayerId === player.id ? (
+                  <>
+                    <button
+                      onClick={() => handleSavePlayer(player.id)}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={handleCancelEditPlayer}
+                      className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                    >
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleStartEditPlayer(player)}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                    >
+                      编辑
+                    </button>
+                    {!player.isMe && (
+                      <button
+                        onClick={() => handleSetMe(player.id)}
+                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                      >
+                        设为本人
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeletePlayer(player.id, player.isMe)}
+                      disabled={player.isMe}
+                      className="text-accent-red hover:text-red-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      删除
+                    </button>
+                  </>
                 )}
-                <button
-                  onClick={() => handleDeletePlayer(player.id, player.isMe)}
-                  disabled={player.isMe}
-                  className="text-accent-red hover:text-red-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  删除
-                </button>
               </div>
             </div>
           ))}
@@ -204,27 +305,68 @@ export default function SettingsPage() {
         <div className="space-y-2">
           {locations.map(location => (
             <div key={location.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center space-x-3">
-                <span className="text-text">{location.name}</span>
-                {location.isDefault && (
-                  <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
+              <div className="flex items-center space-x-3 flex-1">
+                {editingLocationId === location.id ? (
+                  <input
+                    type="text"
+                    value={editingLocationName}
+                    onChange={(e) => setEditingLocationName(e.target.value)}
+                    className="input flex-1 text-sm"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') handleSaveLocation(location.id)
+                      if (e.key === 'Escape') handleCancelEditLocation()
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <>
+                    <span className="text-text">{location.name}</span>
+                    {location.isDefault && (
+                      <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
+                    )}
+                  </>
                 )}
               </div>
               <div className="flex items-center space-x-2">
-                {!location.isDefault && (
-                  <button
-                    onClick={() => handleSetDefaultLocation(location.id)}
-                    className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                  >
-                    设为默认
-                  </button>
+                {editingLocationId === location.id ? (
+                  <>
+                    <button
+                      onClick={() => handleSaveLocation(location.id)}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                    >
+                      保存
+                    </button>
+                    <button
+                      onClick={handleCancelEditLocation}
+                      className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                    >
+                      取消
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleStartEditLocation(location)}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                    >
+                      编辑
+                    </button>
+                    {!location.isDefault && (
+                      <button
+                        onClick={() => handleSetDefaultLocation(location.id)}
+                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                      >
+                        设为默认
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteLocation(location.id)}
+                      className="text-accent-red hover:text-red-600 text-sm"
+                    >
+                      删除
+                    </button>
+                  </>
                 )}
-                <button
-                  onClick={() => handleDeleteLocation(location.id)}
-                  className="text-accent-red hover:text-red-600 text-sm"
-                >
-                  删除
-                </button>
               </div>
             </div>
           ))}
