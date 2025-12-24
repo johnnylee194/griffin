@@ -47,6 +47,3 @@ coverage/
 # Prisma
 backend/prisma/migrations/
 
-# Temporary commit message files
-commit-message*.txt
-
