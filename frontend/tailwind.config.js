@@ -30,21 +30,7 @@ export default {
         }
       },
       fontFamily: {
-        sans: [
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'PingFang SC',
-          'Hiragino Sans GB',
-          'Microsoft YaHei',
-          '微软雅黑',
-          'STHeiti',
-          'WenQuanYi Micro Hei',
-          'Roboto',
-          'Helvetica Neue',
-          'Arial',
-          'sans-serif',
-        ],
+        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       }
     },
   },
