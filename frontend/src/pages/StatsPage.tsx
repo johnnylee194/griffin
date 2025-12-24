@@ -724,10 +724,10 @@ function StatCard({ label, value, color, prefix }: any) {
   
   return (
     <div className="card text-center">
-      <div className={`text-3xl font-bold ${colorClass}`}>
+      <div className={`text-lg sm:text-2xl font-bold ${colorClass}`}>
         {prefix}{value}
       </div>
-      <div className="text-sm text-text-light mt-1">{label}</div>
+      <div className="text-xs text-text-light mt-1">{label}</div>
     </div>
   )
 }
