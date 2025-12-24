@@ -360,4 +360,170 @@ router.get('/lunar-annual', (req, res) => {
   }
 });
 
+// 获取单个玩家在场时我的胜率统计
+router.get('/player-performance', (req, res) => {
+  try {
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: '当前用户未找到' });
+    }
+
+    // 获取所有四人局（is_complete = 1）的对局
+    const games = db.prepare(`
+      SELECT g.id, g.created_at
+      FROM games g
+      WHERE g.is_complete = 1
+      ORDER BY g.created_at DESC
+    `).all() as any[];
+
+    // 统计每个玩家在场时我的胜率
+    const playerStatsMap: Record<string, { wins: number; total: number; winRate: number; playerName: string }> = {};
+
+    for (const game of games) {
+      // 获取该对局的所有玩家记录
+      const records = db.prepare(`
+        SELECT pr.player_id, pr.chips, p.name, p.is_me
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id = ?
+      `).all(game.id) as any[];
+
+      // 获取我的记录（判断是否赢）
+      const myRecord = records.find(r => r.is_me === 1);
+      if (!myRecord) continue;
+
+      const isWin = myRecord.chips > 0;
+
+      // 遍历其他玩家（不计分的玩家也在场）
+      for (const record of records) {
+        if (record.is_me === 1) continue; // 跳过我自己
+
+        const playerId = record.player_id;
+        if (!playerStatsMap[playerId]) {
+          playerStatsMap[playerId] = {
+            wins: 0,
+            total: 0,
+            winRate: 0,
+            playerName: record.name
+          };
+        }
+
+        playerStatsMap[playerId].total++;
+        if (isWin) {
+          playerStatsMap[playerId].wins++;
+        }
+      }
+    }
+
+    // 计算胜率并转换为数组
+    const playerStats = Object.entries(playerStatsMap)
+      .map(([playerId, stats]) => ({
+        playerId,
+        playerName: stats.playerName,
+        totalGames: stats.total,
+        wins: stats.wins,
+        losses: stats.total - stats.wins,
+        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0
+      }))
+      .sort((a, b) => {
+        // 先按总场次排序（场次多的优先），再按胜率排序
+        if (b.totalGames !== a.totalGames) {
+          return b.totalGames - a.totalGames;
+        }
+        return b.winRate - a.winRate;
+      });
+
+    res.json(playerStats);
+  } catch (error) {
+    console.error('Failed to fetch player performance stats:', error);
+    res.status(500).json({ error: 'Failed to fetch player performance stats' });
+  }
+});
+
+// 获取三个玩家组合和我一起时的胜率统计
+router.get('/triple-combination', (req, res) => {
+  try {
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: '当前用户未找到' });
+    }
+
+    // 获取所有四人局（is_complete = 1）的对局
+    const games = db.prepare(`
+      SELECT g.id, g.created_at
+      FROM games g
+      WHERE g.is_complete = 1
+      ORDER BY g.created_at DESC
+    `).all() as any[];
+
+    // 统计每个三个玩家组合的胜率
+    const combinationStatsMap: Record<string, { wins: number; total: number; playerNames: string[] }> = {};
+
+    for (const game of games) {
+      // 获取该对局的所有玩家记录
+      const records = db.prepare(`
+        SELECT pr.player_id, pr.chips, p.name, p.is_me
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id = ?
+      `).all(game.id) as any[];
+
+      // 获取我的记录（判断是否赢）
+      const myRecord = records.find(r => r.is_me === 1);
+      if (!myRecord) continue;
+
+      const isWin = myRecord.chips > 0;
+
+      // 获取其他三个玩家（排除我）
+      const otherPlayers = records
+        .filter(r => r.is_me !== 1)
+        .map(r => ({ id: r.player_id, name: r.name }));
+
+      if (otherPlayers.length !== 3) continue; // 必须是3个其他玩家
+
+      // 生成组合key（按player_id排序，确保组合唯一）
+      const playerIds = otherPlayers.map(p => p.id).sort();
+      const combinationKey = playerIds.join(',');
+
+      if (!combinationStatsMap[combinationKey]) {
+        combinationStatsMap[combinationKey] = {
+          wins: 0,
+          total: 0,
+          playerNames: otherPlayers.map(p => p.name).sort()
+        };
+      }
+
+      combinationStatsMap[combinationKey].total++;
+      if (isWin) {
+        combinationStatsMap[combinationKey].wins++;
+      }
+    }
+
+    // 计算胜率并转换为数组
+    const combinationStats = Object.entries(combinationStatsMap)
+      .map(([key, stats]) => ({
+        playerIds: key.split(','),
+        playerNames: stats.playerNames,
+        totalGames: stats.total,
+        wins: stats.wins,
+        losses: stats.total - stats.wins,
+        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0
+      }))
+      .sort((a, b) => {
+        // 先按总场次排序（场次多的优先），再按胜率排序
+        if (b.totalGames !== a.totalGames) {
+          return b.totalGames - a.totalGames;
+        }
+        return b.winRate - a.winRate;
+      });
+
+    res.json(combinationStats);
+  } catch (error) {
+    console.error('Failed to fetch triple combination stats:', error);
+    res.status(500).json({ error: 'Failed to fetch triple combination stats' });
+  }
+});
+
 export default router;

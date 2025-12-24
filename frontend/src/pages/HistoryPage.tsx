@@ -37,14 +37,14 @@ export default function HistoryPage() {
 
   // 获取我的成绩
   const getMyRecord = (game: Game) => {
-    return game.records.find(r => r.player.isMe)
+    return game.records.find(r => r.player.isMe && r.chips !== null)
   }
 
   // 过滤游戏
   const filteredGames = games.filter(game => {
     if (filter === 'all') return true
     const myRecord = getMyRecord(game)
-    if (!myRecord) return false
+    if (!myRecord || myRecord.chips === null) return false
     if (filter === 'win') return myRecord.chips > 0
     if (filter === 'lose') return myRecord.chips < 0
     return true
@@ -114,7 +114,7 @@ export default function HistoryPage() {
                     </div>
                     <div className="text-xs text-text-light">
                       {game.chipRate === 100 ? '一分100' : '一分200'}
-                      {!game.isBalanced && game.isComplete && ' · ⚠️ 未平账'}
+                      {game.isComplete && ' · 四人局'}
                     </div>
                   </div>
                   <button
@@ -126,7 +126,7 @@ export default function HistoryPage() {
                 </div>
 
                 {/* 我的成绩 */}
-                {myRecord && (
+                {myRecord && myRecord.chips !== null && (
                   <div className="bg-primary/5 rounded-lg p-3 mb-2">
                     <div className="flex items-center justify-between">
                       <span className="text-primary font-semibold">我的成绩</span>
@@ -134,25 +134,36 @@ export default function HistoryPage() {
                         <div className={`text-2xl font-bold ${myRecord.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                           {myRecord.chips >= 0 ? '+' : ''}{myRecord.chips}
                         </div>
-                        <div className="text-xs text-text-light">
-                          {myRecord.score >= 0 ? '+' : ''}{myRecord.score} 分
-                        </div>
+                        {myRecord.score !== null && (
+                          <div className="text-xs text-text-light">
+                            {myRecord.score >= 0 ? '+' : ''}{myRecord.score} 分
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* 其他玩家 */}
-                <div className="grid grid-cols-3 gap-2">
-                  {game.records.filter(r => !r.player.isMe).map(record => (
-                    <div key={record.id} className="flex flex-col items-center text-sm">
-                      <span className="text-text-secondary mb-1">{record.player.name}</span>
-                      <span className={record.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
-                        {record.chips >= 0 ? '+' : ''}{record.chips}
-                      </span>
+                {/* 参与玩家 */}
+                {game.records.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-xs text-text-light mb-2">参与玩家：</div>
+                    <div className="flex flex-wrap gap-2">
+                      {game.records.map(record => (
+                        <div
+                          key={record.id}
+                          className={`px-2 py-1 rounded text-sm ${
+                            record.player.isMe
+                              ? 'bg-primary/10 text-primary font-semibold'
+                              : 'bg-gray-100 text-text'
+                          }`}
+                        >
+                          {record.player.name}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
 
                 {game.note && (
                   <div className="mt-2 text-sm text-text-secondary border-t border-gray-200 pt-2">

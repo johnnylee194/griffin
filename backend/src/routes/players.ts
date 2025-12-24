@@ -77,7 +77,6 @@ router.get('/:id', (req, res) => {
         g.location_id as locationId,
         g.chip_rate as chipRate,
         g.is_complete as isComplete,
-        g.is_balanced as isBalanced,
         g.note,
         g.created_at as gameCreatedAt
       FROM player_records pr
@@ -91,8 +90,7 @@ router.get('/:id', (req, res) => {
       isMe: Boolean(player.isMe),
       records: records.map((r: any) => ({
         ...r,
-        isComplete: Boolean(r.isComplete),
-        isBalanced: r.isBalanced !== null ? Boolean(r.isBalanced) : null
+        isComplete: Boolean(r.isComplete)
       }))
     });
   } catch (error) {

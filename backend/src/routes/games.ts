@@ -29,7 +29,6 @@ function getGameWithDetails(gameId: string) {
       g.location_id as locationId,
       g.chip_rate as chipRate,
       g.is_complete as isComplete,
-      g.is_balanced as isBalanced,
       g.note,
       g.created_at as createdAt,
       g.updated_at as updatedAt,
@@ -70,7 +69,6 @@ function getGameWithDetails(gameId: string) {
     locationId: game.locationId,
     chipRate: game.chipRate,
     isComplete: Boolean(game.isComplete),
-    isBalanced: game.isBalanced !== null ? Boolean(game.isBalanced) : null,
     note: game.note,
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,
@@ -110,7 +108,6 @@ router.get('/', (req, res) => {
         g.location_id as locationId,
         g.chip_rate as chipRate,
         g.is_complete as isComplete,
-        g.is_balanced as isBalanced,
         g.note,
         g.created_at as createdAt,
         g.updated_at as updatedAt
@@ -159,38 +156,42 @@ router.get('/:id', (req, res) => {
 // 创建对局
 router.post('/', (req, res) => {
   try {
-    const { locationId, chipRate, records, note } = req.body;
+    const { locationId, chipRate, playerIds, myScore, note } = req.body;
     
     // 验证参数
-    if (!locationId || !chipRate || !records || records.length === 0) {
-      return res.status(400).json({ error: 'Invalid parameters' });
+    if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length !== 4) {
+      return res.status(400).json({ error: '必须选择4个玩家' });
+    }
+    
+    if (myScore === undefined || myScore === null) {
+      return res.status(400).json({ error: '必须输入我的分数' });
     }
 
-    // 检查是否完整记录（4个玩家）
-    const isComplete = records.length === 4;
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: '当前用户未找到' });
+    }
     
-    // 计算总分，检查是否平账
-    let isBalanced = null;
-    if (isComplete) {
-      const totalScore = records.reduce((sum: number, r: any) => sum + r.score, 0);
-      isBalanced = totalScore === 0;
+    // 验证"我"是否在playerIds中
+    if (!playerIds.includes(mePlayer.id)) {
+      return res.status(400).json({ error: '玩家列表中必须包含"我"' });
     }
 
     const gameId = generateId();
     const now = getLocalTimestamp();
+    const myChips = myScore * chipRate;
 
     // 使用事务创建对局和记录
     const createGame = db.transaction(() => {
-      // 创建对局
+      // 创建对局（强制4人局，is_complete = 1）
       db.prepare(`
-        INSERT INTO games (id, location_id, chip_rate, is_complete, is_balanced, note, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO games (id, location_id, chip_rate, is_complete, note, created_at, updated_at)
+        VALUES (?, ?, ?, 1, ?, ?, ?)
       `).run(
         gameId,
         locationId,
         chipRate,
-        isComplete ? 1 : 0,
-        isBalanced !== null ? (isBalanced ? 1 : 0) : null,
         note || null,
         now,
         now
@@ -202,10 +203,15 @@ router.post('/', (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?)
       `);
 
-      for (const record of records) {
+      for (const playerId of playerIds) {
         const recordId = generateId();
-        const chips = record.score * chipRate;
-        insertRecord.run(recordId, gameId, record.playerId, record.score, chips, now);
+        if (playerId === mePlayer.id) {
+          // 只有"我"记录score和chips
+          insertRecord.run(recordId, gameId, playerId, myScore, myChips, now);
+        } else {
+          // 其他玩家score和chips为NULL
+          insertRecord.run(recordId, gameId, playerId, null, null, now);
+        }
       }
     });
 
@@ -224,22 +230,30 @@ router.post('/', (req, res) => {
 // 更新对局
 router.put('/:id', (req, res) => {
   try {
-    const { locationId, chipRate, records, note } = req.body;
+    const { locationId, chipRate, playerIds, myScore, note } = req.body;
     
     // 验证参数
-    if (!locationId || !chipRate || !records || records.length === 0) {
-      return res.status(400).json({ error: 'Invalid parameters' });
+    if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length !== 4) {
+      return res.status(400).json({ error: '必须选择4个玩家' });
+    }
+    
+    if (myScore === undefined || myScore === null) {
+      return res.status(400).json({ error: '必须输入我的分数' });
     }
 
-    // 检查是否完整记录
-    const isComplete = records.length === 4;
-    let isBalanced = null;
-    if (isComplete) {
-      const totalScore = records.reduce((sum: number, r: any) => sum + r.score, 0);
-      isBalanced = totalScore === 0;
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: '当前用户未找到' });
+    }
+    
+    // 验证"我"是否在playerIds中
+    if (!playerIds.includes(mePlayer.id)) {
+      return res.status(400).json({ error: '玩家列表中必须包含"我"' });
     }
 
     const now = getLocalTimestamp();
+    const myChips = myScore * chipRate;
 
     // 使用事务更新对局和记录
     const updateGame = db.transaction(() => {
@@ -249,13 +263,11 @@ router.put('/:id', (req, res) => {
       // 更新对局
       db.prepare(`
         UPDATE games 
-        SET location_id = ?, chip_rate = ?, is_complete = ?, is_balanced = ?, note = ?, updated_at = ?
+        SET location_id = ?, chip_rate = ?, is_complete = 1, note = ?, updated_at = ?
         WHERE id = ?
       `).run(
         locationId,
         chipRate,
-        isComplete ? 1 : 0,
-        isBalanced !== null ? (isBalanced ? 1 : 0) : null,
         note || null,
         now,
         req.params.id
@@ -267,10 +279,15 @@ router.put('/:id', (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?)
       `);
 
-      for (const record of records) {
+      for (const playerId of playerIds) {
         const recordId = generateId();
-        const chips = record.score * chipRate;
-        insertRecord.run(recordId, req.params.id, record.playerId, record.score, chips, now);
+        if (playerId === mePlayer.id) {
+          // 只有"我"记录score和chips
+          insertRecord.run(recordId, req.params.id, playerId, myScore, myChips, now);
+        } else {
+          // 其他玩家score和chips为NULL
+          insertRecord.run(recordId, req.params.id, playerId, null, null, now);
+        }
       }
     });
 

@@ -3,21 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { playersApi, locationsApi, gamesApi, Player, Location } from '../api/client'
 import NumPad from '../components/NumPad'
 
-interface PlayerScore {
-  playerId: string
-  name: string
-  score: number
-  isMe: boolean
-}
-
 export default function NewGamePage() {
   const navigate = useNavigate()
   const [players, setPlayers] = useState<Player[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [selectedLocation, setSelectedLocation] = useState<string>('')
   const [chipRate, setChipRate] = useState<100 | 200>(100)
-  const [selectedPlayers, setSelectedPlayers] = useState<PlayerScore[]>([])
-  const [currentPlayer, setCurrentPlayer] = useState<string | null>(null)
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([])
+  const [myScore, setMyScore] = useState<number>(0)
+  const [showNumPad, setShowNumPad] = useState(false)
+  const [showNewPlayerModal, setShowNewPlayerModal] = useState(false)
+  const [newPlayerName, setNewPlayerName] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -43,7 +39,7 @@ export default function NewGamePage() {
       // 自动添加本人
       const me = playersRes.data.find(p => p.isMe)
       if (me) {
-        setSelectedPlayers([{ playerId: me.id, name: me.name, score: 0, isMe: true }])
+        setSelectedPlayerIds([me.id])
       }
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -53,40 +49,60 @@ export default function NewGamePage() {
   }
 
   const togglePlayer = (player: Player) => {
-    const existing = selectedPlayers.find(p => p.playerId === player.id)
-    if (existing) {
-      setSelectedPlayers(selectedPlayers.filter(p => p.playerId !== player.id))
+    if (player.isMe) return // 不能取消选择"我"
+    
+    const index = selectedPlayerIds.indexOf(player.id)
+    if (index > -1) {
+      // 已选择，取消选择
+      setSelectedPlayerIds(selectedPlayerIds.filter(id => id !== player.id))
     } else {
-      setSelectedPlayers([...selectedPlayers, {
-        playerId: player.id,
-        name: player.name,
-        score: 0,
-        isMe: player.isMe
-      }])
+      // 未选择，添加（但最多4个玩家）
+      if (selectedPlayerIds.length >= 4) {
+        alert('最多只能选择4个玩家（包括我）')
+        return
+      }
+      setSelectedPlayerIds([...selectedPlayerIds, player.id])
     }
   }
 
-  const updateScore = (playerId: string, score: number) => {
-    setSelectedPlayers(selectedPlayers.map(p =>
-      p.playerId === playerId ? { ...p, score } : p
-    ))
-    setCurrentPlayer(null)
-  }
-
-  const handleSubmit = async () => {
-    if (!selectedLocation || selectedPlayers.length === 0) {
-      alert('请选择地点和至少一名玩家')
+  const handleCreatePlayer = async () => {
+    if (!newPlayerName.trim()) {
+      alert('请输入玩家姓名')
       return
     }
 
-    // 检查是否完整记录且未平账
-    const isComplete = selectedPlayers.length === 4
-    if (isComplete) {
-      const total = selectedPlayers.reduce((sum, p) => sum + p.score, 0)
-      if (total !== 0) {
-        if (!confirm(`总分为 ${total}，未平账。确定要继续吗？`)) {
-          return
-        }
+    if (selectedPlayerIds.length >= 4) {
+      alert('最多只能选择4个玩家（包括我）')
+      return
+    }
+
+    try {
+      const res = await playersApi.create({ name: newPlayerName.trim() })
+      const newPlayer = res.data
+      setPlayers([...players, newPlayer])
+      setSelectedPlayerIds([...selectedPlayerIds, newPlayer.id])
+      setNewPlayerName('')
+      setShowNewPlayerModal(false)
+    } catch (error: any) {
+      console.error('Failed to create player:', error)
+      alert(error.response?.data?.error || '创建玩家失败，请重试')
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!selectedLocation) {
+      alert('请选择地点')
+      return
+    }
+
+    if (selectedPlayerIds.length !== 4) {
+      alert('必须选择4个玩家（包括我）')
+      return
+    }
+
+    if (myScore === 0) {
+      if (!confirm('我的分数为0，确定要继续吗？')) {
+        return
       }
     }
 
@@ -94,17 +110,15 @@ export default function NewGamePage() {
       await gamesApi.create({
         locationId: selectedLocation,
         chipRate,
-        records: selectedPlayers.map(p => ({
-          playerId: p.playerId,
-          score: p.score
-        })),
+        playerIds: selectedPlayerIds,
+        myScore,
         note: note || undefined
       })
       alert('对局记录成功！')
       navigate('/')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create game:', error)
-      alert('记录失败，请重试')
+      alert(error.response?.data?.error || '记录失败，请重试')
     }
   }
 
@@ -160,14 +174,16 @@ export default function NewGamePage() {
 
       {/* 玩家选择 */}
       <div className="card">
-        <label className="block text-text font-semibold mb-3">👥 玩家</label>
+        <label className="block text-text font-semibold mb-3">
+          👥 玩家 ({selectedPlayerIds.length}/4)
+        </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
           {players.map(player => {
-            const isSelected = selectedPlayers.find(p => p.playerId === player.id)
+            const isSelected = selectedPlayerIds.includes(player.id)
             return (
               <button
                 key={player.id}
-                onClick={() => !player.isMe && togglePlayer(player)}
+                onClick={() => togglePlayer(player)}
                 disabled={player.isMe}
                 className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
                   isSelected
@@ -180,46 +196,58 @@ export default function NewGamePage() {
             )
           })}
         </div>
+        <button
+          onClick={() => setShowNewPlayerModal(true)}
+          className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors"
+        >
+          + 新建玩家
+        </button>
       </div>
 
-      {/* 分数输入 */}
-      {selectedPlayers.length > 0 && (
+      {/* 我的分数输入 */}
+      {selectedPlayerIds.length > 0 && (
         <div className="card">
-          <label className="block text-text font-semibold mb-3">🎯 分数</label>
-          <div className="space-y-2">
-            {selectedPlayers.map(player => (
-              <div key={player.playerId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className={player.isMe ? 'text-primary font-semibold' : 'text-text'}>
-                  {player.name}
-                </span>
-                <button
-                  onClick={() => setCurrentPlayer(player.playerId)}
-                  className={`px-4 py-2 rounded font-mono ${
-                    player.score === 0
-                      ? 'bg-white text-text-light border border-gray-200'
-                      : player.score > 0
-                      ? 'bg-green-50 text-accent-green border border-green-200'
-                      : 'bg-red-50 text-accent-red border border-red-200'
+          <label className="block text-text font-semibold mb-3">🎯 我的分数</label>
+          <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg">
+            <span className="text-primary font-semibold">我的成绩</span>
+            <button
+              onClick={() => setShowNumPad(true)}
+              className={`px-6 py-3 rounded font-mono text-lg ${
+                myScore === 0
+                  ? 'bg-white text-text-light border border-gray-200'
+                  : myScore > 0
+                  ? 'bg-green-50 text-accent-green border border-green-200'
+                  : 'bg-red-50 text-accent-red border border-red-200'
+              }`}
+            >
+              {myScore > 0 ? '+' : ''}{myScore}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 参与玩家列表（只显示，不输入分数） */}
+      {selectedPlayerIds.length > 1 && (
+        <div className="card">
+          <label className="block text-text font-semibold mb-3">👥 参与玩家</label>
+          <div className="flex flex-wrap gap-2">
+            {selectedPlayerIds.map(playerId => {
+              const player = players.find(p => p.id === playerId)
+              if (!player) return null
+              return (
+                <div
+                  key={player.id}
+                  className={`px-3 py-2 rounded-lg ${
+                    player.isMe
+                      ? 'bg-primary/10 text-primary font-semibold'
+                      : 'bg-gray-100 text-text'
                   }`}
                 >
-                  {player.score > 0 ? '+' : ''}{player.score}
-                </button>
-              </div>
-            ))}
+                  {player.name}
+                </div>
+              )
+            })}
           </div>
-          
-          {/* 平账检查 */}
-          {selectedPlayers.length === 4 && (
-            <div className="mt-3 text-sm">
-              {selectedPlayers.reduce((sum, p) => sum + p.score, 0) === 0 ? (
-                <span className="text-accent-green">✓ 已平账</span>
-              ) : (
-                <span className="text-accent-red">
-                  ⚠️ 未平账 (差 {selectedPlayers.reduce((sum, p) => sum + p.score, 0)} 分)
-                </span>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -238,19 +266,61 @@ export default function NewGamePage() {
       {/* 提交按钮 */}
       <button
         onClick={handleSubmit}
-        disabled={!selectedLocation || selectedPlayers.length === 0}
+        disabled={!selectedLocation || selectedPlayerIds.length !== 4}
         className="btn-primary w-full text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         保存对局
       </button>
 
       {/* 数字键盘弹窗 */}
-      {currentPlayer && (
+      {showNumPad && (
         <NumPad
-          onClose={() => setCurrentPlayer(null)}
-          onSubmit={(score) => updateScore(currentPlayer, score)}
-          initialValue={selectedPlayers.find(p => p.playerId === currentPlayer)?.score || 0}
+          onClose={() => setShowNumPad(false)}
+          onSubmit={(score) => {
+            setMyScore(score)
+            setShowNumPad(false)
+          }}
+          initialValue={myScore}
         />
+      )}
+
+      {/* 新建玩家弹窗 */}
+      {showNewPlayerModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-text mb-4">新建玩家</h3>
+            <input
+              type="text"
+              value={newPlayerName}
+              onChange={(e) => setNewPlayerName(e.target.value)}
+              placeholder="输入玩家姓名"
+              className="input w-full mb-4"
+              autoFocus
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreatePlayer()
+                }
+              }}
+            />
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowNewPlayerModal(false)
+                  setNewPlayerName('')
+                }}
+                className="flex-1 py-2 px-4 rounded-lg border border-gray-300 text-text hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreatePlayer}
+                className="flex-1 py-2 px-4 rounded-lg bg-primary text-white hover:bg-primary/90"
+              >
+                创建
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

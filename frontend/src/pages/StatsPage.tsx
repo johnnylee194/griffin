@@ -10,6 +10,8 @@ export default function StatsPage() {
   const [stats, setStats] = useState<any>(null)
   const [annualStats, setAnnualStats] = useState<any>(null)
   const [lunarAnnualStats, setLunarAnnualStats] = useState<any>(null)
+  const [playerPerformance, setPlayerPerformance] = useState<any[]>([])
+  const [tripleCombination, setTripleCombination] = useState<any[]>([])
   const [trendType, setTrendType] = useState<TrendType>('daily-7')
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedLunarYear, setSelectedLunarYear] = useState<number>(new Date().getFullYear())
@@ -25,6 +27,10 @@ export default function StatsPage() {
       loadAllStats()
     }
   }, [selectedPlayer, selectedYear, selectedLunarYear])
+
+  useEffect(() => {
+    loadPlayerStats()
+  }, [])
 
   const loadPlayers = async () => {
     try {
@@ -54,6 +60,19 @@ export default function StatsPage() {
       setLunarAnnualStats(lunarAnnualRes.data)
     } catch (error) {
       console.error('Failed to load stats:', error)
+    }
+  }
+
+  const loadPlayerStats = async () => {
+    try {
+      const [playerPerfRes, tripleRes] = await Promise.all([
+        statsApi.getPlayerPerformance(),
+        statsApi.getTripleCombination()
+      ])
+      setPlayerPerformance(playerPerfRes.data)
+      setTripleCombination(tripleRes.data)
+    } catch (error) {
+      console.error('Failed to load player stats:', error)
     }
   }
 
@@ -326,7 +345,80 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* 2. 本年统计 */}
+          {/* 2. 玩家维度统计 */}
+          <div className="space-y-4">
+            {/* 单个玩家胜率统计 */}
+            {playerPerformance.length > 0 && (
+              <div className="card">
+                <h3 className="text-xl font-semibold text-text mb-4">👥 单个玩家胜率统计</h3>
+                <div className="space-y-2">
+                  {playerPerformance.slice(0, 10).map((item: any, index: number) => (
+                    <div key={item.playerId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm font-semibold text-text-secondary w-6">
+                          #{index + 1}
+                        </span>
+                        <span className="font-semibold text-text">{item.playerName}</span>
+                      </div>
+                      <div className="flex items-center space-x-4 text-sm">
+                        <span className="text-text-light">
+                          {item.wins}胜 {item.losses}负
+                        </span>
+                        <span className="text-text-light">
+                          共{item.totalGames}场
+                        </span>
+                        <span className={`font-bold ${
+                          item.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'
+                        }`}>
+                          {item.winRate}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 三个玩家组合胜率统计 */}
+            {tripleCombination.length > 0 && (
+              <div className="card">
+                <h3 className="text-xl font-semibold text-text mb-4">👥👥👥 三个玩家组合胜率统计</h3>
+                <div className="space-y-2">
+                  {tripleCombination.slice(0, 10).map((item: any, index: number) => (
+                    <div key={item.playerIds.join(',')} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-3 flex-1">
+                        <span className="text-sm font-semibold text-text-secondary w-6">
+                          #{index + 1}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {item.playerNames.map((name: string) => (
+                            <span key={name} className="px-2 py-1 bg-primary/10 text-primary rounded text-sm font-semibold">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4 text-sm">
+                        <span className="text-text-light">
+                          {item.wins}胜 {item.losses}负
+                        </span>
+                        <span className="text-text-light">
+                          共{item.totalGames}场
+                        </span>
+                        <span className={`font-bold ${
+                          item.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'
+                        }`}>
+                          {item.winRate}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 3. 本年统计 */}
           {annualStats && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">

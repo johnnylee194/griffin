@@ -56,8 +56,8 @@ export interface PlayerRecord {
   id: string;
   gameId: string;
   playerId: string;
-  score: number;
-  chips: number;
+  score: number | null;
+  chips: number | null;
   player: Player;
 }
 
@@ -66,7 +66,6 @@ export interface Game {
   locationId: string;
   chipRate: number;
   isComplete: boolean;
-  isBalanced: boolean | null;
   note?: string;
   createdAt: string;
   updatedAt: string;
@@ -97,10 +96,17 @@ export const gamesApi = {
   create: (data: {
     locationId: string;
     chipRate: number;
-    records: { playerId: string; score: number }[];
+    playerIds: string[];
+    myScore: number;
     note?: string;
   }) => apiClient.post<Game>('/games', data),
-  update: (id: string, data: any) => apiClient.put<Game>(`/games/${id}`, data),
+  update: (id: string, data: {
+    locationId: string;
+    chipRate: number;
+    playerIds: string[];
+    myScore: number;
+    note?: string;
+  }) => apiClient.put<Game>(`/games/${id}`, data),
   delete: (id: string) => apiClient.delete(`/games/${id}`),
 };
 
@@ -111,5 +117,7 @@ export const statsApi = {
     apiClient.get('/stats/overview', { params }),
   getAnnual: (year?: number) => apiClient.get('/stats/annual', { params: year ? { year } : {} }),
   getLunarAnnual: (year?: number) => apiClient.get('/stats/lunar-annual', { params: year ? { year } : {} }),
+  getPlayerPerformance: () => apiClient.get('/stats/player-performance'),
+  getTripleCombination: () => apiClient.get('/stats/triple-combination'),
 };
 

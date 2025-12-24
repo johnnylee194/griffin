@@ -56,7 +56,6 @@ export const initDatabase = () => {
       location_id TEXT NOT NULL,
       chip_rate INTEGER NOT NULL DEFAULT 100,
       is_complete INTEGER NOT NULL DEFAULT 0,
-      is_balanced INTEGER,
       note TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -64,14 +63,14 @@ export const initDatabase = () => {
     )
   `);
 
-  // 创建玩家记录表
+  // 创建玩家记录表（score和chips可为NULL，用于不计分的玩家）
   db.exec(`
     CREATE TABLE IF NOT EXISTS player_records (
       id TEXT PRIMARY KEY,
       game_id TEXT NOT NULL,
       player_id TEXT NOT NULL,
-      score INTEGER NOT NULL,
-      chips INTEGER NOT NULL,
+      score INTEGER,
+      chips INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
       FOREIGN KEY (player_id) REFERENCES players(id),
@@ -86,6 +85,58 @@ export const initDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_records_game ON player_records(game_id);
     CREATE INDEX IF NOT EXISTS idx_records_player ON player_records(player_id);
   `);
+
+  // 迁移现有数据：移除is_balanced字段（如果存在）
+  try {
+    db.exec(`ALTER TABLE games DROP COLUMN is_balanced`);
+    console.log('✅ Removed is_balanced column from games table');
+  } catch (error: any) {
+    // 如果字段不存在，忽略错误
+    if (!error.message.includes('no such column')) {
+      console.warn('⚠️ Could not remove is_balanced column:', error.message);
+    }
+  }
+
+  // 迁移现有数据：将player_records的score和chips改为可空（SQLite不支持ALTER COLUMN，需要重建表）
+  try {
+    // 检查是否已有数据
+    const hasData = db.prepare('SELECT COUNT(*) as count FROM player_records').get() as { count: number };
+    
+    if (hasData.count > 0) {
+      // 有数据时，需要重建表
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS player_records_new (
+          id TEXT PRIMARY KEY,
+          game_id TEXT NOT NULL,
+          player_id TEXT NOT NULL,
+          score INTEGER,
+          chips INTEGER,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+          FOREIGN KEY (player_id) REFERENCES players(id),
+          UNIQUE(game_id, player_id)
+        )
+      `);
+      
+      db.exec(`
+        INSERT INTO player_records_new (id, game_id, player_id, score, chips, created_at)
+        SELECT id, game_id, player_id, score, chips, created_at FROM player_records
+      `);
+      
+      db.exec(`DROP TABLE player_records`);
+      db.exec(`ALTER TABLE player_records_new RENAME TO player_records`);
+      
+      // 重建索引
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_records_game ON player_records(game_id);
+        CREATE INDEX IF NOT EXISTS idx_records_player ON player_records(player_id);
+      `);
+      
+      console.log('✅ Migrated player_records table to allow NULL score/chips');
+    }
+  } catch (error: any) {
+    console.warn('⚠️ Could not migrate player_records table:', error.message);
+  }
 
   console.log('✅ Database initialized successfully');
 };
