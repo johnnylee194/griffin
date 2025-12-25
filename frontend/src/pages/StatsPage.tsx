@@ -276,9 +276,9 @@ export default function StatsPage() {
           {/* 1. 趋势图 - 放在最前面 */}
           {trendData.length > 0 && (
             <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-text">{trendTitle}</h3>
-                <div className="flex space-x-1">
+              <div className="mb-4">
+                <h3 className="text-base sm:text-xl font-semibold text-text mb-3">{trendTitle}</h3>
+                <div className="flex flex-wrap gap-1">
                   <button
                     onClick={() => setTrendType('daily-7')}
                     className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
