@@ -398,13 +398,13 @@ export default function StatsPage() {
                 <div className="space-y-2">
                   {playerPerformance.slice(0, 10).map((item: any, index: number) => (
                     <div key={item.playerId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm font-semibold text-text-secondary w-6">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        <span className="text-xs sm:text-sm font-semibold text-text-secondary w-5 sm:w-6">
                           #{index + 1}
                         </span>
-                        <span className="text-sm sm:text-base font-semibold text-text">{item.playerName}</span>
+                        <span className="text-xs sm:text-base font-semibold text-text">{item.playerName}</span>
                       </div>
-                      <div className="flex items-center space-x-4 text-sm">
+                      <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
                         <span className="text-text-light">
                           {item.wins}胜 {item.losses}负
                         </span>
@@ -430,19 +430,19 @@ export default function StatsPage() {
                 <div className="space-y-2">
                   {tripleCombination.slice(0, 10).map((item: any, index: number) => (
                     <div key={item.playerIds.join(',')} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3 flex-1">
-                        <span className="text-sm font-semibold text-text-secondary w-6">
+                      <div className="flex items-center space-x-2 sm:space-x-3 flex-1">
+                        <span className="text-xs sm:text-sm font-semibold text-text-secondary w-5 sm:w-6">
                           #{index + 1}
                         </span>
                         <div className="flex flex-wrap gap-1">
                           {item.playerNames.map((name: string) => (
-                            <span key={name} className="px-2 py-1 bg-primary/10 text-primary rounded text-xs sm:text-sm font-semibold">
+                            <span key={name} className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-primary/10 text-primary rounded text-xs font-semibold">
                               {name}
                             </span>
                           ))}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4 text-sm">
+                      <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
                         <span className="text-text-light">
                           {item.wins}胜 {item.losses}负
                         </span>
