@@ -659,7 +659,7 @@ export default function StatsPage() {
 
           {/* 4. 总体统计 */}
           <div className="card">
-            <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">总体统计</h3>
+            <h3 className="text-base sm:text-xl font-semibold text-text mb-4">总体统计</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <StatCard label="总局数" value={stats.overall.totalGames} />
               <StatCard 
@@ -686,7 +686,7 @@ export default function StatsPage() {
           {/* 5. 按地点统计 - 按局数排序 */}
           {Object.keys(stats.byLocation).length > 0 && (
             <div className="card">
-              <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">按地点统计</h3>
+              <h3 className="text-base sm:text-xl font-semibold text-text mb-4">按地点统计</h3>
               <div className="space-y-3">
                 {Object.entries(stats.byLocation)
                   .sort(([, a]: [string, any], [, b]: [string, any]) => b.games - a.games) // 按局数从大到小排序
