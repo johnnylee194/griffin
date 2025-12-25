@@ -693,21 +693,21 @@ export default function StatsPage() {
                   .map(([location, data]: [string, any]) => (
                     <div key={location} className="bg-gray-50 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-primary font-semibold">📍 {location}</span>
+                        <span className="text-sm sm:text-base text-primary font-semibold">📍 {location}</span>
                         <span className="text-sm text-text-light">{data.games} 局</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-sm">
-                        <div>
+                      <div className="flex justify-between items-start text-sm">
+                        <div className="text-center flex-1">
                           <div className="text-text-light">金额</div>
                           <div className={data.totalChips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
                             {data.totalChips >= 0 ? '+' : ''}{data.totalChips}
                           </div>
                         </div>
-                        <div>
+                        <div className="text-center flex-1">
                           <div className="text-text-light">胜/负</div>
                           <div className="text-text">{data.wins} / {data.losses}</div>
                         </div>
-                        <div>
+                        <div className="text-center flex-1">
                           <div className="text-text-light">胜率</div>
                           <div className="text-text">
                             {data.games > 0 ? Math.round((data.wins / data.games) * 100) : 0}%
