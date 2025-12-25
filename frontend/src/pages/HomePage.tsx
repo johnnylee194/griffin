@@ -81,7 +81,7 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-xl">加载中...</div>
+        <div className="text-primary text-base sm:text-lg">加载中...</div>
       </div>
     )
   }
@@ -174,7 +174,7 @@ export default function HomePage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-text-light">胜率</span>
-                  <span className="text-lg font-bold text-primary">{monthlyStats.afternoon.winRate}%</span>
+                  <span className="text-base sm:text-lg font-bold text-primary">{monthlyStats.afternoon.winRate}%</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-light">场次</span>
@@ -209,7 +209,7 @@ export default function HomePage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-text-light">胜率</span>
-                  <span className="text-lg font-bold text-primary">{monthlyStats.evening.winRate}%</span>
+                  <span className="text-base sm:text-lg font-bold text-primary">{monthlyStats.evening.winRate}%</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-light">场次</span>

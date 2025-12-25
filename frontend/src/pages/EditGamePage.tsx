@@ -179,7 +179,7 @@ export default function EditGamePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-xl">加载中...</div>
+        <div className="text-primary text-base sm:text-lg">加载中...</div>
       </div>
     )
   }
@@ -235,7 +235,7 @@ export default function EditGamePage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-      <h2 className="text-2xl font-bold text-text">编辑对局</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-text">编辑对局</h2>
 
       {/* 地点和筹码比率 - 合并为一行小按钮 */}
       <div className="flex items-center gap-2">
@@ -450,7 +450,7 @@ export default function EditGamePage() {
       {showNewPlayerModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-text mb-4">新建玩家</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-text mb-4">新建玩家</h3>
             <input
               type="text"
               value={newPlayerName}
@@ -489,7 +489,7 @@ export default function EditGamePage() {
       {showNoteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-text mb-4">备注</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-text mb-4">备注</h3>
             <input
               type="text"
               value={note}

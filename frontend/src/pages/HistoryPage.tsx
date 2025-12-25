@@ -55,7 +55,7 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-xl">加载中...</div>
+        <div className="text-primary text-base sm:text-lg">加载中...</div>
       </div>
     )
   }
@@ -63,7 +63,7 @@ export default function HistoryPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-text">对局历史</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-text">对局历史</h2>
         <div className="text-sm text-text-light">共 {games.length} 局</div>
       </div>
 
@@ -141,7 +141,7 @@ export default function HistoryPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-primary font-semibold">我的成绩</span>
                       <div className="text-right">
-                        <div className={`text-2xl font-bold ${myRecord.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                        <div className={`text-lg sm:text-2xl font-bold ${myRecord.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
                           {myRecord.chips >= 0 ? '+' : ''}{myRecord.chips}
                         </div>
                         {myRecord.score !== null && (

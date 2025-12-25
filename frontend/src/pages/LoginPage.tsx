@@ -31,7 +31,7 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8 flex flex-col items-center">
           <img src="/griffin-logo.svg" alt="Griffin" className="w-16 h-16 mb-4" />
-          <h1 className="text-3xl font-bold text-primary mb-2">Griffin</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-2">Griffin</h1>
           <p className="text-text-secondary">麻将记分系统</p>
         </div>
 

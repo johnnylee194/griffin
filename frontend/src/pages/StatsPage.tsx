@@ -218,7 +218,7 @@ export default function StatsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-xl">加载中...</div>
+        <div className="text-primary text-base sm:text-lg">加载中...</div>
       </div>
     )
   }
@@ -241,7 +241,7 @@ export default function StatsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-text">数据统计</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-text">数据统计</h2>
         {/* 玩家选择按钮 - 移到右上角 */}
         <div className="relative">
           <button
@@ -277,7 +277,7 @@ export default function StatsPage() {
           {trendData.length > 0 && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-text">{trendTitle}</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-text">{trendTitle}</h3>
                 <div className="flex space-x-1">
                   <button
                     onClick={() => setTrendType('daily-7')}
@@ -394,7 +394,7 @@ export default function StatsPage() {
             {/* 单个玩家胜率统计 */}
             {playerPerformance.length > 0 && (
               <div className="card">
-                <h3 className="text-xl font-semibold text-text mb-4">👥 单个玩家胜率统计</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👥 单个玩家胜率统计</h3>
                 <div className="space-y-2">
                   {playerPerformance.slice(0, 10).map((item: any, index: number) => (
                     <div key={item.playerId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -426,7 +426,7 @@ export default function StatsPage() {
             {/* 三个玩家组合胜率统计 */}
             {tripleCombination.length > 0 && (
               <div className="card">
-                <h3 className="text-xl font-semibold text-text mb-4">👥👥👥 三个玩家组合胜率统计</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👥👥👥 三个玩家组合胜率统计</h3>
                 <div className="space-y-2">
                   {tripleCombination.slice(0, 10).map((item: any, index: number) => (
                     <div key={item.playerIds.join(',')} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -464,7 +464,7 @@ export default function StatsPage() {
 
           {/* 3. 下午晚上关联统计 */}
           <div className="card">
-            <h3 className="text-xl font-semibold text-text mb-4">📊 下午-晚上关联统计</h3>
+            <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">📊 下午-晚上关联统计</h3>
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
@@ -534,13 +534,13 @@ export default function StatsPage() {
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-text">
+                      <div className="text-lg sm:text-2xl font-bold text-text">
                         {correlationStats.eveningStats.totalGames}
                       </div>
                       <div className="text-xs text-text-light mt-1">晚上总场次</div>
                     </div>
                     <div className="text-center">
-                      <div className={`text-2xl font-bold ${
+                      <div className={`text-lg sm:text-2xl font-bold ${
                         correlationStats.eveningStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'
                       }`}>
                         {correlationStats.eveningStats.winRate}%
@@ -563,7 +563,7 @@ export default function StatsPage() {
           {annualStats && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-text">📅 本年统计</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-text">📅 本年统计</h3>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
@@ -609,7 +609,7 @@ export default function StatsPage() {
           {lunarAnnualStats && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-text">🐉 农历年统计</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-text">🐉 农历年统计</h3>
                 <select
                   value={selectedLunarYear}
                   onChange={(e) => setSelectedLunarYear(parseInt(e.target.value))}
@@ -653,7 +653,7 @@ export default function StatsPage() {
 
           {/* 4. 总体统计 */}
           <div className="card">
-            <h3 className="text-xl font-semibold text-text mb-4">总体统计</h3>
+            <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">总体统计</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <StatCard label="总局数" value={stats.overall.totalGames} />
               <StatCard 
@@ -680,7 +680,7 @@ export default function StatsPage() {
           {/* 5. 按地点统计 - 按局数排序 */}
           {Object.keys(stats.byLocation).length > 0 && (
             <div className="card">
-              <h3 className="text-xl font-semibold text-text mb-4">按地点统计</h3>
+              <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">按地点统计</h3>
               <div className="space-y-3">
                 {Object.entries(stats.byLocation)
                   .sort(([, a]: [string, any], [, b]: [string, any]) => b.games - a.games) // 按局数从大到小排序

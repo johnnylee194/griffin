@@ -179,18 +179,18 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-xl">加载中...</div>
+        <div className="text-primary text-base sm:text-lg">加载中...</div>
       </div>
     )
   }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-      <h2 className="text-2xl font-bold text-text">设置</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-text">设置</h2>
 
       {/* 玩家管理 */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-text mb-4">👥 玩家管理</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👥 玩家管理</h3>
         
         {/* 添加玩家 */}
         <div className="flex space-x-2 mb-4">
@@ -284,7 +284,7 @@ export default function SettingsPage() {
 
       {/* 地点管理 */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-text mb-4">📍 地点管理</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">📍 地点管理</h3>
         
         {/* 添加地点 */}
         <div className="flex space-x-2 mb-4">
@@ -375,7 +375,7 @@ export default function SettingsPage() {
 
       {/* 关于 */}
       <div className="card">
-        <h3 className="text-xl font-semibold text-text mb-4">ℹ️ 关于</h3>
+        <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">ℹ️ 关于</h3>
         <div className="space-y-2 text-text-secondary">
           <p><strong className="text-primary">Griffin</strong> - 麻将记分与数据分析应用</p>
           <p className="text-sm text-text-light">Version 1.0.0</p>
