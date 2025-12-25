@@ -375,8 +375,17 @@ export default function StatsPage() {
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={trendData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
-                    <XAxis dataKey="date" stroke="#5F6368" />
-                    <YAxis stroke="#5F6368" />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#5F6368"
+                      tick={{ fontSize: '0.75rem' }}
+                      className="text-xs sm:text-sm"
+                    />
+                    <YAxis 
+                      stroke="#5F6368"
+                      tick={{ fontSize: '0.75rem' }}
+                      className="text-xs sm:text-sm"
+                    />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px' }}
                       labelStyle={{ color: '#202124' }}
@@ -581,7 +590,6 @@ export default function StatsPage() {
                   label="赢" 
                   value={annualStats.overall.income} 
                   color="green"
-                  prefix="+"
                   size="small"
                 />
                 <StatCard 
@@ -594,7 +602,6 @@ export default function StatsPage() {
                   label="利润" 
                   value={annualStats.overall.profit} 
                   color={annualStats.overall.profit >= 0 ? 'green' : 'red'}
-                  prefix={annualStats.overall.profit >= 0 ? '+' : ''}
                   size="small"
                 />
               </div>
@@ -630,7 +637,6 @@ export default function StatsPage() {
                   label="赢" 
                   value={lunarAnnualStats.overall.income} 
                   color="green"
-                  prefix="+"
                   size="small"
                 />
                 <StatCard 
@@ -643,7 +649,6 @@ export default function StatsPage() {
                   label="利润" 
                   value={lunarAnnualStats.overall.profit} 
                   color={lunarAnnualStats.overall.profit >= 0 ? 'green' : 'red'}
-                  prefix={lunarAnnualStats.overall.profit >= 0 ? '+' : ''}
                   size="small"
                 />
               </div>
@@ -697,7 +702,7 @@ export default function StatsPage() {
                         <span className="text-sm text-text-light">{data.games} 局</span>
                       </div>
                       <div className="flex justify-between items-start text-xs sm:text-sm">
-                        <div className="text-left">
+                        <div className="text-center flex-1">
                           <div className="text-text-light">金额</div>
                           <div className={data.totalChips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
                             {data.totalChips >= 0 ? '+' : ''}{data.totalChips}
@@ -707,7 +712,7 @@ export default function StatsPage() {
                           <div className="text-text-light">胜/负</div>
                           <div className="text-text">{data.wins} / {data.losses}</div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-center flex-1">
                           <div className="text-text-light">胜率</div>
                           <div className="text-text">
                             {data.games > 0 ? Math.round((data.wins / data.games) * 100) : 0}%
