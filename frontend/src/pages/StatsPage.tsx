@@ -563,7 +563,7 @@ export default function StatsPage() {
           {annualStats && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-text">📅 本年统计</h3>
+                <h3 className="text-base sm:text-xl font-semibold text-text">📅 本年统计</h3>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
@@ -582,25 +582,28 @@ export default function StatsPage() {
                   value={annualStats.overall.income} 
                   color="green"
                   prefix="+"
+                  size="small"
                 />
                 <StatCard 
                   label="输" 
                   value={annualStats.overall.expense} 
                   color="red"
+                  size="small"
                 />
                 <StatCard 
                   label="利润" 
                   value={annualStats.overall.profit} 
                   color={annualStats.overall.profit >= 0 ? 'green' : 'red'}
                   prefix={annualStats.overall.profit >= 0 ? '+' : ''}
+                  size="small"
                 />
               </div>
 
               {/* 胜场、输场、胜率 */}
               <div className="grid grid-cols-3 gap-4">
-                <StatCard label="胜场" value={annualStats.overall.wins} color="green" />
-                <StatCard label="输场" value={annualStats.overall.losses} color="red" />
-                <StatCard label="胜率" value={`${annualStats.overall.winRate}%`} />
+                <StatCard label="胜场" value={annualStats.overall.wins} color="green" size="small" />
+                <StatCard label="输场" value={annualStats.overall.losses} color="red" size="small" />
+                <StatCard label="胜率" value={`${annualStats.overall.winRate}%`} size="small" />
               </div>
             </div>
           )}
@@ -609,7 +612,7 @@ export default function StatsPage() {
           {lunarAnnualStats && (
             <div className="card">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-text">🐉 农历年统计</h3>
+                <h3 className="text-base sm:text-xl font-semibold text-text">🐉 农历年统计</h3>
                 <select
                   value={selectedLunarYear}
                   onChange={(e) => setSelectedLunarYear(parseInt(e.target.value))}
@@ -628,25 +631,28 @@ export default function StatsPage() {
                   value={lunarAnnualStats.overall.income} 
                   color="green"
                   prefix="+"
+                  size="small"
                 />
                 <StatCard 
                   label="输" 
                   value={lunarAnnualStats.overall.expense} 
                   color="red"
+                  size="small"
                 />
                 <StatCard 
                   label="利润" 
                   value={lunarAnnualStats.overall.profit} 
                   color={lunarAnnualStats.overall.profit >= 0 ? 'green' : 'red'}
                   prefix={lunarAnnualStats.overall.profit >= 0 ? '+' : ''}
+                  size="small"
                 />
               </div>
 
               {/* 胜场、输场、胜率 */}
               <div className="grid grid-cols-3 gap-4">
-                <StatCard label="胜场" value={lunarAnnualStats.overall.wins} color="green" />
-                <StatCard label="输场" value={lunarAnnualStats.overall.losses} color="red" />
-                <StatCard label="胜率" value={`${lunarAnnualStats.overall.winRate}%`} />
+                <StatCard label="胜场" value={lunarAnnualStats.overall.wins} color="green" size="small" />
+                <StatCard label="输场" value={lunarAnnualStats.overall.losses} color="red" size="small" />
+                <StatCard label="胜率" value={`${lunarAnnualStats.overall.winRate}%`} size="small" />
               </div>
             </div>
           )}
@@ -719,12 +725,13 @@ export default function StatsPage() {
   )
 }
 
-function StatCard({ label, value, color, prefix }: any) {
+function StatCard({ label, value, color, prefix, size = 'normal' }: any) {
   const colorClass = color === 'green' ? 'text-accent-green' : color === 'red' ? 'text-accent-red' : 'text-primary'
+  const sizeClass = size === 'small' ? 'text-base sm:text-2xl' : 'text-lg sm:text-2xl'
   
   return (
     <div className="card text-center">
-      <div className={`text-lg sm:text-2xl font-bold ${colorClass}`}>
+      <div className={`${sizeClass} font-bold ${colorClass}`}>
         {prefix}{value}
       </div>
       <div className="text-xs text-text-light mt-1">{label}</div>
