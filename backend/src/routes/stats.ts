@@ -7,7 +7,7 @@ const router = Router();
 router.get('/player/:playerId', (req, res) => {
   try {
     const { playerId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, locationId } = req.query;
 
     // 构建查询条件
     let dateFilter = '';
@@ -26,6 +26,13 @@ router.get('/player/:playerId', (req, res) => {
       }
     }
 
+    // 添加地点筛选
+    let locationFilter = '';
+    if (locationId) {
+      locationFilter = ' AND g.location_id = ?';
+      params.push(locationId as string);
+    }
+
     // 获取所有记录
     const records = db.prepare(`
       SELECT 
@@ -39,16 +46,16 @@ router.get('/player/:playerId', (req, res) => {
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       JOIN locations l ON g.location_id = l.id
-      WHERE pr.player_id = ?${dateFilter}
+      WHERE pr.player_id = ?${dateFilter}${locationFilter}
       ORDER BY g.created_at DESC
     `).all(...params) as any[];
 
     // 计算统计数据
     const totalGames = records.length;
-    const totalScore = records.reduce((sum, r) => sum + r.score, 0);
-    const totalChips = records.reduce((sum, r) => sum + r.chips, 0);
-    const wins = records.filter(r => r.score > 0).length;
-    const losses = records.filter(r => r.score < 0).length;
+    const totalScore = records.reduce((sum, r) => sum + (r.score || 0), 0);
+    const totalChips = records.reduce((sum, r) => sum + (r.chips || 0), 0);
+    const wins = records.filter(r => (r.score || 0) > 0).length;
+    const losses = records.filter(r => (r.score || 0) < 0).length;
     const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
 
     // 按地点统计
@@ -64,10 +71,10 @@ router.get('/player/:playerId', (req, res) => {
         };
       }
       acc[locName].games++;
-      acc[locName].totalScore += r.score;
-      acc[locName].totalChips += r.chips;
-      if (r.score > 0) acc[locName].wins++;
-      if (r.score < 0) acc[locName].losses++;
+      acc[locName].totalScore += (r.score || 0);
+      acc[locName].totalChips += (r.chips || 0);
+      if ((r.score || 0) > 0) acc[locName].wins++;
+      if ((r.score || 0) < 0) acc[locName].losses++;
       return acc;
     }, {});
 
@@ -84,10 +91,10 @@ router.get('/player/:playerId', (req, res) => {
         };
       }
       acc[date].games++;
-      acc[date].totalScore += r.score;
-      acc[date].totalChips += r.chips;
-      if (r.score > 0) acc[date].wins++;
-      if (r.score < 0) acc[date].losses++;
+      acc[date].totalScore += (r.score || 0);
+      acc[date].totalChips += (r.chips || 0);
+      if ((r.score || 0) > 0) acc[date].wins++;
+      if ((r.score || 0) < 0) acc[date].losses++;
       return acc;
     }, {});
 

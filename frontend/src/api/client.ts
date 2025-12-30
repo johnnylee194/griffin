@@ -113,7 +113,7 @@ export const gamesApi = {
 };
 
 export const statsApi = {
-  getPlayerStats: (playerId: string, params?: { startDate?: string; endDate?: string }) =>
+  getPlayerStats: (playerId: string, params?: { startDate?: string; endDate?: string; locationId?: string }) =>
     apiClient.get(`/stats/player/${playerId}`, { params }),
   getOverview: (params?: { startDate?: string; endDate?: string }) =>
     apiClient.get('/stats/overview', { params }),

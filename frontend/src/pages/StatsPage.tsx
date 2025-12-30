@@ -19,6 +19,8 @@ export default function StatsPage() {
   const [trendPeriodValue, setTrendPeriodValue] = useState<number>(7)
   const [isCustomPeriod, setIsCustomPeriod] = useState<boolean>(false)
   const [customPeriodValue, setCustomPeriodValue] = useState<string>('')
+  const [trendLocationId, setTrendLocationId] = useState<string>('')
+  const [trendDataType, setTrendDataType] = useState<'chips' | 'score'>('chips')
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedLunarYear, setSelectedLunarYear] = useState<number>(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
@@ -33,7 +35,7 @@ export default function StatsPage() {
     if (selectedPlayer) {
       loadAllStats()
     }
-  }, [selectedPlayer, selectedYear, selectedLunarYear])
+  }, [selectedPlayer, selectedYear, selectedLunarYear, trendLocationId])
 
   useEffect(() => {
     loadPlayerStats()
@@ -71,8 +73,12 @@ export default function StatsPage() {
 
   const loadAllStats = async () => {
     try {
+      const params: { locationId?: string } = {}
+      if (trendLocationId) {
+        params.locationId = trendLocationId
+      }
       const [playerStatsRes, annualRes, lunarAnnualRes] = await Promise.all([
-        statsApi.getPlayerStats(selectedPlayer),
+        statsApi.getPlayerStats(selectedPlayer, params),
         statsApi.getAnnual(selectedYear),
         statsApi.getLunarAnnual(selectedLunarYear)
       ])
@@ -129,6 +135,7 @@ export default function StatsPage() {
       .map(([date, data]: [string, any]) => ({
         date,
         chips: data.totalChips,
+        score: data.totalScore,
         games: data.games
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -139,22 +146,23 @@ export default function StatsPage() {
       : trendPeriodValue
 
     if (periodCount <= 0) {
-      return [{ date: '无数据', chips: 0 }]
+      return [{ date: '无数据', chips: 0, score: 0 }]
     }
 
     if (trendPeriodType === 'daily') {
       const result = dateEntries.slice(-periodCount).map(item => ({
         date: item.date.slice(5), // MM-DD
-        chips: item.chips
+        chips: item.chips,
+        score: item.score
       }))
       // 如果没有数据，返回包含0的数据点
       if (result.length === 0) {
-        return [{ date: '无数据', chips: 0 }]
+        return [{ date: '无数据', chips: 0, score: 0 }]
       }
       return result
     } else if (trendPeriodType === 'weekly') {
       // 按周聚合
-      const weeklyMap: { [key: string]: { chips: number; count: number } } = {}
+      const weeklyMap: { [key: string]: { chips: number; score: number; count: number } } = {}
       dateEntries.forEach(item => {
         const date = new Date(item.date)
         const weekStart = new Date(date)
@@ -162,47 +170,51 @@ export default function StatsPage() {
         const weekKey = `${weekStart.getFullYear()}-W${getWeekNumber(weekStart)}`
         
         if (!weeklyMap[weekKey]) {
-          weeklyMap[weekKey] = { chips: 0, count: 0 }
+          weeklyMap[weekKey] = { chips: 0, score: 0, count: 0 }
         }
         weeklyMap[weekKey].chips += item.chips
+        weeklyMap[weekKey].score += item.score
         weeklyMap[weekKey].count++
       })
       
       const result = Object.entries(weeklyMap)
         .map(([week, data]) => ({
           date: week,
-          chips: data.chips
+          chips: data.chips,
+          score: data.score
         }))
         .slice(-periodCount) // 显示最近N周
       
       // 如果没有数据，返回包含0的数据点
       if (result.length === 0) {
-        return [{ date: '无数据', chips: 0 }]
+        return [{ date: '无数据', chips: 0, score: 0 }]
       }
       return result
     } else {
       // 按月聚合
-      const monthlyMap: { [key: string]: { chips: number; count: number } } = {}
+      const monthlyMap: { [key: string]: { chips: number; score: number; count: number } } = {}
       dateEntries.forEach(item => {
         const monthKey = item.date.slice(0, 7) // YYYY-MM
         
         if (!monthlyMap[monthKey]) {
-          monthlyMap[monthKey] = { chips: 0, count: 0 }
+          monthlyMap[monthKey] = { chips: 0, score: 0, count: 0 }
         }
         monthlyMap[monthKey].chips += item.chips
+        monthlyMap[monthKey].score += item.score
         monthlyMap[monthKey].count++
       })
       
       const result = Object.entries(monthlyMap)
         .map(([month, data]) => ({
           date: month.slice(5), // MM
-          chips: data.chips
+          chips: data.chips,
+          score: data.score
         }))
         .slice(-periodCount) // 显示最近N个月
       
       // 如果没有数据，返回包含0的数据点
       if (result.length === 0) {
-        return [{ date: '无数据', chips: 0 }]
+        return [{ date: '无数据', chips: 0, score: 0 }]
       }
       return result
     }
@@ -377,6 +389,28 @@ export default function StatsPage() {
                       </button>
                     </div>
                   )}
+
+                  {/* 地点筛选 */}
+                  <select
+                    value={trendLocationId}
+                    onChange={(e) => setTrendLocationId(e.target.value)}
+                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                  >
+                    <option value="">全部地点</option>
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    ))}
+                  </select>
+
+                  {/* 数据类型：金额/分数 */}
+                  <select
+                    value={trendDataType}
+                    onChange={(e) => setTrendDataType(e.target.value as 'chips' | 'score')}
+                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                  >
+                    <option value="chips">金额</option>
+                    <option value="score">分数</option>
+                  </select>
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -399,7 +433,7 @@ export default function StatsPage() {
                       labelStyle={{ color: '#202124' }}
                     />
                     <ReferenceLine y={0} stroke="#FF6B6B" strokeWidth={2} strokeDasharray="5 5" label={{ value: "0", position: "right", fill: "#FF6B6B", fontSize: 12 }} />
-                    <Line type="monotone" dataKey="chips" stroke="#4285F4" strokeWidth={2} />
+                    <Line type="monotone" dataKey={trendDataType} stroke="#4285F4" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
