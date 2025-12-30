@@ -125,3 +125,15 @@ export const statsApi = {
     apiClient.get('/stats/afternoon-evening-correlation', { params: { locationId, score, scoreType } }),
 };
 
+export interface User {
+  id: string;
+  username: string;
+  name?: string;
+}
+
+export const authApi = {
+  getProfile: () => apiClient.get<{ user: User }>('/auth/profile'),
+  updateProfile: (data: { name?: string; password?: string; oldPassword?: string }) => 
+    apiClient.put<{ user: User }>('/auth/profile', data),
+};
+

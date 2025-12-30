@@ -23,9 +23,21 @@ export const initDatabase = () => {
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
+      name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  // 迁移现有数据：添加name字段（如果不存在）
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN name TEXT`);
+    console.log('✅ Added name column to users table');
+  } catch (error: any) {
+    // 如果字段已存在，忽略错误
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add name column to users table:', error.message);
+    }
+  }
 
   // 创建玩家表
   db.exec(`
@@ -147,15 +159,15 @@ export const seedDefaultData = () => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
   
   if (userCount.count === 0) {
-    // 创建默认用户（用户名: admin, 密码: admin123）
+    // 创建默认用户（用户名: cx, 密码: admin123）
     const userId = generateId();
     const hashedPassword = bcrypt.hashSync('admin123', 10);
     db.prepare(`
-      INSERT INTO users (id, username, password, created_at)
-      VALUES (?, ?, ?, datetime('now'))
-    `).run(userId, 'admin', hashedPassword);
+      INSERT INTO users (id, username, password, name, created_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+    `).run(userId, 'cx', hashedPassword, 'cx');
     
-    console.log('✅ Default user "admin" created (password: admin123)');
+    console.log('✅ Default user "cx" created (password: admin123)');
   }
 
   // 检查是否已有数据

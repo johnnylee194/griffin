@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { playersApi, locationsApi, Player, Location } from '../api/client'
+import { playersApi, locationsApi, authApi, Player, Location } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function SettingsPage() {
   const [players, setPlayers] = useState<Player[]>([])
@@ -11,10 +12,29 @@ export default function SettingsPage() {
   const [editingPlayerName, setEditingPlayerName] = useState('')
   const [editingLocationName, setEditingLocationName] = useState('')
   const [loading, setLoading] = useState(true)
+  const { user, updateUser } = useAuth()
+  const [editingUserName, setEditingUserName] = useState('')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   useEffect(() => {
     loadData()
+    loadUserProfile()
   }, [])
+
+  const loadUserProfile = async () => {
+    try {
+      const res = await authApi.getProfile()
+      if (res.data.user) {
+        setEditingUserName(res.data.user.name || res.data.user.username)
+      }
+    } catch (error) {
+      console.error('Failed to load user profile:', error)
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -176,6 +196,52 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSaveUserName = async () => {
+    if (!editingUserName.trim()) {
+      alert('请输入用户名称')
+      return
+    }
+
+    try {
+      const res = await authApi.updateProfile({ name: editingUserName.trim() })
+      updateUser(res.data.user)
+      setIsEditingName(false)
+      alert('修改成功')
+    } catch (error: any) {
+      console.error('Failed to update user name:', error)
+      alert(error.response?.data?.error || '修改失败')
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      alert('请填写所有密码字段')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      alert('新密码长度至少6位')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert('两次输入的新密码不一致')
+      return
+    }
+
+    try {
+      await authApi.updateProfile({ password: newPassword, oldPassword })
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setIsChangingPassword(false)
+      alert('密码修改成功')
+    } catch (error: any) {
+      console.error('Failed to change password:', error)
+      alert(error.response?.data?.error || '密码修改失败')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -187,6 +253,131 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       <h2 className="text-xl sm:text-2xl font-bold text-text">设置</h2>
+
+      {/* 用户账户管理 */}
+      <div className="card">
+        <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👤 用户账户</h3>
+        
+        <div className="space-y-4">
+          {/* 用户名显示 */}
+          <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+            <div className="flex items-center space-x-3">
+              <span className="text-text-secondary">用户名：</span>
+              <span className="text-text font-semibold">{user?.username}</span>
+            </div>
+          </div>
+
+          {/* 用户名称编辑 */}
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-text-secondary">显示名称：</span>
+              {!isEditingName ? (
+                <button
+                  onClick={() => setIsEditingName(true)}
+                  className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                >
+                  编辑
+                </button>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleSaveUserName}
+                    className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                  >
+                    保存
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsEditingName(false)
+                      setEditingUserName(user?.name || user?.username || '')
+                    }}
+                    className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                  >
+                    取消
+                  </button>
+                </div>
+              )}
+            </div>
+            {isEditingName ? (
+              <input
+                type="text"
+                value={editingUserName}
+                onChange={(e) => setEditingUserName(e.target.value)}
+                placeholder="输入显示名称"
+                className="input w-full text-sm"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') handleSaveUserName()
+                  if (e.key === 'Escape') {
+                    setIsEditingName(false)
+                    setEditingUserName(user?.name || user?.username || '')
+                  }
+                }}
+                autoFocus
+              />
+            ) : (
+              <div className="text-text">{user?.name || user?.username || '未设置'}</div>
+            )}
+          </div>
+
+          {/* 修改密码 */}
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-text-secondary">密码：</span>
+              {!isChangingPassword ? (
+                <button
+                  onClick={() => setIsChangingPassword(true)}
+                  className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                >
+                  修改密码
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsChangingPassword(false)
+                    setOldPassword('')
+                    setNewPassword('')
+                    setConfirmPassword('')
+                  }}
+                  className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                >
+                  取消
+                </button>
+              )}
+            </div>
+            {isChangingPassword && (
+              <div className="space-y-2 mt-2">
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  placeholder="当前密码"
+                  className="input w-full text-sm"
+                />
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="新密码（至少6位）"
+                  className="input w-full text-sm"
+                />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="确认新密码"
+                  className="input w-full text-sm"
+                />
+                <button
+                  onClick={handleChangePassword}
+                  className="btn-primary w-full text-sm"
+                >
+                  保存新密码
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* 玩家管理 */}
       <div className="card">

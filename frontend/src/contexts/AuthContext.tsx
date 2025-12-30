@@ -4,6 +4,7 @@ import { apiClient } from '../api/client';
 interface User {
   id: string;
   username: string;
+  name?: string;
 }
 
 interface AuthContextType {
@@ -11,6 +12,7 @@ interface AuthContextType {
   token: string | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (user: User) => void;
   isLoading: boolean;
 }
 
@@ -67,8 +69,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     delete apiClient.defaults.headers.common['Authorization'];
   };
 
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
