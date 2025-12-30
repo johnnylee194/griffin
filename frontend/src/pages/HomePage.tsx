@@ -121,20 +121,20 @@ export default function HomePage() {
             <h4 className="text-sm font-semibold text-text-secondary mb-2">💰 收支情况</h4>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <div className="text-lg sm:text-2xl font-bold text-accent-green">
+                <div className="text-lg sm:text-2xl font-bold text-accent-red">
                   +{monthlyStats.overall.totalIncome.toLocaleString()}
                 </div>
                 <div className="text-xs text-text-light mt-1">赢</div>
               </div>
               <div>
-                <div className="text-lg sm:text-2xl font-bold text-accent-red">
+                <div className="text-lg sm:text-2xl font-bold text-accent-green">
                   -{monthlyStats.overall.totalExpense.toLocaleString()}
                 </div>
                 <div className="text-xs text-text-light mt-1">输</div>
               </div>
               <div>
                 <div className={`text-lg sm:text-2xl font-bold ${
-                  monthlyStats.overall.profit >= 0 ? 'text-accent-green' : 'text-accent-red'
+                  monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
                 }`}>
                   {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
                 </div>
@@ -158,9 +158,9 @@ export default function HomePage() {
                   {monthlyStats.overall.totalGames} 场
                 </div>
                 <div className="text-xs text-text-light mt-1">
-                  <span className="text-accent-green">{monthlyStats.overall.winGames}胜</span>
+                  <span className="text-accent-red">{monthlyStats.overall.winGames}胜</span>
                   {' / '}
-                  <span className="text-accent-red">{monthlyStats.overall.loseGames}负</span>
+                  <span className="text-accent-green">{monthlyStats.overall.loseGames}负</span>
                 </div>
               </div>
             </div>
@@ -180,21 +180,21 @@ export default function HomePage() {
                   <span className="text-text-light">场次</span>
                   <span className="text-text-secondary">
                     {monthlyStats.afternoon.totalGames} 场 · 
-                    <span className="text-accent-green ml-1">{monthlyStats.afternoon.winGames}胜</span>
-                    <span className="text-accent-red ml-1">{monthlyStats.afternoon.loseGames}负</span>
+                    <span className="text-accent-red ml-1">{monthlyStats.afternoon.winGames}胜</span>
+                    <span className="text-accent-green ml-1">{monthlyStats.afternoon.loseGames}负</span>
                   </span>
                 </div>
                 <div className="border-t border-gray-200 pt-2 grid grid-cols-3 gap-1 text-xs text-center">
                   <div>
-                    <div className="text-accent-green font-semibold">+{monthlyStats.afternoon.totalIncome.toLocaleString()}</div>
+                    <div className="text-accent-red font-semibold">+{monthlyStats.afternoon.totalIncome.toLocaleString()}</div>
                     <div className="text-text-light">赢</div>
                   </div>
                   <div>
-                    <div className="text-accent-red font-semibold">-{monthlyStats.afternoon.totalExpense.toLocaleString()}</div>
+                    <div className="text-accent-green font-semibold">-{monthlyStats.afternoon.totalExpense.toLocaleString()}</div>
                     <div className="text-text-light">输</div>
                   </div>
                   <div>
-                    <div className={`font-semibold ${monthlyStats.afternoon.profit >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                    <div className={`font-semibold ${monthlyStats.afternoon.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                       {monthlyStats.afternoon.profit >= 0 ? '+' : ''}{monthlyStats.afternoon.profit.toLocaleString()}
                     </div>
                     <div className="text-text-light">利润</div>
@@ -215,21 +215,21 @@ export default function HomePage() {
                   <span className="text-text-light">场次</span>
                   <span className="text-text-secondary">
                     {monthlyStats.evening.totalGames} 场 · 
-                    <span className="text-accent-green ml-1">{monthlyStats.evening.winGames}胜</span>
-                    <span className="text-accent-red ml-1">{monthlyStats.evening.loseGames}负</span>
+                    <span className="text-accent-red ml-1">{monthlyStats.evening.winGames}胜</span>
+                    <span className="text-accent-green ml-1">{monthlyStats.evening.loseGames}负</span>
                   </span>
                 </div>
                 <div className="border-t border-gray-200 pt-2 grid grid-cols-3 gap-1 text-xs text-center">
                   <div>
-                    <div className="text-accent-green font-semibold">+{monthlyStats.evening.totalIncome.toLocaleString()}</div>
+                    <div className="text-accent-red font-semibold">+{monthlyStats.evening.totalIncome.toLocaleString()}</div>
                     <div className="text-text-light">赢</div>
                   </div>
                   <div>
-                    <div className="text-accent-red font-semibold">-{monthlyStats.evening.totalExpense.toLocaleString()}</div>
+                    <div className="text-accent-green font-semibold">-{monthlyStats.evening.totalExpense.toLocaleString()}</div>
                     <div className="text-text-light">输</div>
                   </div>
                   <div>
-                    <div className={`font-semibold ${monthlyStats.evening.profit >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                    <div className={`font-semibold ${monthlyStats.evening.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                       {monthlyStats.evening.profit >= 0 ? '+' : ''}{monthlyStats.evening.profit.toLocaleString()}
                     </div>
                     <div className="text-text-light">利润</div>
@@ -309,7 +309,7 @@ function GameCard({ game }: { game: Game }) {
               <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
                 {record.player.name}
               </span>
-              <span className={record.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
+              <span className={record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
                 {record.chips >= 0 ? '+' : ''}{record.chips}
               </span>
             </div>

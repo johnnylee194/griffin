@@ -269,8 +269,8 @@ export default function NewGamePage() {
                 myScore === 0
                   ? 'bg-white text-text-light border border-gray-200'
                   : myScore > 0
-                  ? 'bg-green-50 text-accent-green border border-green-200'
-                  : 'bg-red-50 text-accent-red border border-red-200'
+                  ? 'bg-red-50 text-accent-red border border-red-200'
+                  : 'bg-green-50 text-accent-green border border-green-200'
               }`}
             >
               {myScore > 0 ? '+' : ''}{myScore}

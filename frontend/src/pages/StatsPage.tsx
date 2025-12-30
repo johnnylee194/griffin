@@ -463,7 +463,7 @@ export default function StatsPage() {
                           共{item.totalGames}场
                         </span>
                         <span className={`font-bold ${
-                          item.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'
+                          item.winRate >= 50 ? 'text-accent-red' : 'text-accent-green'
                         }`}>
                           {item.winRate}%
                         </span>
@@ -501,7 +501,7 @@ export default function StatsPage() {
                           共{item.totalGames}场
                         </span>
                         <span className={`font-bold ${
-                          item.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'
+                          item.winRate >= 50 ? 'text-accent-red' : 'text-accent-green'
                         }`}>
                           {item.winRate}%
                         </span>
@@ -592,7 +592,7 @@ export default function StatsPage() {
                     </div>
                     <div className="text-center">
                       <div className={`text-base sm:text-2xl font-bold ${
-                        correlationStats.eveningStats.winRate >= 50 ? 'text-accent-green' : 'text-accent-red'
+                        correlationStats.eveningStats.winRate >= 50 ? 'text-accent-red' : 'text-accent-green'
                       }`}>
                         {correlationStats.eveningStats.winRate}%
                       </div>
@@ -746,7 +746,7 @@ export default function StatsPage() {
                       <div className="flex justify-between items-start text-xs sm:text-sm">
                         <div className="text-center flex-1">
                           <div className="text-text-light">金额</div>
-                          <div className={data.totalChips >= 0 ? 'text-accent-green' : 'text-accent-red'}>
+                          <div className={data.totalChips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
                             {data.totalChips >= 0 ? '+' : ''}{data.totalChips}
                           </div>
                         </div>
@@ -773,7 +773,7 @@ export default function StatsPage() {
 }
 
 function StatCard({ label, value, color, prefix, size = 'normal' }: any) {
-  const colorClass = color === 'green' ? 'text-accent-green' : color === 'red' ? 'text-accent-red' : 'text-primary'
+  const colorClass = color === 'green' ? 'text-accent-red' : color === 'red' ? 'text-accent-green' : 'text-primary'
   const sizeClass = size === 'small' ? 'text-base sm:text-2xl' : 'text-lg sm:text-2xl'
   
   return (

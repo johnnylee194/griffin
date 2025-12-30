@@ -88,11 +88,11 @@ export default function HistoryPage() {
     return days
   }
 
-  // 判断是下午还是晚上（18:00为分界线）
+  // 判断是下午还是晚上（20:00为分界线，与首页逻辑一致）
   const isAfternoon = (dateTime: string) => {
     const date = new Date(dateTime)
     const hours = date.getHours()
-    return hours < 18
+    return hours < 20
   }
 
   // 过滤和分组游戏
@@ -232,7 +232,7 @@ export default function HistoryPage() {
         <button
           onClick={() => setFilter('win')}
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'win' ? 'bg-accent-green text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+            filter === 'win' ? 'bg-accent-red text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
           }`}
         >
           盈利
@@ -240,7 +240,7 @@ export default function HistoryPage() {
         <button
           onClick={() => setFilter('lose')}
           className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'lose' ? 'bg-accent-red text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+            filter === 'lose' ? 'bg-accent-green text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
           }`}
         >
           亏损
@@ -253,7 +253,7 @@ export default function HistoryPage() {
           没有找到记录
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {sortedDates.map(date => {
             const dateGames = grouped[date]
             const stats = dailyStats[date]
@@ -261,29 +261,29 @@ export default function HistoryPage() {
             const displayDate = format(dateObj, 'yyyy年MM月dd日')
             
             return (
-              <div key={date} className="space-y-3">
+              <div key={date} className="space-y-2">
                 {/* 日期统计卡片 */}
-                <div className="card bg-gray-50">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-lg font-semibold text-text">{displayDate}</h3>
-                    <div className="text-sm text-text-light">{dateGames.length} 局</div>
+                <div className="card bg-gray-50 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-base font-semibold text-text">{displayDate}</h3>
+                    <div className="text-xs text-text-light">{dateGames.length} 局</div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-2">
                     <div className="text-center">
-                      <div className="text-xs text-text-light mb-1">总计</div>
-                      <div className={`text-lg font-bold ${stats.total >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                      <div className="text-xs text-text-light mb-0.5">总计</div>
+                      <div className={`text-base font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                         {stats.total >= 0 ? '+' : ''}{stats.total}
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xs text-text-light mb-1">下午</div>
-                      <div className={`text-lg font-bold ${stats.afternoon >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                      <div className="text-xs text-text-light mb-0.5">下午</div>
+                      <div className={`text-base font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                         {stats.afternoon >= 0 ? '+' : ''}{stats.afternoon}
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-xs text-text-light mb-1">晚上</div>
-                      <div className={`text-lg font-bold ${stats.evening >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                      <div className="text-xs text-text-light mb-0.5">晚上</div>
+                      <div className={`text-base font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                         {stats.evening >= 0 ? '+' : ''}{stats.evening}
                       </div>
                     </div>
@@ -291,17 +291,17 @@ export default function HistoryPage() {
                 </div>
 
                 {/* 该日期的游戏列表 */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {dateGames.map(game => {
             const myRecord = getMyRecord(game)
             return (
-              <div key={game.id} className="card">
-                <div className="flex items-start justify-between mb-3">
+              <div key={game.id} className="card p-3">
+                <div className="flex items-start justify-between mb-2">
                   <div>
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="text-primary font-semibold">📍 {game.location.name}</span>
+                    <div className="flex items-center space-x-2 mb-0.5">
+                      <span className="text-primary font-semibold text-sm">📍 {game.location.name}</span>
                       <span className="text-xs text-text-light">
-                        {format(new Date(game.createdAt), 'yyyy-MM-dd HH:mm')}
+                        {format(new Date(game.createdAt), 'HH:mm')}
                       </span>
                     </div>
                     <div className="text-xs text-text-light">
@@ -312,13 +312,13 @@ export default function HistoryPage() {
                   <div className="flex space-x-2">
                     <button
                       onClick={() => navigate(`/edit-game/${game.id}`)}
-                      className="text-primary hover:text-blue-700 text-sm"
+                      className="text-primary hover:text-blue-700 text-xs"
                     >
                       编辑
                     </button>
                     <button
                       onClick={() => handleDelete(game.id)}
-                      className="text-accent-red hover:text-red-600 text-sm"
+                      className="text-accent-red hover:text-red-600 text-xs"
                     >
                       删除
                     </button>
@@ -327,11 +327,11 @@ export default function HistoryPage() {
 
                 {/* 我的成绩 */}
                 {myRecord && myRecord.chips !== null && (
-                  <div className="bg-primary/5 rounded-lg p-3 mb-2">
+                  <div className="bg-primary/5 rounded-lg p-2 mb-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-primary font-semibold">我的成绩</span>
+                      <span className="text-primary font-semibold text-sm">我的成绩</span>
                       <div className="text-right">
-                        <div className={`text-lg sm:text-2xl font-bold ${myRecord.chips >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                        <div className={`text-base font-bold ${myRecord.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                           {myRecord.chips >= 0 ? '+' : ''}{myRecord.chips}
                         </div>
                         {myRecord.score !== null && (
@@ -346,13 +346,13 @@ export default function HistoryPage() {
 
                 {/* 参与玩家 */}
                 {game.records.length > 0 && (
-                  <div className="mt-2">
-                    <div className="text-xs text-text-light mb-2">参与玩家：</div>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="mt-1.5">
+                    <div className="text-xs text-text-light mb-1">参与玩家：</div>
+                    <div className="flex flex-wrap gap-1">
                       {game.records.map(record => (
                         <div
                           key={record.id}
-                          className={`px-2 py-1 rounded text-sm ${
+                          className={`px-1.5 py-0.5 rounded text-xs ${
                             record.player.isMe
                               ? 'bg-primary/10 text-primary font-semibold'
                               : 'bg-gray-100 text-text'
@@ -366,7 +366,7 @@ export default function HistoryPage() {
                 )}
 
                 {game.note && (
-                  <div className="mt-2 text-sm text-text-secondary border-t border-gray-200 pt-2">
+                  <div className="mt-1.5 text-xs text-text-secondary border-t border-gray-200 pt-1.5">
                     📝 {game.note}
                   </div>
                 )}

@@ -52,7 +52,7 @@ export default function NumPad({ onClose, onSubmit, initialValue = 0 }: NumPadPr
         {/* 显示屏 */}
         <div className="mb-4">
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-right">
-            <div className={`text-4xl font-mono font-bold ${isNegative ? 'text-accent-red' : 'text-accent-green'}`}>
+            <div className={`text-4xl font-mono font-bold ${isNegative ? 'text-accent-green' : 'text-accent-red'}`}>
               {displayValue}
             </div>
           </div>
