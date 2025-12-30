@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { playersApi, statsApi, locationsApi, Player, Location } from '../api/client'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } from 'recharts'
 
-type TrendType = 'daily-7' | 'daily-15' | 'daily-30' | 'weekly-7' | 'weekly-15' | 'weekly-30' | 'monthly-7' | 'monthly-15' | 'monthly-30'
-
 export default function StatsPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
@@ -17,7 +15,10 @@ export default function StatsPage() {
   const [correlationScore, setCorrelationScore] = useState<string>('')
   const [correlationScoreType, setCorrelationScoreType] = useState<'win' | 'lose'>('win')
   const [correlationStats, setCorrelationStats] = useState<any>(null)
-  const [trendType, setTrendType] = useState<TrendType>('daily-7')
+  const [trendPeriodType, setTrendPeriodType] = useState<'daily' | 'weekly' | 'monthly'>('daily')
+  const [trendPeriodValue, setTrendPeriodValue] = useState<number>(7)
+  const [isCustomPeriod, setIsCustomPeriod] = useState<boolean>(false)
+  const [customPeriodValue, setCustomPeriodValue] = useState<string>('')
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedLunarYear, setSelectedLunarYear] = useState<number>(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
@@ -132,15 +133,27 @@ export default function StatsPage() {
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
 
-    if (trendType.startsWith('daily-')) {
-      const days = trendType === 'daily-7' ? 7 : trendType === 'daily-15' ? 15 : 30
-      return dateEntries.slice(-days).map(item => ({
+    // 获取周期数量
+    const periodCount = isCustomPeriod 
+      ? (parseInt(customPeriodValue) || 0) 
+      : trendPeriodValue
+
+    if (periodCount <= 0) {
+      return [{ date: '无数据', chips: 0 }]
+    }
+
+    if (trendPeriodType === 'daily') {
+      const result = dateEntries.slice(-periodCount).map(item => ({
         date: item.date.slice(5), // MM-DD
         chips: item.chips
       }))
-    } else if (trendType.startsWith('weekly-')) {
+      // 如果没有数据，返回包含0的数据点
+      if (result.length === 0) {
+        return [{ date: '无数据', chips: 0 }]
+      }
+      return result
+    } else if (trendPeriodType === 'weekly') {
       // 按周聚合
-      const weeks = trendType === 'weekly-7' ? 7 : trendType === 'weekly-15' ? 15 : 30
       const weeklyMap: { [key: string]: { chips: number; count: number } } = {}
       dateEntries.forEach(item => {
         const date = new Date(item.date)
@@ -155,15 +168,20 @@ export default function StatsPage() {
         weeklyMap[weekKey].count++
       })
       
-      return Object.entries(weeklyMap)
+      const result = Object.entries(weeklyMap)
         .map(([week, data]) => ({
           date: week,
           chips: data.chips
         }))
-        .slice(-weeks) // 显示最近N周
+        .slice(-periodCount) // 显示最近N周
+      
+      // 如果没有数据，返回包含0的数据点
+      if (result.length === 0) {
+        return [{ date: '无数据', chips: 0 }]
+      }
+      return result
     } else {
       // 按月聚合
-      const months = trendType === 'monthly-7' ? 7 : trendType === 'monthly-15' ? 15 : 30
       const monthlyMap: { [key: string]: { chips: number; count: number } } = {}
       dateEntries.forEach(item => {
         const monthKey = item.date.slice(0, 7) // YYYY-MM
@@ -175,12 +193,18 @@ export default function StatsPage() {
         monthlyMap[monthKey].count++
       })
       
-      return Object.entries(monthlyMap)
+      const result = Object.entries(monthlyMap)
         .map(([month, data]) => ({
           date: month.slice(5), // MM
           chips: data.chips
         }))
-        .slice(-months) // 显示最近N个月
+        .slice(-periodCount) // 显示最近N个月
+      
+      // 如果没有数据，返回包含0的数据点
+      if (result.length === 0) {
+        return [{ date: '无数据', chips: 0 }]
+      }
+      return result
     }
   }
 
@@ -225,18 +249,48 @@ export default function StatsPage() {
 
   const trendData = getTrendData()
   const getTrendTitle = () => {
-    if (trendType.startsWith('daily-')) {
-      const days = trendType === 'daily-7' ? 7 : trendType === 'daily-15' ? 15 : 30
-      return `每日趋势（最近${days}天）`
-    } else if (trendType.startsWith('weekly-')) {
-      const weeks = trendType === 'weekly-7' ? 7 : trendType === 'weekly-15' ? 15 : 30
-      return `每周趋势（最近${weeks}周）`
+    const periodCount = isCustomPeriod 
+      ? (parseInt(customPeriodValue) || 0) 
+      : trendPeriodValue
+    
+    if (periodCount <= 0) {
+      if (trendPeriodType === 'daily') {
+        return '每日趋势（请输入有效数字）'
+      } else if (trendPeriodType === 'weekly') {
+        return '每周趋势（请输入有效数字）'
+      } else {
+        return '每月趋势（请输入有效数字）'
+      }
+    }
+    
+    if (trendPeriodType === 'daily') {
+      return `每日趋势（最近${periodCount}天）`
+    } else if (trendPeriodType === 'weekly') {
+      return `每周趋势（最近${periodCount}周）`
     } else {
-      const months = trendType === 'monthly-7' ? 7 : trendType === 'monthly-15' ? 15 : 30
-      return `每月趋势（最近${months}个月）`
+      return `每月趋势（最近${periodCount}个月）`
     }
   }
   const trendTitle = getTrendTitle()
+
+  // 处理周期值变化
+  const handlePeriodValueChange = (value: string) => {
+    if (value === 'custom') {
+      setIsCustomPeriod(true)
+    } else {
+      setIsCustomPeriod(false)
+      setTrendPeriodValue(parseInt(value))
+    }
+  }
+
+  // 处理自定义周期值变化
+  const handleCustomPeriodChange = (value: string) => {
+    setCustomPeriodValue(value)
+    const numValue = parseInt(value)
+    if (!isNaN(numValue) && numValue > 0) {
+      // 值有效时，数据会在 getTrendData 中自动更新
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-3 sm:py-6 space-y-4 sm:space-y-6">
@@ -278,97 +332,51 @@ export default function StatsPage() {
             <div className="card">
               <div className="mb-4">
                 <h3 className="text-base sm:text-xl font-semibold text-text mb-3">{trendTitle}</h3>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    onClick={() => setTrendType('daily-7')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'daily-7' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  {/* 类型选择：日/周/月 */}
+                  <select
+                    value={trendPeriodType}
+                    onChange={(e) => setTrendPeriodType(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
                   >
-                    7日
-                  </button>
-                  <button
-                    onClick={() => setTrendType('daily-15')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'daily-15' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    15日
-                  </button>
-                  <button
-                    onClick={() => setTrendType('daily-30')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'daily-30' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    30日
-                  </button>
-                  <button
-                    onClick={() => setTrendType('weekly-7')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'weekly-7' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    7周
-                  </button>
-                  <button
-                    onClick={() => setTrendType('weekly-15')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'weekly-15' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    15周
-                  </button>
-                  <button
-                    onClick={() => setTrendType('weekly-30')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'weekly-30' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    30周
-                  </button>
-                  <button
-                    onClick={() => setTrendType('monthly-7')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'monthly-7' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    7月
-                  </button>
-                  <button
-                    onClick={() => setTrendType('monthly-15')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'monthly-15' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    15月
-                  </button>
-                  <button
-                    onClick={() => setTrendType('monthly-30')}
-                    className={`px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      trendType === 'monthly-30' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    30月
-                  </button>
+                    <option value="daily">日</option>
+                    <option value="weekly">周</option>
+                    <option value="monthly">月</option>
+                  </select>
+                  
+                  {/* 周期值选择：7/15/30/自定义 */}
+                  {!isCustomPeriod ? (
+                    <select
+                      value={trendPeriodValue}
+                      onChange={(e) => handlePeriodValueChange(e.target.value)}
+                      className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                    >
+                      <option value="7">7</option>
+                      <option value="15">15</option>
+                      <option value="30">30</option>
+                      <option value="custom">自定义</option>
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        value={customPeriodValue}
+                        onChange={(e) => handleCustomPeriodChange(e.target.value)}
+                        placeholder="输入数字"
+                        min="1"
+                        className="w-20 sm:w-24 text-xs sm:text-sm border border-gray-300 rounded px-2 py-1"
+                      />
+                      <button
+                        onClick={() => {
+                          setIsCustomPeriod(false)
+                          setCustomPeriodValue('')
+                        }}
+                        className="text-xs sm:text-sm text-text-secondary hover:text-text px-1"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="overflow-x-auto">
