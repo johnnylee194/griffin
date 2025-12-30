@@ -96,8 +96,8 @@ export default function NewGamePage() {
       return
     }
 
-    if (selectedPlayerIds.length < 2) {
-      alert('至少需要选择2个玩家（包括我）')
+    if (selectedPlayerIds.length < 1) {
+      alert('至少需要选择1个玩家（包括我）')
       return
     }
 
@@ -378,7 +378,7 @@ export default function NewGamePage() {
       {/* 提交按钮 */}
       <button
         onClick={handleSubmit}
-        disabled={!selectedLocation || selectedPlayerIds.length < 2}
+        disabled={!selectedLocation || selectedPlayerIds.length < 1}
         className="btn-primary w-full text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         保存对局
