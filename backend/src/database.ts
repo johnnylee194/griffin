@@ -159,15 +159,15 @@ export const seedDefaultData = () => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
   
   if (userCount.count === 0) {
-    // 创建默认用户（用户名: cx, 密码: admin123）
+    // 创建默认用户（用户名: admin, 密码: admin123）
     const userId = generateId();
     const hashedPassword = bcrypt.hashSync('admin123', 10);
     db.prepare(`
       INSERT INTO users (id, username, password, name, created_at)
       VALUES (?, ?, ?, ?, datetime('now'))
-    `).run(userId, 'cx', hashedPassword, 'cx');
+    `).run(userId, 'admin', hashedPassword, 'admin');
     
-    console.log('✅ Default user "cx" created (password: admin123)');
+    console.log('✅ Default user "admin" created (password: admin123)');
   }
 
   // 检查是否已有数据
