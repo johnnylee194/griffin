@@ -99,11 +99,7 @@ export default function EditGamePage() {
       // 已选择，取消选择
       setSelectedPlayerIds(selectedPlayerIds.filter(id => id !== player.id))
     } else {
-      // 未选择，添加（但最多4个玩家）
-      if (selectedPlayerIds.length >= 4) {
-        alert('最多只能选择4个玩家（包括我）')
-        return
-      }
+      // 未选择，添加
       setSelectedPlayerIds([...selectedPlayerIds, player.id])
     }
   }
@@ -111,11 +107,6 @@ export default function EditGamePage() {
   const handleCreatePlayer = async () => {
     if (!newPlayerName.trim()) {
       alert('请输入玩家姓名')
-      return
-    }
-
-    if (selectedPlayerIds.length >= 4) {
-      alert('最多只能选择4个玩家（包括我）')
       return
     }
 
@@ -138,8 +129,8 @@ export default function EditGamePage() {
       return
     }
 
-    if (selectedPlayerIds.length !== 4) {
-      alert('必须选择4个玩家（包括我）')
+    if (selectedPlayerIds.length < 2) {
+      alert('至少需要选择2个玩家（包括我）')
       return
     }
 
@@ -427,7 +418,7 @@ export default function EditGamePage() {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!selectedLocation || selectedPlayerIds.length !== 4}
+          disabled={!selectedLocation || selectedPlayerIds.length < 2}
           className="flex-1 btn-primary text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           保存修改

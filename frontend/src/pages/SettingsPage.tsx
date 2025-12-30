@@ -19,6 +19,9 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [showUserAccountModal, setShowUserAccountModal] = useState(false)
+  const [isPlayersExpanded, setIsPlayersExpanded] = useState(true)
+  const [isLocationsExpanded, setIsLocationsExpanded] = useState(true)
 
   useEffect(() => {
     loadData()
@@ -254,152 +257,192 @@ export default function SettingsPage() {
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       <h2 className="text-xl sm:text-2xl font-bold text-text">设置</h2>
 
-      {/* 用户账户管理 */}
-      <div className="card">
-        <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👤 用户账户</h3>
-        
-        <div className="space-y-4">
-          {/* 用户名显示 */}
-          <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center space-x-3">
-              <span className="text-text-secondary">用户名：</span>
-              <span className="text-text font-semibold">{user?.username}</span>
-            </div>
-          </div>
+      {/* 用户账户管理 - 改为按钮 */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowUserAccountModal(true)}
+          className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
+        >
+          👤 用户账户设置
+        </button>
+      </div>
 
-          {/* 用户名称编辑 */}
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-text-secondary">显示名称：</span>
-              {!isEditingName ? (
-                <button
-                  onClick={() => setIsEditingName(true)}
-                  className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                >
-                  编辑
-                </button>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={handleSaveUserName}
-                    className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                  >
-                    保存
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsEditingName(false)
-                      setEditingUserName(user?.name || user?.username || '')
-                    }}
-                    className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                  >
-                    取消
-                  </button>
-                </div>
-              )}
-            </div>
-            {isEditingName ? (
-              <input
-                type="text"
-                value={editingUserName}
-                onChange={(e) => setEditingUserName(e.target.value)}
-                placeholder="输入显示名称"
-                className="input w-full text-sm"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') handleSaveUserName()
-                  if (e.key === 'Escape') {
-                    setIsEditingName(false)
-                    setEditingUserName(user?.name || user?.username || '')
-                  }
+      {/* 用户账户模态框 */}
+      {showUserAccountModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg sm:text-xl font-semibold text-text">👤 用户账户</h3>
+              <button
+                onClick={() => {
+                  setShowUserAccountModal(false)
+                  setIsEditingName(false)
+                  setIsChangingPassword(false)
+                  setEditingUserName(user?.name || user?.username || '')
+                  setOldPassword('')
+                  setNewPassword('')
+                  setConfirmPassword('')
                 }}
-                autoFocus
-              />
-            ) : (
-              <div className="text-text">{user?.name || user?.username || '未设置'}</div>
-            )}
-          </div>
-
-          {/* 修改密码 */}
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-text-secondary">密码：</span>
-              {!isChangingPassword ? (
-                <button
-                  onClick={() => setIsChangingPassword(true)}
-                  className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                >
-                  修改密码
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setIsChangingPassword(false)
-                    setOldPassword('')
-                    setNewPassword('')
-                    setConfirmPassword('')
-                  }}
-                  className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                >
-                  取消
-                </button>
-              )}
+                className="text-text-secondary hover:text-text text-xl"
+              >
+                ×
+              </button>
             </div>
-            {isChangingPassword && (
-              <div className="space-y-2 mt-2">
-                <input
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  placeholder="当前密码"
-                  className="input w-full text-sm"
-                />
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="新密码（至少6位）"
-                  className="input w-full text-sm"
-                />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="确认新密码"
-                  className="input w-full text-sm"
-                />
-                <button
-                  onClick={handleChangePassword}
-                  className="btn-primary w-full text-sm"
-                >
-                  保存新密码
-                </button>
+            
+            <div className="space-y-4">
+              {/* 用户名显示 */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                <div className="flex items-center space-x-3">
+                  <span className="text-text-secondary">用户名：</span>
+                  <span className="text-text font-semibold">{user?.username}</span>
+                </div>
               </div>
-            )}
+
+              {/* 用户名称编辑 */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-text-secondary">显示名称：</span>
+                  {!isEditingName ? (
+                    <button
+                      onClick={() => setIsEditingName(true)}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                    >
+                      编辑
+                    </button>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handleSaveUserName}
+                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                      >
+                        保存
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingName(false)
+                          setEditingUserName(user?.name || user?.username || '')
+                        }}
+                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    value={editingUserName}
+                    onChange={(e) => setEditingUserName(e.target.value)}
+                    placeholder="输入显示名称"
+                    className="input w-full text-sm"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') handleSaveUserName()
+                      if (e.key === 'Escape') {
+                        setIsEditingName(false)
+                        setEditingUserName(user?.name || user?.username || '')
+                      }
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <div className="text-text">{user?.name || user?.username || '未设置'}</div>
+                )}
+              </div>
+
+              {/* 修改密码 */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-text-secondary">密码：</span>
+                  {!isChangingPassword ? (
+                    <button
+                      onClick={() => setIsChangingPassword(true)}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                    >
+                      修改密码
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsChangingPassword(false)
+                        setOldPassword('')
+                        setNewPassword('')
+                        setConfirmPassword('')
+                      }}
+                      className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                    >
+                      取消
+                    </button>
+                  )}
+                </div>
+                {isChangingPassword && (
+                  <div className="space-y-2 mt-2">
+                    <input
+                      type="password"
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      placeholder="当前密码"
+                      className="input w-full text-sm"
+                    />
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="新密码（至少6位）"
+                      className="input w-full text-sm"
+                    />
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="确认新密码"
+                      className="input w-full text-sm"
+                    />
+                    <button
+                      onClick={handleChangePassword}
+                      className="btn-primary w-full text-sm"
+                    >
+                      保存新密码
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 玩家管理 */}
       <div className="card">
-        <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👥 玩家管理</h3>
-        
-        {/* 添加玩家 */}
-        <div className="flex space-x-2 mb-4">
-          <input
-            type="text"
-            value={newPlayerName}
-            onChange={(e) => setNewPlayerName(e.target.value)}
-            placeholder="输入玩家名称"
-            className="input flex-1"
-            onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
-          />
-          <button onClick={handleAddPlayer} className="btn-primary">
-            添加
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg sm:text-xl font-semibold text-text">👥 玩家管理</h3>
+          <button
+            onClick={() => setIsPlayersExpanded(!isPlayersExpanded)}
+            className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
+          >
+            {isPlayersExpanded ? '收起' : '展开'}
           </button>
         </div>
+        
+        {isPlayersExpanded && (
+          <>
+            {/* 添加玩家 */}
+            <div className="flex space-x-2 mb-4">
+              <input
+                type="text"
+                value={newPlayerName}
+                onChange={(e) => setNewPlayerName(e.target.value)}
+                placeholder="输入玩家名称"
+                className="input flex-1"
+                onKeyPress={(e) => e.key === 'Enter' && handleAddPlayer()}
+              />
+              <button onClick={handleAddPlayer} className="btn-primary">
+                添加
+              </button>
+            </div>
 
-        {/* 玩家列表 */}
-        <div className="space-y-2">
+            {/* 玩家列表 */}
+            <div className="space-y-2">
           {players.map(player => (
             <div key={player.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
               <div className="flex items-center space-x-3 flex-1">
@@ -470,30 +513,42 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 地点管理 */}
       <div className="card">
-        <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">📍 地点管理</h3>
-        
-        {/* 添加地点 */}
-        <div className="flex space-x-2 mb-4">
-          <input
-            type="text"
-            value={newLocationName}
-            onChange={(e) => setNewLocationName(e.target.value)}
-            placeholder="输入地点名称"
-            className="input flex-1"
-            onKeyPress={(e) => e.key === 'Enter' && handleAddLocation()}
-          />
-          <button onClick={handleAddLocation} className="btn-primary">
-            添加
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg sm:text-xl font-semibold text-text">📍 地点管理</h3>
+          <button
+            onClick={() => setIsLocationsExpanded(!isLocationsExpanded)}
+            className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
+          >
+            {isLocationsExpanded ? '收起' : '展开'}
           </button>
         </div>
+        
+        {isLocationsExpanded && (
+          <>
+            {/* 添加地点 */}
+            <div className="flex space-x-2 mb-4">
+              <input
+                type="text"
+                value={newLocationName}
+                onChange={(e) => setNewLocationName(e.target.value)}
+                placeholder="输入地点名称"
+                className="input flex-1"
+                onKeyPress={(e) => e.key === 'Enter' && handleAddLocation()}
+              />
+              <button onClick={handleAddLocation} className="btn-primary">
+                添加
+              </button>
+            </div>
 
-        {/* 地点列表 */}
-        <div className="space-y-2">
+            {/* 地点列表 */}
+            <div className="space-y-2">
           {locations.map(location => (
             <div key={location.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
               <div className="flex items-center space-x-3 flex-1">
@@ -561,7 +616,9 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 关于 */}

@@ -159,8 +159,8 @@ router.post('/', (req, res) => {
     const { locationId, chipRate, playerIds, myScore, note, createdAt } = req.body;
     
     // 验证参数
-    if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length !== 4) {
-      return res.status(400).json({ error: '必须选择4个玩家' });
+    if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length < 2) {
+      return res.status(400).json({ error: '至少需要选择2个玩家' });
     }
     
     if (myScore === undefined || myScore === null) {
@@ -235,8 +235,8 @@ router.put('/:id', (req, res) => {
     const { locationId, chipRate, playerIds, myScore, note, createdAt } = req.body;
     
     // 验证参数
-    if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length !== 4) {
-      return res.status(400).json({ error: '必须选择4个玩家' });
+    if (!locationId || !chipRate || !playerIds || !Array.isArray(playerIds) || playerIds.length < 2) {
+      return res.status(400).json({ error: '至少需要选择2个玩家' });
     }
     
     if (myScore === undefined || myScore === null) {
