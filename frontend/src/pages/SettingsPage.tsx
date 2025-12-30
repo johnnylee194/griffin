@@ -20,8 +20,8 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [showUserAccountModal, setShowUserAccountModal] = useState(false)
-  const [isPlayersExpanded, setIsPlayersExpanded] = useState(true)
-  const [isLocationsExpanded, setIsLocationsExpanded] = useState(true)
+  const [isPlayersExpanded, setIsPlayersExpanded] = useState(false)
+  const [isLocationsExpanded, setIsLocationsExpanded] = useState(false)
 
   useEffect(() => {
     loadData()
