@@ -519,11 +519,11 @@ router.get('/triple-combination', (req, res) => {
         winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0
       }))
       .sort((a, b) => {
-        // 先按总场次排序（场次多的优先），再按胜率排序
-        if (b.totalGames !== a.totalGames) {
-          return b.totalGames - a.totalGames;
+        // 先按胜率排序（胜率高的优先），胜率相同则按总场次排序
+        if (b.winRate !== a.winRate) {
+          return b.winRate - a.winRate;
         }
-        return b.winRate - a.winRate;
+        return b.totalGames - a.totalGames;
       });
 
     res.json(combinationStats);
