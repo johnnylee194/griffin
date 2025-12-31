@@ -179,55 +179,43 @@ export default function HistoryPage() {
       {/* 筛选器 */}
       <div className="card">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">年：</span>
-            <select
-              value={selectedYear}
-              onChange={(e) => handleYearChange(parseInt(e.target.value))}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-            >
-              {getYearOptions().map(year => (
-                <option key={year} value={year}>{year}年</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">月：</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => handleMonthChange(parseInt(e.target.value))}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
-                <option key={month} value={month}>{month}月</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">日：</span>
-            <select
-              value={selectedDay}
-              onChange={(e) => setSelectedDay(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-            >
-              <option value="all">全部</option>
-              {getDayOptions().slice(1).map(day => (
-                <option key={day} value={day}>{day}日</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text-secondary">筛选：</span>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value as 'all' | 'win' | 'lose')}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-            >
-              <option value="all">全部</option>
-              <option value="win">盈利</option>
-              <option value="lose">亏损</option>
-            </select>
-          </div>
+          <select
+            value={selectedYear}
+            onChange={(e) => handleYearChange(parseInt(e.target.value))}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+          >
+            {getYearOptions().map(year => (
+              <option key={year} value={year}>{year}年</option>
+            ))}
+          </select>
+          <select
+            value={selectedMonth}
+            onChange={(e) => handleMonthChange(parseInt(e.target.value))}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+          >
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
+              <option key={month} value={month}>{month}月</option>
+            ))}
+          </select>
+          <select
+            value={selectedDay}
+            onChange={(e) => setSelectedDay(e.target.value)}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+          >
+            <option value="all">全部</option>
+            {getDayOptions().slice(1).map(day => (
+              <option key={day} value={day}>{day}日</option>
+            ))}
+          </select>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as 'all' | 'win' | 'lose')}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+          >
+            <option value="all">全部</option>
+            <option value="win">盈利</option>
+            <option value="lose">亏损</option>
+          </select>
         </div>
       </div>
 
@@ -285,7 +273,7 @@ export default function HistoryPage() {
                     <span className="text-xs text-text-light">
                       {game.location.name} · {game.chipRate === 100 ? '100' : '200'}
                     </span>
-                    <span className="text-xs text-text-light">
+                    <span className="text-[10px] sm:text-xs text-text-light">
                       {dateStr} {timeStr}
                     </span>
                   </div>

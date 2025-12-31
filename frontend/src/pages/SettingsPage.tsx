@@ -255,10 +255,8 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-      <h2 className="text-xl sm:text-2xl font-bold text-text">设置</h2>
-
-      {/* 用户账户管理 - 改为按钮 */}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl sm:text-2xl font-bold text-text">设置</h2>
         <button
           onClick={() => setShowUserAccountModal(true)}
           className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
@@ -415,7 +413,7 @@ export default function SettingsPage() {
       {/* 玩家管理 */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg sm:text-xl font-semibold text-text">👥 玩家管理</h3>
+          <h3 className="text-sm sm:text-lg font-semibold text-text">👥 玩家管理</h3>
           <button
             onClick={() => setIsPlayersExpanded(!isPlayersExpanded)}
             className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
@@ -521,7 +519,7 @@ export default function SettingsPage() {
       {/* 地点管理 */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg sm:text-xl font-semibold text-text">📍 地点管理</h3>
+          <h3 className="text-sm sm:text-lg font-semibold text-text">📍 地点管理</h3>
           <button
             onClick={() => setIsLocationsExpanded(!isLocationsExpanded)}
             className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
