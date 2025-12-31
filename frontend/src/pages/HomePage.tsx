@@ -283,13 +283,12 @@ function GameCard({ game }: { game: Game }) {
     <div className="card">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
-          <span className="text-primary font-semibold">📍 {game.location.name}</span>
+          <span className="text-xs text-text-light">
+            {game.location.name} · {game.chipRate === 100 ? '一分100' : '一分200'}
+          </span>
           <span className="text-xs text-text-light">
             {dateStr} {timeStr}
           </span>
-        </div>
-        <div className="text-xs text-text-light">
-          {game.chipRate === 100 ? '一分100' : '一分200'}
         </div>
       </div>
       

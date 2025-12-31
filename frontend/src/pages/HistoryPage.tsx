@@ -293,21 +293,20 @@ export default function HistoryPage() {
                 {/* 该日期的游戏列表 */}
                 <div className="space-y-2">
                   {dateGames.map(game => {
-            const myRecord = getMyRecord(game)
+            const date = new Date(game.createdAt)
+            const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+            const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            
             return (
-              <div key={game.id} className="card p-3">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <div className="flex items-center space-x-2 mb-0.5">
-                      <span className="text-primary font-semibold text-sm">📍 {game.location.name}</span>
-                      <span className="text-xs text-text-light">
-                        {format(new Date(game.createdAt), 'HH:mm')}
-                      </span>
-                    </div>
-                    <div className="text-xs text-text-light">
-                      {game.chipRate === 100 ? '一分100' : '一分200'}
-                      {game.isComplete && ' · 四人局'}
-                    </div>
+              <div key={game.id} className="card">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-text-light">
+                      {game.location.name} · {game.chipRate === 100 ? '一分100' : '一分200'}
+                    </span>
+                    <span className="text-xs text-text-light">
+                      {dateStr} {timeStr}
+                    </span>
                   </div>
                   <div className="flex space-x-2">
                     <button
@@ -324,52 +323,30 @@ export default function HistoryPage() {
                     </button>
                   </div>
                 </div>
-
-                {/* 我的成绩 */}
-                {myRecord && myRecord.chips !== null && (
-                  <div className="bg-primary/5 rounded-lg p-2 mb-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-primary font-semibold text-sm">我的成绩</span>
-                      <div className="text-right">
-                        <div className={`text-base font-bold ${myRecord.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                          {myRecord.chips >= 0 ? '+' : ''}{myRecord.chips}
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {game.records.map(record => {
+                    // 只显示有金额的记录（"我"的记录），其他玩家只显示名字
+                    if (record.chips === null) {
+                      return (
+                        <div key={record.id} className="flex items-center justify-between text-sm">
+                          <span className="text-text-secondary">{record.player.name}</span>
+                          <span className="text-text-light">-</span>
                         </div>
-                        {myRecord.score !== null && (
-                          <div className="text-xs text-text-light">
-                            {myRecord.score >= 0 ? '+' : ''}{myRecord.score} 分
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 参与玩家 */}
-                {game.records.length > 0 && (
-                  <div className="mt-1.5">
-                    <div className="text-xs text-text-light mb-1">参与玩家：</div>
-                    <div className="flex flex-wrap gap-1">
-                      {game.records.map(record => (
-                        <div
-                          key={record.id}
-                          className={`px-1.5 py-0.5 rounded text-xs ${
-                            record.player.isMe
-                              ? 'bg-primary/10 text-primary font-semibold'
-                              : 'bg-gray-100 text-text'
-                          }`}
-                        >
+                      )
+                    }
+                    return (
+                      <div key={record.id} className="flex items-center justify-between text-sm">
+                        <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
                           {record.player.name}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {game.note && (
-                  <div className="mt-1.5 text-xs text-text-secondary border-t border-gray-200 pt-1.5">
-                    📝 {game.note}
-                  </div>
-                )}
+                        </span>
+                        <span className={record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
+                          {record.chips >= 0 ? '+' : ''}{record.chips}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )
           })}
