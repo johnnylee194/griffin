@@ -282,14 +282,12 @@ function GameCard({ game }: { game: Game }) {
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-text-light">
-            {game.location.name} · {game.chipRate === 100 ? '一分100' : '一分200'}
-          </span>
-          <span className="text-xs text-text-light">
-            {dateStr} {timeStr}
-          </span>
-        </div>
+        <span className="text-sm text-primary font-semibold">
+          {dateStr} {timeStr}
+        </span>
+        <span className="text-xs text-text-light">
+          {game.location.name} · {game.chipRate === 100 ? '100' : '200'}
+        </span>
       </div>
       
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

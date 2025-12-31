@@ -261,48 +261,44 @@ export default function HistoryPage() {
             const displayDate = format(dateObj, 'yyyy年MM月dd日')
             
             return (
-              <div key={date} className="space-y-2">
-                {/* 日期统计卡片 */}
-                <div className="card bg-gray-50 p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <h3 className="text-base font-semibold text-text">{displayDate}</h3>
-                    <div className="text-xs text-text-light">{dateGames.length} 局</div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="text-center">
-                      <div className="text-xs text-text-light mb-0.5">总计</div>
-                      <div className={`text-base font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+              <div key={date} className="card bg-gray-50 p-3">
+                {/* 日期统计信息 */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-4">
+                    <span className="text-base font-semibold text-text">{displayDate}</span>
+                    <div className="flex items-center space-x-4 text-xs text-text-light">
+                      <span>总计</span>
+                      <span>下午</span>
+                      <span>晚上</span>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className={`text-sm font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                         {stats.total >= 0 ? '+' : ''}{stats.total}
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-text-light mb-0.5">下午</div>
-                      <div className={`text-base font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                      <div className={`text-sm font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                         {stats.afternoon >= 0 ? '+' : ''}{stats.afternoon}
                       </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-text-light mb-0.5">晚上</div>
-                      <div className={`text-base font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                      <div className={`text-sm font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                         {stats.evening >= 0 ? '+' : ''}{stats.evening}
                       </div>
                     </div>
                   </div>
+                  <div className="text-xs text-text-light">{dateGames.length} 局</div>
                 </div>
 
                 {/* 该日期的游戏列表 */}
-                <div className="space-y-2">
+                <div className="space-y-2 border-t border-gray-200 pt-2">
                   {dateGames.map(game => {
             const date = new Date(game.createdAt)
             const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
             const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
             
             return (
-              <div key={game.id} className="card">
+              <div key={game.id} className="bg-white rounded-lg p-2">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-2">
                     <span className="text-xs text-text-light">
-                      {game.location.name} · {game.chipRate === 100 ? '一分100' : '一分200'}
+                      {game.location.name} · {game.chipRate === 100 ? '100' : '200'}
                     </span>
                     <span className="text-xs text-text-light">
                       {dateStr} {timeStr}
