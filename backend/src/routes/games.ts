@@ -373,6 +373,19 @@ router.get('/stats/monthly', (req, res) => {
     // 获取本月所有对局记录（只统计"我"的记录）
     const records = db.prepare(query).all(...params) as any[];
     
+    // 获取该月有数据的地点列表（无论是否筛选locationId，都返回所有有数据的地点，方便用户切换）
+    const locationQuery = `
+      SELECT DISTINCT g.location_id, l.name
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      JOIN locations l ON g.location_id = l.id
+      WHERE pr.player_id = ?
+        AND g.created_at >= ?
+        AND g.created_at < ?
+      ORDER BY l.name
+    `;
+    const availableLocations = db.prepare(locationQuery).all(mePlayer.id, startDate, endDate) as any[];
+    
     // 计算总体统计
     let totalIncome = 0;
     let totalExpense = 0;
@@ -442,6 +455,10 @@ router.get('/stats/monthly', (req, res) => {
     
     res.json({
       month: `${year}-${String(month + 1).padStart(2, '0')}`,
+      availableLocations: availableLocations.map(loc => ({
+        id: loc.location_id,
+        name: loc.name
+      })),
       overall: {
         totalIncome,
         totalExpense,

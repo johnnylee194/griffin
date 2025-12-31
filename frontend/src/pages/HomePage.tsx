@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { gamesApi, apiClient, locationsApi, Game, Location } from '../api/client'
+import { gamesApi, apiClient, Game } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 interface MonthlyStats {
   month: string
+  availableLocations?: Array<{ id: string; name: string }>
   overall: {
     totalIncome: number
     totalExpense: number
@@ -41,25 +42,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
-  const [locations, setLocations] = useState<Location[]>([])
   const [selectedLocationId, setSelectedLocationId] = useState<string>('')
-
-  useEffect(() => {
-    loadLocations()
-  }, [])
 
   useEffect(() => {
     loadData()
   }, [selectedYear, selectedMonth, selectedLocationId])
-
-  const loadLocations = async () => {
-    try {
-      const res = await locationsApi.getAll()
-      setLocations(res.data)
-    } catch (error) {
-      console.error('Failed to load locations:', error)
-    }
-  }
 
   const loadData = async () => {
     try {
@@ -128,14 +115,14 @@ export default function HomePage() {
                   <option key={month} value={month}>{month}月</option>
                 ))}
               </select>
-              {locations.length > 0 && (
+              {monthlyStats.availableLocations && monthlyStats.availableLocations.length > 0 && (
                 <select
                   value={selectedLocationId}
                   onChange={(e) => setSelectedLocationId(e.target.value)}
                   className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
                 >
                   <option value="">全部地点</option>
-                  {locations.map(location => (
+                  {monthlyStats.availableLocations.map(location => (
                     <option key={location.id} value={location.id}>{location.name}</option>
                   ))}
                 </select>
