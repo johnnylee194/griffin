@@ -445,7 +445,7 @@ export default function StatsPage() {
             {/* 单个玩家胜率统计 */}
             {playerPerformance.length > 0 && (
               <div className="card">
-                <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👥 单个玩家胜率统计</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">单个玩家胜率统计</h3>
                 <div className="space-y-2">
                   {playerPerformance.slice(0, 10).map((item: any, index: number) => (
                     <div key={item.playerId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -477,7 +477,7 @@ export default function StatsPage() {
             {/* 三个玩家组合胜率统计 */}
             {tripleCombination.length > 0 && (
               <div className="card">
-                <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">👥👥👥 三个玩家组合胜率统计</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-text mb-4">三个玩家组合胜率统计</h3>
                 <div className="space-y-2">
                   {tripleCombination.slice(0, 10).map((item: any, index: number) => (
                     <div key={item.playerIds.join(',')} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">

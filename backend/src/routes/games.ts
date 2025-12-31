@@ -332,7 +332,7 @@ router.delete('/:id', (req, res) => {
 router.get('/stats/monthly', (req, res) => {
   try {
     // 支持自定义年月参数，默认为当前月份
-    const { year: yearParam, month: monthParam } = req.query;
+    const { year: yearParam, month: monthParam, locationId } = req.query;
     const now = new Date();
     const year = yearParam ? parseInt(yearParam as string) : now.getFullYear();
     const month = monthParam ? parseInt(monthParam as string) - 1 : now.getMonth(); // 0-11
@@ -349,8 +349,8 @@ router.get('/stats/monthly', (req, res) => {
       return res.status(404).json({ error: 'Current user not found' });
     }
     
-    // 获取本月所有对局记录（只统计"我"的记录）
-    const records = db.prepare(`
+    // 构建查询条件
+    let query = `
       SELECT 
         pr.chips,
         g.created_at as createdAt
@@ -359,8 +359,19 @@ router.get('/stats/monthly', (req, res) => {
       WHERE pr.player_id = ?
         AND g.created_at >= ?
         AND g.created_at < ?
-      ORDER BY g.created_at ASC
-    `).all(mePlayer.id, startDate, endDate) as any[];
+    `;
+    const params: any[] = [mePlayer.id, startDate, endDate];
+    
+    // 如果指定了地点，添加地点筛选
+    if (locationId) {
+      query += ` AND g.location_id = ?`;
+      params.push(locationId);
+    }
+    
+    query += ` ORDER BY g.created_at ASC`;
+    
+    // 获取本月所有对局记录（只统计"我"的记录）
+    const records = db.prepare(query).all(...params) as any[];
     
     // 计算总体统计
     let totalIncome = 0;

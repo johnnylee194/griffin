@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { gamesApi, apiClient, Game } from '../api/client'
+import { gamesApi, apiClient, locationsApi, Game, Location } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 interface MonthlyStats {
   month: string
@@ -34,22 +35,42 @@ interface MonthlyStats {
 }
 
 export default function HomePage() {
+  const { user } = useAuth()
   const [recentGames, setRecentGames] = useState<Game[]>([])
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
+  const [locations, setLocations] = useState<Location[]>([])
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('')
+
+  useEffect(() => {
+    loadLocations()
+  }, [])
 
   useEffect(() => {
     loadData()
-  }, [selectedYear, selectedMonth])
+  }, [selectedYear, selectedMonth, selectedLocationId])
+
+  const loadLocations = async () => {
+    try {
+      const res = await locationsApi.getAll()
+      setLocations(res.data)
+    } catch (error) {
+      console.error('Failed to load locations:', error)
+    }
+  }
 
   const loadData = async () => {
     try {
       const [gamesRes, statsRes] = await Promise.all([
         gamesApi.getAll({ limit: 5 }),
         apiClient.get('/games/stats/monthly', {
-          params: { year: selectedYear, month: selectedMonth }
+          params: { 
+            year: selectedYear, 
+            month: selectedMonth,
+            locationId: selectedLocationId || undefined
+          }
         })
       ])
       setRecentGames(gamesRes.data)
@@ -61,22 +82,6 @@ export default function HomePage() {
     }
   }
 
-  // 生成月份选项（最近12个月）
-  const getMonthOptions = () => {
-    const options = []
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth() + 1
-    
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentYear, currentMonth - 1 - i, 1)
-      const year = date.getFullYear()
-      const month = date.getMonth() + 1
-      options.push({ year, month, label: `${year}年${month}月` })
-    }
-    
-    return options
-  }
 
   if (loading) {
     return (
@@ -90,30 +95,52 @@ export default function HomePage() {
     <div className="h-full max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-4 overflow-y-auto">
       {/* 欢迎横幅 */}
       <div className="card bg-gradient-to-br from-primary/10 to-accent-yellow/10 py-2 sm:py-4">
-        <h2 className="text-lg sm:text-2xl font-bold text-primary mb-0.5 sm:mb-1">欢迎回来！</h2>
+        <h2 className="text-lg sm:text-2xl font-bold text-primary mb-0.5 sm:mb-1">
+          欢迎回来{user?.name ? `，${user.name}` : ''}！
+        </h2>
         <p className="text-xs sm:text-base text-text-secondary">让我们继续追踪你的胜利</p>
       </div>
 
       {/* 本月统计 */}
       {monthlyStats && (
         <div className="space-y-2 sm:space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-base sm:text-lg font-semibold text-text">月度统计</h3>
-            <select
-              value={`${selectedYear}-${String(selectedMonth).padStart(2, '0')}`}
-              onChange={(e) => {
-                const [year, month] = e.target.value.split('-')
-                setSelectedYear(parseInt(year))
-                setSelectedMonth(parseInt(month))
-              }}
-              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-            >
-              {getMonthOptions().map(option => (
-                <option key={`${option.year}-${option.month}`} value={`${option.year}-${String(option.month).padStart(2, '0')}`}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+              >
+                {Array.from({ length: 5 }, (_, i) => {
+                  const year = new Date().getFullYear() - i
+                  return (
+                    <option key={year} value={year}>{year}年</option>
+                  )
+                })}
+              </select>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
+                  <option key={month} value={month}>{month}月</option>
+                ))}
+              </select>
+              {locations.length > 0 && (
+                <select
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                >
+                  <option value="">全部地点</option>
+                  {locations.map(location => (
+                    <option key={location.id} value={location.id}>{location.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
           
           {/* 收支情况 */}
