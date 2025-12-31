@@ -176,7 +176,7 @@ export default function HistoryPage() {
         <div className="text-sm text-text-light">共 {games.length} 局</div>
       </div>
 
-      {/* 年月日筛选器 */}
+      {/* 筛选器 */}
       <div className="card">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -216,35 +216,19 @@ export default function HistoryPage() {
               ))}
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-text-secondary">筛选：</span>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'win' | 'lose')}
+              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+            >
+              <option value="all">全部</option>
+              <option value="win">盈利</option>
+              <option value="lose">亏损</option>
+            </select>
+          </div>
         </div>
-      </div>
-
-      {/* 筛选器 */}
-      <div className="flex space-x-2">
-        <button
-          onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'all' ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          全部
-        </button>
-        <button
-          onClick={() => setFilter('win')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'win' ? 'bg-accent-red text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          盈利
-        </button>
-        <button
-          onClick={() => setFilter('lose')}
-          className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
-            filter === 'lose' ? 'bg-accent-green text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          亏损
-        </button>
       </div>
 
       {/* 按日期分组的游戏列表 */}
@@ -267,20 +251,21 @@ export default function HistoryPage() {
                   <div className="flex items-center space-x-4">
                     <span className="text-base font-semibold text-text">{displayDate}</span>
                     <div className="flex items-center space-x-4 text-xs text-text-light">
-                      <span>总计</span>
-                      <span>下午</span>
-                      <span>晚上</span>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <div className={`text-sm font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                        {stats.total >= 0 ? '+' : ''}{stats.total}
-                      </div>
-                      <div className={`text-sm font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                        {stats.afternoon >= 0 ? '+' : ''}{stats.afternoon}
-                      </div>
-                      <div className={`text-sm font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                        {stats.evening >= 0 ? '+' : ''}{stats.evening}
-                      </div>
+                      <span>
+                        总计<span className={`ml-1 font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {stats.total >= 0 ? '+' : ''}{stats.total}
+                        </span>
+                      </span>
+                      <span>
+                        下午<span className={`ml-1 font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {stats.afternoon >= 0 ? '+' : ''}{stats.afternoon}
+                        </span>
+                      </span>
+                      <span>
+                        晚上<span className={`ml-1 font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {stats.evening >= 0 ? '+' : ''}{stats.evening}
+                        </span>
+                      </span>
                     </div>
                   </div>
                   <div className="text-xs text-text-light">{dateGames.length} 局</div>
@@ -306,7 +291,7 @@ export default function HistoryPage() {
                   </div>
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => navigate(`/edit-game/${game.id}`)}
+                      onClick={() => navigate(`/edit-game/${game.id}`, { state: { from: 'history' } })}
                       className="text-primary hover:text-blue-700 text-xs"
                     >
                       编辑

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { playersApi, locationsApi, gamesApi, Player, Location } from '../api/client'
 import NumPad from '../components/NumPad'
 
 export default function EditGamePage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams<{ id: string }>()
   const [players, setPlayers] = useState<Player[]>([])
   const [locations, setLocations] = useState<Location[]>([])
@@ -160,7 +161,9 @@ export default function EditGamePage() {
         createdAt
       })
       alert('对局更新成功！')
-      navigate('/')
+      // 如果是从历史页跳转过来的，返回历史页，否则返回首页
+      const fromHistory = location.state?.from === 'history' || document.referrer.includes('/history')
+      navigate(fromHistory ? '/history' : '/')
     } catch (error: any) {
       console.error('Failed to update game:', error)
       alert(error.response?.data?.error || '更新失败，请重试')
@@ -411,7 +414,11 @@ export default function EditGamePage() {
       {/* 提交按钮 */}
       <div className="flex space-x-3">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => {
+            // 如果是从历史页跳转过来的，返回历史页，否则返回首页
+            const fromHistory = location.state?.from === 'history' || document.referrer.includes('/history')
+            navigate(fromHistory ? '/history' : '/')
+          }}
           className="flex-1 py-4 rounded-lg border border-gray-300 text-text hover:bg-gray-50"
         >
           取消
