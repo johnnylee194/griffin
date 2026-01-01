@@ -126,7 +126,7 @@ function buildChineseHoroscopePrompt(
 `;
   }
 
-  return `你是一位精通中国传统命理学的运势大师。请根据以下信息为用户生成今日运势：
+  const prompt = `你是一位精通中国传统命理学的运势大师。请根据以下信息为用户生成今日运势：
 
 用户信息：
 - 出生日期：${birthDate}
@@ -173,6 +173,14 @@ ${gameInfo}
 ${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
 - 语言要专业但易懂
 - wealthIndex是1-5的整数，表示财运指数`;
+
+  console.log('📝 中式运势Prompt构建完成:');
+  console.log('='.repeat(80));
+  console.log(prompt);
+  console.log('='.repeat(80));
+  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
+  
+  return prompt;
 }
 
 /**
@@ -197,7 +205,7 @@ function buildWesternHoroscopePrompt(
 `;
   }
 
-  return `你是一位专业的西方占星师。请根据以下信息为用户生成今日运势：
+  const prompt = `你是一位专业的西方占星师。请根据以下信息为用户生成今日运势：
 
 用户信息：
 - 出生日期：${birthDate}
@@ -245,6 +253,14 @@ ${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打
 - 语言要亲切自然
 - index是1-5的整数，表示综合指数
 - suitableForDecisions是布尔值`;
+
+  console.log('📝 西式运势Prompt构建完成:');
+  console.log('='.repeat(80));
+  console.log(prompt);
+  console.log('='.repeat(80));
+  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
+  
+  return prompt;
 }
 
 /**
@@ -255,7 +271,7 @@ function buildCombinedAdvicePrompt(
   westernHoroscope: string,
   gameStats: any
 ): string {
-  return `请根据以下中式和西式运势，生成一份综合建议：
+  const prompt = `请根据以下中式和西式运势，生成一份综合建议：
 
 【中式运势】
 ${chineseHoroscope}
@@ -287,6 +303,14 @@ ${gameStats ? `
 - 给出明确的建议
 - 语言简洁有力
 - suitableForGaming的值必须是：适合、不适合、谨慎 之一`;
+
+  console.log('📝 综合建议Prompt构建完成:');
+  console.log('='.repeat(80));
+  console.log(prompt);
+  console.log('='.repeat(80));
+  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
+  
+  return prompt;
 }
 
 /**
@@ -426,9 +450,18 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
     const gameStats = getUserGameStats(userId, 7);
 
     // 构建Prompt
+    console.log('🔨 开始构建运势Prompt...');
+    console.log(`📅 目标日期: ${dateParam}`);
+    console.log(`👤 用户出生日期: ${user.birth_date}`);
+    console.log(`🎮 对局统计:`, gameStats ? JSON.stringify(gameStats, null, 2) : '无');
+    
     const zodiacSign = getZodiacSign(user.birth_date);
     const chinesePrompt = buildChineseHoroscopePrompt(user.birth_date, targetDate, gameStats);
     const westernPrompt = buildWesternHoroscopePrompt(user.birth_date, zodiacSign, targetDate, gameStats);
+
+    console.log('✅ Prompt构建完成，准备调用API');
+    console.log(`📊 中式Prompt长度: ${chinesePrompt.length} 字符`);
+    console.log(`📊 西式Prompt长度: ${westernPrompt.length} 字符`);
 
     // 调用API生成运势
     const [chineseHoroscopeRaw, westernHoroscopeRaw] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
@@ -451,11 +484,13 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
     }
 
     // 生成综合建议
+    console.log('🔨 开始构建综合建议Prompt...');
     const combinedPrompt = buildCombinedAdvicePrompt(
       typeof chineseHoroscope === 'string' ? chineseHoroscope : JSON.stringify(chineseHoroscope),
       typeof westernHoroscope === 'string' ? westernHoroscope : JSON.stringify(westernHoroscope),
       gameStats
     );
+    console.log('✅ 综合建议Prompt构建完成，准备调用API');
     const combinedAdviceRaw = await callGeminiAPI(combinedPrompt);
 
     // 解析综合建议JSON
