@@ -137,13 +137,31 @@ PORT=3000
 
 ### 7. 启动服务
 
-#### 方式1：直接运行（测试用）
+#### 方式1：直接运行（仅用于测试）
 
 ```bash
 npm start
 ```
 
-#### 方式2：使用 PM2（推荐，生产环境）
+**注意：** 这种方式在SSH断开后服务会停止，不适合生产环境！
+
+---
+
+#### 方式2：使用 PM2（推荐，适合Node.js应用）
+
+**优点：**
+- ✅ 专为Node.js设计，功能丰富
+- ✅ 内置日志管理、自动重启、负载均衡
+- ✅ 零停机重启（graceful reload）
+- ✅ 内存监控、性能监控
+- ✅ 简单易用，无需root权限
+- ✅ 支持集群模式（多进程）
+
+**缺点：**
+- ❌ 需要额外安装（npm包）
+- ❌ 不是系统级服务（依赖用户登录，但可通过pm2 startup解决）
+
+**安装和使用：**
 
 ```bash
 # 安装PM2
@@ -152,26 +170,45 @@ npm install -g pm2
 # 启动服务
 pm2 start index.js --name gemini-proxy
 
-# 设置开机自启
+# 设置开机自启（重要！）
 pm2 startup
+# 执行上面命令后，会显示一个sudo命令，复制执行它
 pm2 save
 
-# 查看状态
-pm2 status
-
-# 查看日志
-pm2 logs gemini-proxy
+# 常用命令
+pm2 status              # 查看状态
+pm2 logs gemini-proxy   # 查看日志
+pm2 restart gemini-proxy  # 重启
+pm2 stop gemini-proxy   # 停止
+pm2 delete gemini-proxy # 删除
+pm2 monit               # 监控面板
 ```
 
-#### 方式3：使用 systemd（系统服务）
+---
 
-创建服务文件：
+#### 方式3：使用 systemd（系统级服务）
+
+**优点：**
+- ✅ 系统级服务，更稳定可靠
+- ✅ 系统原生支持，无需额外安装
+- ✅ 开机自动启动（不依赖用户登录）
+- ✅ 更好的系统集成（日志、权限等）
+- ✅ 适合需要系统级管理的场景
+
+**缺点：**
+- ❌ 配置相对复杂
+- ❌ 需要root权限
+- ❌ 对Node.js特性支持不如PM2丰富
+
+**配置步骤：**
+
+1. 创建服务文件：
 
 ```bash
 sudo nano /etc/systemd/system/gemini-proxy.service
 ```
 
-内容：
+2. 填入以下内容（**注意修改路径和用户名**）：
 
 ```ini
 [Unit]
@@ -180,25 +217,62 @@ After=network.target
 
 [Service]
 Type=simple
-User=your-username
-WorkingDirectory=/home/your-username/gemini-proxy
+User=jlee
+WorkingDirectory=/home/jlee/gemini-proxy
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node /home/your-username/gemini-proxy/index.js
+EnvironmentFile=/home/jlee/gemini-proxy/.env
+ExecStart=/usr/bin/node /home/jlee/gemini-proxy/index.js
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-启用服务：
+**重要：** 修改以下内容：
+- `User=jlee` → 改为你的用户名
+- `/home/jlee/gemini-proxy` → 改为你的实际路径
+- `/usr/bin/node` → 使用 `which node` 查看实际路径
+
+3. 启用和启动服务：
 
 ```bash
+# 重新加载systemd配置
 sudo systemctl daemon-reload
+
+# 设置开机自启
 sudo systemctl enable gemini-proxy
+
+# 启动服务
 sudo systemctl start gemini-proxy
+
+# 查看状态
 sudo systemctl status gemini-proxy
+
+# 查看日志
+sudo journalctl -u gemini-proxy -f
 ```
+
+---
+
+## PM2 vs systemd 选择建议
+
+### 推荐使用 PM2，如果：
+- ✅ 这是纯Node.js应用
+- ✅ 需要日志管理、监控等功能
+- ✅ 希望简单易用
+- ✅ 可能需要零停机重启
+- ✅ 不需要系统级深度集成
+
+### 推荐使用 systemd，如果：
+- ✅ 需要系统级服务管理
+- ✅ 希望与系统服务统一管理
+- ✅ 需要更严格的权限控制
+- ✅ 服务器上主要使用systemd管理服务
+
+**对于这个项目，推荐使用 PM2**，因为它是Node.js应用，PM2提供了更好的Node.js特性支持。
 
 ### 8. 配置Nginx反向代理（可选，如果使用域名）
 
