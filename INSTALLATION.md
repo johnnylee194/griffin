@@ -125,6 +125,23 @@ API_SECRET=your-secret-key-here
 - `API_SECRET` 必须与VPS上的 `.env` 文件中的 `API_SECRET` 完全一致
 - `JWT_SECRET` 建议修改为一个强密码
 
+**如果使用Docker部署：**
+
+有两种方式配置环境变量：
+
+**方式1：使用.env文件（推荐）**
+- 在 `backend` 目录下创建 `.env` 文件（如上所述）
+- Docker会自动读取（docker-compose.yml已配置挂载）
+
+**方式2：在docker-compose.yml中直接配置**
+- 编辑 `docker-compose.yml`，取消注释环境变量部分：
+```yaml
+environment:
+  - VPS_PROXY_URL=http://us-proxy.januslab.cn:8080
+  - API_SECRET=your-secret-key-here
+  - JWT_SECRET=griffin-secret-key-2025
+```
+
 ---
 
 ## 4. 验证安装
@@ -138,6 +155,28 @@ curl http://localhost:3000/health
 ```
 
 ### 腾讯云后端：
+
+**如果使用Docker部署（推荐）：**
+
+```bash
+# 1. 确保.env文件已配置（在backend目录下）
+cd backend
+nano .env  # 配置环境变量
+
+# 2. 回到项目根目录，启动Docker容器
+cd ..
+docker-compose up -d
+
+# 3. 查看日志
+docker-compose logs -f
+
+# 4. 检查服务是否运行
+curl http://localhost:10020/api/health
+# 应该返回：{"status":"ok","message":"Griffin API is running"}
+```
+
+**如果直接运行（开发/测试）：**
+
 ```bash
 # 1. 启动后端服务（开发模式）
 cd backend
