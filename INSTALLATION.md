@@ -139,11 +139,97 @@ curl http://localhost:3000/health
 
 ### 腾讯云后端：
 ```bash
-# 检查服务是否运行
+# 1. 启动后端服务（开发模式）
+cd backend
+npm run dev
+
+# 或者生产模式
+npm run build
+npm start
+
+# 2. 检查服务是否运行（新开一个终端）
 curl http://localhost:3000/api/health
 
 # 应该返回：{"status":"ok","message":"Griffin API is running"}
 ```
+
+## 5. 测试运势功能
+
+### 步骤1：确保服务都在运行
+
+**VPS代理服务：**
+```bash
+# 在VPS上检查
+pm2 status
+curl http://localhost:3000/health
+```
+
+**腾讯云后端：**
+```bash
+# 在腾讯云服务器上检查
+curl http://localhost:3000/api/health
+```
+
+### 步骤2：测试运势API
+
+**注意：** 需要先登录获取token，然后测试运势API。
+
+```bash
+# 1. 登录获取token（替换username和password）
+TOKEN=$(curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"your-password"}' \
+  | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+# 2. 测试获取今日运势（需要先设置出生日期）
+curl -X GET http://localhost:3000/api/horoscope \
+  -H "Authorization: Bearer $TOKEN"
+
+# 如果返回错误提示需要设置出生日期，先设置：
+curl -X PUT http://localhost:3000/api/auth/profile \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"birthDate":"1990-01-01"}'
+
+# 3. 再次测试获取运势
+curl -X GET http://localhost:3000/api/horoscope \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### 步骤3：检查日志
+
+**VPS代理服务日志：**
+```bash
+pm2 logs gemini-proxy --lines 50
+```
+
+**腾讯云后端日志：**
+```bash
+# 如果使用npm run dev，日志会直接显示在终端
+# 如果使用PM2，查看日志：
+pm2 logs your-backend-service --lines 50
+```
+
+### 步骤4：常见问题排查
+
+**如果返回错误：**
+
+1. **"Failed to call Gemini API"**
+   - 检查VPS代理服务是否运行：`pm2 status`
+   - 检查VPS的.env文件中的GEMINI_API_KEY是否正确
+   - 检查VPS代理服务日志：`pm2 logs gemini-proxy`
+
+2. **"Unauthorized"**
+   - 检查VPS和腾讯云后端的API_SECRET是否一致
+   - 检查VPS_PROXY_URL是否正确（包含端口号）
+
+3. **"Please set your birth date"**
+   - 需要先设置出生日期（见步骤2）
+
+4. **连接超时**
+   - 检查VPS代理服务的nginx配置
+   - 检查防火墙是否开放8080端口
+   - 从腾讯云服务器测试：`curl http://us-proxy.januslab.cn:8080/health`
 
 ---
 
