@@ -283,11 +283,16 @@ async function callGeminiAPI(prompt: string): Promise<string> {
  */
 async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
   try {
-    const response = await axios.post(`${VPS_PROXY_URL}/api/gemini/generate-batch`, {
+    const url = `${VPS_PROXY_URL}/api/gemini/generate-batch`;
+    console.log(`📡 Calling VPS proxy: ${url}`);
+    
+    const response = await axios.post(url, {
       prompts,
       apiSecret: API_SECRET
     }, {
-      timeout: 60000 // 60秒超时
+      timeout: 60000, // 60秒超时
+      maxRedirects: 0, // 禁止自动重定向，避免POST变GET
+      validateStatus: (status) => status < 500 // 允许4xx状态码，手动处理
     });
 
     if (response.data.success && response.data.results) {
