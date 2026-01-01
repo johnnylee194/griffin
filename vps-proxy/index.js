@@ -41,8 +41,10 @@ app.post('/api/gemini/generate', async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    // 初始化Gemini
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    // 初始化Gemini（使用v1beta API版本）
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, {
+      apiVersion: 'v1beta'
+    });
     const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
 
     // 生成内容
@@ -77,8 +79,10 @@ app.post('/api/gemini/generate-batch', async (req, res) => {
       return res.status(400).json({ error: 'Prompts array is required' });
     }
 
-    // 初始化Gemini
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    // 初始化Gemini（使用v1beta API版本）
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, {
+      apiVersion: 'v1beta'
+    });
     const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
 
     // 并发生成所有内容
