@@ -227,7 +227,33 @@ sudo apt-get install certbot python3-certbot-nginx
 sudo certbot --nginx -d us-proxy.januslab.cn
 ```
 
-### 9. 测试服务
+### 9. 检查端口占用
+
+在启动服务前，检查3000端口是否被占用：
+
+```bash
+# 方法1：使用 netstat（如果已安装）
+netstat -tuln | grep 3000
+
+# 方法2：使用 ss（推荐，现代Linux系统都有）
+ss -tuln | grep 3000
+
+# 方法3：使用 lsof（如果已安装）
+lsof -i :3000
+
+# 方法4：使用 fuser（如果已安装）
+fuser 3000/tcp
+```
+
+**如果端口被占用：**
+- 会显示占用该端口的进程信息
+- 可以查看进程ID（PID），然后决定是否停止该进程
+- 或者修改 `.env` 文件中的 `PORT` 为其他端口（如3001）
+
+**如果端口未被占用：**
+- 命令不会返回任何结果，可以正常启动服务
+
+### 10. 测试服务
 
 ```bash
 # 健康检查
