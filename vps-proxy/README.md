@@ -4,18 +4,54 @@
 
 ## 安装步骤
 
-### 1. 安装 Node.js
+### 1. 安装/升级 Node.js
 
-确保VPS上已安装 Node.js (推荐 v18+)
+**重要：** 需要 Node.js v18 或更高版本！v12 及以下版本不支持。
 
 ```bash
-# 检查Node.js版本
+# 检查当前Node.js版本
 node -v
 
-# 如果没有安装，使用以下命令安装（Ubuntu/Debian）
+# 如果版本低于 v18，需要升级
+```
+
+#### 升级方法（推荐使用 nvm）：
+
+```bash
+# 1. 安装 nvm (Node Version Manager)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+# 2. 重新加载shell配置
+source ~/.bashrc
+# 或者
+source ~/.zshrc
+
+# 3. 安装 Node.js v18 LTS（推荐）
+nvm install 18
+nvm use 18
+nvm alias default 18
+
+# 4. 验证版本
+node -v  # 应该显示 v18.x.x 或更高
+npm -v
+```
+
+#### 或者使用 NodeSource 安装（Ubuntu/Debian）：
+
+```bash
+# 卸载旧版本（如果存在）
+sudo apt-get remove nodejs npm
+
+# 安装 Node.js v18
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
+
+# 验证版本
+node -v  # 应该显示 v18.x.x 或更高
+npm -v
 ```
+
+**注意：** `@google/generative-ai` 包需要 Node.js v18+，v12 版本无法正常运行！
 
 ### 2. 上传代码到VPS
 
