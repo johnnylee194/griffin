@@ -16,6 +16,13 @@ if (!VPS_PROXY_URL.includes(':8080') && !VPS_PROXY_URL.includes(':3000')) {
   console.warn('⚠️  VPS_PROXY_URL 可能缺少端口号，建议使用 :8080 或 :3000');
 }
 
+// 启动时输出配置状态（不显示实际密钥值）
+if (API_SECRET) {
+  console.log('✅ API_SECRET 已配置（长度:', API_SECRET.length, '字符）');
+} else {
+  console.warn('⚠️  API_SECRET 未配置，VPS代理服务可能拒绝请求');
+}
+
 /**
  * 获取用户对局统计数据
  */
@@ -307,8 +314,15 @@ async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
     console.error('Gemini API Batch Error:', error);
     if (error.response) {
       console.error(`❌ VPS Proxy Response Status: ${error.response.status}`);
-      console.error(`❌ VPS Proxy Response Data:`, error.response.data);
+      console.error(`❌ VPS Proxy Response Data:`, JSON.stringify(error.response.data));
       console.error(`❌ Request URL: ${error.config?.url}`);
+      if (error.response.status === 401) {
+        console.error('❌ 401 Unauthorized - API_SECRET 验证失败');
+        console.error('   请检查：');
+        console.error('   1. 后端 .env 文件中的 API_SECRET 是否配置');
+        console.error('   2. VPS 上的 .env 文件中的 API_SECRET 是否配置');
+        console.error('   3. 两个 API_SECRET 值是否完全一致（区分大小写）');
+      }
     }
     throw new Error(error.response?.data?.error || error.message || 'Failed to call Gemini API');
   }
