@@ -7,30 +7,45 @@ import { getLunarDate, getAlmanacInfo } from '../utils/lunar';
 
 const router = Router();
 
-// VPS代理服务地址（必须包含端口号）
-const VPS_PROXY_URL = process.env.VPS_PROXY_URL || 'http://us-proxy.januslab.cn:8080';
-const API_SECRET = process.env.API_SECRET || '';
-
-// 详细调试信息
-console.log('🔍 horoscope.ts 环境变量检查:');
-console.log('  - process.env.VPS_PROXY_URL 原始值:', process.env.VPS_PROXY_URL ? `"${process.env.VPS_PROXY_URL}"` : 'undefined');
-console.log('  - process.env.API_SECRET 原始值:', process.env.API_SECRET ? `已设置 (${process.env.API_SECRET.length} 字符)` : 'undefined');
-console.log('  - VPS_PROXY_URL 最终值:', VPS_PROXY_URL);
-console.log('  - API_SECRET 最终值:', API_SECRET ? `已设置 (${API_SECRET.length} 字符)` : '空字符串');
-
-// 验证配置
-if (!VPS_PROXY_URL.includes(':8080') && !VPS_PROXY_URL.includes(':3000')) {
-  console.warn('⚠️  VPS_PROXY_URL 可能缺少端口号，建议使用 :8080 或 :3000');
+// 获取环境变量的函数（延迟读取，确保dotenv已加载）
+function getVpsProxyUrl(): string {
+  return process.env.VPS_PROXY_URL || 'http://us-proxy.januslab.cn:8080';
 }
 
-// 启动时输出配置状态（不显示实际密钥值）
-if (API_SECRET) {
-  console.log('✅ API_SECRET 已配置（长度:', API_SECRET.length, '字符）');
-} else {
-  console.warn('⚠️  API_SECRET 未配置，VPS代理服务可能拒绝请求');
-  console.warn('   调试信息:');
-  console.warn('   - process.env.API_SECRET:', process.env.API_SECRET);
-  console.warn('   - API_SECRET 变量值:', API_SECRET);
+function getApiSecret(): string {
+  return process.env.API_SECRET || '';
+}
+
+// 延迟初始化：在第一次使用时检查配置
+let configChecked = false;
+function checkConfig() {
+  if (configChecked) return;
+  configChecked = true;
+  
+  const VPS_PROXY_URL = getVpsProxyUrl();
+  const API_SECRET = getApiSecret();
+  
+  // 详细调试信息
+  console.log('🔍 horoscope.ts 环境变量检查:');
+  console.log('  - process.env.VPS_PROXY_URL 原始值:', process.env.VPS_PROXY_URL ? `"${process.env.VPS_PROXY_URL}"` : 'undefined');
+  console.log('  - process.env.API_SECRET 原始值:', process.env.API_SECRET ? `已设置 (${process.env.API_SECRET.length} 字符)` : 'undefined');
+  console.log('  - VPS_PROXY_URL 最终值:', VPS_PROXY_URL);
+  console.log('  - API_SECRET 最终值:', API_SECRET ? `已设置 (${API_SECRET.length} 字符)` : '空字符串');
+  
+  // 验证配置
+  if (!VPS_PROXY_URL.includes(':8080') && !VPS_PROXY_URL.includes(':3000')) {
+    console.warn('⚠️  VPS_PROXY_URL 可能缺少端口号，建议使用 :8080 或 :3000');
+  }
+  
+  // 启动时输出配置状态（不显示实际密钥值）
+  if (API_SECRET) {
+    console.log('✅ API_SECRET 已配置（长度:', API_SECRET.length, '字符）');
+  } else {
+    console.warn('⚠️  API_SECRET 未配置，VPS代理服务可能拒绝请求');
+    console.warn('   调试信息:');
+    console.warn('   - process.env.API_SECRET:', process.env.API_SECRET);
+    console.warn('   - API_SECRET 变量值:', API_SECRET);
+  }
 }
 
 /**
@@ -299,6 +314,10 @@ async function callGeminiAPI(prompt: string): Promise<string> {
  * 批量调用Gemini API（用于同时生成中式和西式运势）
  */
 async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
+  checkConfig(); // 确保配置已检查
+  const VPS_PROXY_URL = getVpsProxyUrl();
+  const API_SECRET = getApiSecret();
+  
   try {
     const url = `${VPS_PROXY_URL}/api/gemini/generate-batch`;
     console.log(`📡 Calling VPS proxy: ${url}`);
