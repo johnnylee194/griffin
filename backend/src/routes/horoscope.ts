@@ -302,7 +302,7 @@ async function callGeminiAPI(prompt: string): Promise<string> {
       prompt,
       apiSecret: API_SECRET
     }, {
-      timeout: 30000 // 30秒超时
+      timeout: 120000 // 120秒超时（2分钟）
     });
 
     if (response.data.success && response.data.text) {
@@ -332,7 +332,7 @@ async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
       prompts,
       apiSecret: API_SECRET
     }, {
-      timeout: 60000, // 60秒超时
+      timeout: 180000, // 180秒超时（3分钟，批量请求需要更长时间）
       maxRedirects: 0, // 禁止自动重定向，避免POST变GET
       validateStatus: (status) => status < 500 // 允许4xx状态码，手动处理
     });

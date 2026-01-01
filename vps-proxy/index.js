@@ -55,7 +55,8 @@ app.post('/api/gemini/generate', async (req, res) => {
         headers: {
           'x-goog-api-key': GEMINI_API_KEY,
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 120000 // 120秒超时（2分钟）
       }
     );
 
@@ -105,7 +106,8 @@ app.post('/api/gemini/generate-batch', async (req, res) => {
               headers: {
                 'x-goog-api-key': GEMINI_API_KEY,
                 'Content-Type': 'application/json'
-              }
+              },
+              timeout: 120000 // 120秒超时（2分钟）
             }
           );
           const text = response.data.candidates[0].content.parts[0].text;
