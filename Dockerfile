@@ -52,8 +52,11 @@ RUN npm config set registry https://registry.npmmirror.com
 RUN npm install --only=production --ignore-scripts
 
 # 复制构建阶段已编译好的 node_modules（包含 better-sqlite3）
+# better-sqlite3 需要完整复制，包括 build 目录
 COPY --from=backend-builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=backend-builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
+# 确保复制所有必要的依赖
+COPY --from=backend-builder /app/node_modules/bindings ./node_modules/bindings
 
 # 复制构建产物
 COPY --from=backend-builder /app/dist ./dist
