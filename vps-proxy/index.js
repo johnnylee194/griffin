@@ -43,7 +43,7 @@ app.post('/api/gemini/generate', async (req, res) => {
 
     // 初始化Gemini
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
 
     // 生成内容
     const result = await model.generateContent(prompt);
@@ -79,7 +79,7 @@ app.post('/api/gemini/generate-batch', async (req, res) => {
 
     // 初始化Gemini
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
 
     // 并发生成所有内容
     const results = await Promise.all(

@@ -25,26 +25,13 @@ function checkConfig() {
   const VPS_PROXY_URL = getVpsProxyUrl();
   const API_SECRET = getApiSecret();
   
-  // 详细调试信息
-  console.log('🔍 horoscope.ts 环境变量检查:');
-  console.log('  - process.env.VPS_PROXY_URL 原始值:', process.env.VPS_PROXY_URL ? `"${process.env.VPS_PROXY_URL}"` : 'undefined');
-  console.log('  - process.env.API_SECRET 原始值:', process.env.API_SECRET ? `已设置 (${process.env.API_SECRET.length} 字符)` : 'undefined');
-  console.log('  - VPS_PROXY_URL 最终值:', VPS_PROXY_URL);
-  console.log('  - API_SECRET 最终值:', API_SECRET ? `已设置 (${API_SECRET.length} 字符)` : '空字符串');
-  
   // 验证配置
   if (!VPS_PROXY_URL.includes(':8080') && !VPS_PROXY_URL.includes(':3000')) {
     console.warn('⚠️  VPS_PROXY_URL 可能缺少端口号，建议使用 :8080 或 :3000');
   }
   
-  // 启动时输出配置状态（不显示实际密钥值）
-  if (API_SECRET) {
-    console.log('✅ API_SECRET 已配置（长度:', API_SECRET.length, '字符）');
-  } else {
+  if (!API_SECRET) {
     console.warn('⚠️  API_SECRET 未配置，VPS代理服务可能拒绝请求');
-    console.warn('   调试信息:');
-    console.warn('   - process.env.API_SECRET:', process.env.API_SECRET);
-    console.warn('   - API_SECRET 变量值:', API_SECRET);
   }
 }
 
