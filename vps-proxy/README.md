@@ -278,14 +278,26 @@ sudo journalctl -u gemini-proxy -f
 
 **对于这个项目，推荐使用 PM2**，因为它是Node.js应用，PM2提供了更好的Node.js特性支持。
 
-### 8. 配置Nginx反向代理（可选，如果使用域名）
+### 8. 配置Nginx反向代理
 
-如果使用域名 `us-proxy.januslab.cn`，需要配置Nginx：
+#### 方式1：使用域名（推荐，如果已配置域名）
+
+如果使用域名 `us-proxy.januslab.cn`，配置Nginx：
+
+```bash
+sudo nano /etc/nginx/sites-available/gemini-proxy
+```
+
+内容：
 
 ```nginx
 server {
     listen 80;
     server_name us-proxy.januslab.cn;
+
+    # 限制只允许来自腾讯云服务器IP的访问（可选，但推荐）
+    # allow 129.28.42.64;  # 替换为你的腾讯云服务器公网IP
+    # deny all;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -293,9 +305,20 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
 }
+```
+
+启用配置：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/gemini-proxy /etc/nginx/sites-enabled/
+sudo nginx -t  # 测试配置
+sudo systemctl reload nginx
 ```
 
 然后配置SSL（使用Let's Encrypt）：
@@ -304,6 +327,67 @@ server {
 sudo apt-get install certbot python3-certbot-nginx
 sudo certbot --nginx -d us-proxy.januslab.cn
 ```
+
+#### 方式2：使用IP+端口（如果已有配置）
+
+如果你已经有nginx配置（如监听8080端口），需要修改为代理到本地Node.js服务：
+
+```bash
+sudo nano /etc/nginx/sites-enabled/gemini-proxy.conf
+```
+
+**修改前（直接代理Google API）：**
+```nginx
+server {
+    listen 8080;
+    allow 129.28.42.64;  # 腾讯云服务器IP
+    deny all;
+
+    location / {
+        proxy_pass https://generativelanguage.googleapis.com/...;  # ❌ 错误
+        # ... Google API相关配置
+    }
+}
+```
+
+**修改后（代理到本地Node.js服务）：**
+```nginx
+server {
+    listen 8080;  # 或使用其他端口，如80、443等
+    
+    # 限制只允许来自腾讯云服务器IP的访问（推荐）
+    allow 129.28.42.64;  # 替换为你的腾讯云服务器公网IP
+    deny all;
+
+    location / {
+        # ✅ 代理到本地Node.js服务
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**重要修改点：**
+1. ✅ `proxy_pass` 改为 `http://localhost:3000`（本地Node.js服务）
+2. ✅ 移除所有Google API相关的配置（`X-Goog-Api-Key`、`generativelanguage.googleapis.com`等）
+3. ✅ 保持IP限制（`allow`/`deny`）
+4. ✅ 添加标准的proxy headers
+
+修改后：
+
+```bash
+# 测试配置
+sudo nginx -t
+
+# 重新加载nginx
+sudo systemctl reload nginx
+```
+
+**注意：** Node.js服务会处理与Google Gemini API的通信，nginx只需要代理到本地服务即可。
 
 ### 9. 检查端口占用
 
