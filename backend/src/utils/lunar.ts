@@ -1,31 +1,36 @@
 // 农历转换工具
-// 注意：这里使用简化的农历转换，实际项目中可以使用 lunar-javascript 库
+import { Lunar } from 'lunar-javascript';
 
 /**
- * 简化的农历转换（仅用于演示）
- * 实际项目中应该使用 lunar-javascript 库进行精确转换
+ * 将公历日期转换为农历日期
  */
 export function getLunarDate(date: Date): { year: number; month: number; day: number; yearName: string } {
-  // 这里使用简化的转换，实际应该使用 lunar-javascript
-  // 暂时返回占位数据，等安装库后再实现
-  
-  // 示例：使用 lunar-javascript 的代码应该是：
-  // const Lunar = require('lunar-javascript');
-  // const lunar = Lunar.fromDate(date);
-  // return {
-  //   year: lunar.getYear(),
-  //   month: lunar.getMonth(),
-  //   day: lunar.getDay(),
-  //   yearName: lunar.getYearInGanZhi()
-  // };
-  
-  // 临时返回
-  return {
-    year: 2024,
-    month: 1,
-    day: 1,
-    yearName: '甲辰'
-  };
+  try {
+    const lunar = Lunar.fromDate(date);
+    return {
+      year: lunar.getYear(),
+      month: lunar.getMonth(),
+      day: lunar.getDay(),
+      yearName: lunar.getYearInGanZhi()
+    };
+  } catch (error) {
+    console.error('农历转换失败:', error);
+    // 如果转换失败，返回占位数据
+    return {
+      year: 2024,
+      month: 1,
+      day: 1,
+      yearName: '甲辰'
+    };
+  }
+}
+
+/**
+ * 格式化农历日期为字符串
+ */
+export function formatLunarDate(date: Date): string {
+  const lunar = getLunarDate(date);
+  return `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
 }
 
 /**

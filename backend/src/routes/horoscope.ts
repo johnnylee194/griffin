@@ -3,7 +3,7 @@ import axios from 'axios';
 import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { getZodiacSign, getZodiacAnimal, formatDate } from '../utils/horoscope';
-import { getLunarDate, getAlmanacInfo } from '../utils/lunar';
+import { getLunarDate, getAlmanacInfo, formatLunarDate } from '../utils/lunar';
 
 const router = Router();
 
@@ -37,6 +37,14 @@ function checkConfig() {
 
 /**
  * 获取用户对局统计数据
+ * 
+ * 计算逻辑：
+ * 1. 查询最近N天的对局记录（chips不为NULL的记录）
+ * 2. 计算总场次、胜场（chips > 0）、负场（chips < 0）、胜率、总盈亏
+ * 3. 计算趋势：比较最近3天 vs 前3天（3-6天前）的胜率
+ *    - 如果最近3天胜率 > 前3天胜率，趋势为"上升"
+ *    - 如果最近3天胜率 < 前3天胜率，趋势为"下降"
+ *    - 否则为"平稳"
  */
 function getUserGameStats(userId: string, days: number = 7) {
   try {
@@ -126,10 +134,13 @@ function buildChineseHoroscopePrompt(
 `;
   }
 
+  // 获取出生日期的农历
+  const birthLunarDate = formatLunarDate(new Date(birthDate));
+  
   const prompt = `你是一位精通中国传统命理学的运势大师。请根据以下信息为用户生成今日运势：
 
 用户信息：
-- 出生日期：${birthDate}
+- 出生日期：${birthDate}（农历：${birthLunarDate}）
 - 生肖：${zodiacAnimal}
 - 今日日期：${dateStr}（农历：${lunarDateStr}）
 - 今日黄历：宜${almanac.suitable.join('、')}，忌${almanac.avoid.join('、')}
