@@ -7,9 +7,14 @@ import { getLunarDate, getAlmanacInfo } from '../utils/lunar';
 
 const router = Router();
 
-// VPS代理服务地址
-const VPS_PROXY_URL = process.env.VPS_PROXY_URL || 'http://us-proxy.januslab.cn';
+// VPS代理服务地址（必须包含端口号）
+const VPS_PROXY_URL = process.env.VPS_PROXY_URL || 'http://us-proxy.januslab.cn:8080';
 const API_SECRET = process.env.API_SECRET || '';
+
+// 验证配置
+if (!VPS_PROXY_URL.includes(':8080') && !VPS_PROXY_URL.includes(':3000')) {
+  console.warn('⚠️  VPS_PROXY_URL 可能缺少端口号，建议使用 :8080 或 :3000');
+}
 
 /**
  * 获取用户对局统计数据
@@ -295,6 +300,11 @@ async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
     }
   } catch (error: any) {
     console.error('Gemini API Batch Error:', error);
+    if (error.response) {
+      console.error(`❌ VPS Proxy Response Status: ${error.response.status}`);
+      console.error(`❌ VPS Proxy Response Data:`, error.response.data);
+      console.error(`❌ Request URL: ${error.config?.url}`);
+    }
     throw new Error(error.response?.data?.error || error.message || 'Failed to call Gemini API');
   }
 }
