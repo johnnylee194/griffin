@@ -18,7 +18,7 @@ router.post('/login', (req, res) => {
 
     // 查找用户
     const user = db.prepare(`
-      SELECT id, username, password, name FROM users WHERE username = ?
+      SELECT id, username, password, name, birth_date FROM users WHERE username = ?
     `).get(username) as any;
 
     if (!user) {
@@ -43,7 +43,8 @@ router.post('/login', (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        name: user.name || user.username
+        name: user.name || user.username,
+        birthDate: user.birth_date
       }
     });
   } catch (error) {
@@ -65,18 +66,19 @@ router.get('/verify', (req, res) => {
     
     // 查找用户确认存在
     const user = db.prepare(`
-      SELECT id, username, name FROM users WHERE id = ?
+      SELECT id, username, name, birth_date FROM users WHERE id = ?
     `).get(decoded.id) as any;
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    res.json({ 
+    res.json({
       user: {
         id: user.id,
         username: user.username,
-        name: user.name || user.username
+        name: user.name || user.username,
+        birthDate: user.birth_date
       }
     });
   } catch (error) {
@@ -87,11 +89,11 @@ router.get('/verify', (req, res) => {
 // 更新用户信息（需要认证）
 router.put('/profile', authMiddleware, (req: AuthRequest, res) => {
   try {
-    const { name, password, oldPassword } = req.body;
+    const { name, password, oldPassword, birthDate } = req.body;
     const userId = req.user!.id;
 
-    if (!name && !password) {
-      return res.status(400).json({ error: 'Name or password is required' });
+    if (!name && !password && !birthDate) {
+      return res.status(400).json({ error: 'Name, password, or birthDate is required' });
     }
 
     // 如果修改密码，需要验证旧密码
@@ -129,6 +131,16 @@ router.put('/profile', authMiddleware, (req: AuthRequest, res) => {
       params.push(name);
     }
 
+    if (birthDate !== undefined) {
+      // 验证日期格式
+      const date = new Date(birthDate);
+      if (isNaN(date.getTime())) {
+        return res.status(400).json({ error: 'Invalid birth date format' });
+      }
+      updates.push('birth_date = ?');
+      params.push(birthDate);
+    }
+
     if (password) {
       const hashedPassword = bcrypt.hashSync(password, 10);
       updates.push('password = ?');
@@ -149,14 +161,15 @@ router.put('/profile', authMiddleware, (req: AuthRequest, res) => {
 
     // 获取更新后的用户信息
     const user = db.prepare(`
-      SELECT id, username, name FROM users WHERE id = ?
+      SELECT id, username, name, birth_date FROM users WHERE id = ?
     `).get(userId) as any;
 
     res.json({
       user: {
         id: user.id,
         username: user.username,
-        name: user.name || user.username
+        name: user.name || user.username,
+        birthDate: user.birth_date
       }
     });
   } catch (error) {
@@ -170,7 +183,7 @@ router.get('/profile', authMiddleware, (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const user = db.prepare(`
-      SELECT id, username, name FROM users WHERE id = ?
+      SELECT id, username, name, birth_date FROM users WHERE id = ?
     `).get(userId) as any;
 
     if (!user) {
@@ -181,7 +194,8 @@ router.get('/profile', authMiddleware, (req: AuthRequest, res) => {
       user: {
         id: user.id,
         username: user.username,
-        name: user.name || user.username
+        name: user.name || user.username,
+        birthDate: user.birth_date
       }
     });
   } catch (error) {

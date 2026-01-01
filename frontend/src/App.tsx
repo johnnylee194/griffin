@@ -8,6 +8,7 @@ import EditGamePage from './pages/EditGamePage'
 import HistoryPage from './pages/HistoryPage'
 import StatsPage from './pages/StatsPage'
 import SettingsPage from './pages/SettingsPage'
+import HoroscopePage from './pages/HoroscopePage'
 
 // 受保护的路由组件
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,15 @@ function AppContent() {
       window.location.href = '/';
     }
   }, [token, isLoginPage]);
+
+  // 根据路径设置activeTab
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/') setActiveTab('home');
+    else if (path === '/stats') setActiveTab('stats');
+    else if (path === '/horoscope') setActiveTab('horoscope');
+    else if (path === '/settings') setActiveTab('settings');
+  }, [location.pathname]);
 
   const handleLogout = () => {
     if (confirm('确定要退出登录吗？')) {
@@ -96,6 +106,7 @@ function AppContent() {
           <Route path="/edit-game/:id" element={<ProtectedRoute><EditGamePage /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
           <Route path="/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
+          <Route path="/horoscope" element={<ProtectedRoute><HoroscopePage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         </Routes>
       </main>
@@ -105,7 +116,7 @@ function AppContent() {
         <div className="max-w-6xl mx-auto flex justify-around">
           <NavButton to="/" icon="🏠" label="首页" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
           <NavButton to="/stats" icon="📊" label="统计" active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
-          <NavButton to="/settings" icon="⚙️" label="设置" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+          <NavButton to="/horoscope" icon="🔮" label="运势" active={activeTab === 'horoscope'} onClick={() => setActiveTab('horoscope')} />
         </div>
       </nav>
     </div>

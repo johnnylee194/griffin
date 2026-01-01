@@ -8,6 +8,7 @@ import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
 import gameRoutes from './routes/games';
 import statsRoutes from './routes/stats';
+import horoscopeRoutes from './routes/horoscope';
 import { authMiddleware } from './middleware/auth';
 
 dotenv.config();
@@ -36,6 +37,7 @@ app.use('/api/players', authMiddleware, playerRoutes);
 app.use('/api/locations', authMiddleware, locationRoutes);
 app.use('/api/games', authMiddleware, gameRoutes);
 app.use('/api/stats', authMiddleware, statsRoutes);
+app.use('/api/horoscope', horoscopeRoutes);
 
 // 静态文件服务（生产环境）
 if (process.env.NODE_ENV === 'production') {

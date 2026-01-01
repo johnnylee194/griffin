@@ -129,11 +129,25 @@ export interface User {
   id: string;
   username: string;
   name?: string;
+  birthDate?: string;
+}
+
+export interface Horoscope {
+  date: string;
+  chineseHoroscope: string;
+  westernHoroscope: string;
+  combinedAdvice: string;
+  cached: boolean;
 }
 
 export const authApi = {
   getProfile: () => apiClient.get<{ user: User }>('/auth/profile'),
-  updateProfile: (data: { name?: string; password?: string; oldPassword?: string }) => 
+  updateProfile: (data: { name?: string; password?: string; oldPassword?: string; birthDate?: string }) => 
     apiClient.put<{ user: User }>('/auth/profile', data),
+};
+
+export const horoscopeApi = {
+  get: (date?: string) => apiClient.get<Horoscope>(`/horoscope${date ? `/${date}` : ''}`),
+  refresh: (date?: string) => apiClient.post(`/horoscope/refresh${date ? `/${date}` : ''}`),
 };
 

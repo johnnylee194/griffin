@@ -39,6 +39,36 @@ export const initDatabase = () => {
     }
   }
 
+  // 迁移现有数据：添加birth_date字段（如果不存在）
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN birth_date TEXT`);
+    console.log('✅ Added birth_date column to users table');
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add birth_date column to users table:', error.message);
+    }
+  }
+
+  // 创建运势缓存表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS horoscope_cache (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      chinese_horoscope TEXT NOT NULL,
+      western_horoscope TEXT NOT NULL,
+      combined_advice TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, date)
+    )
+  `);
+
+  // 创建索引
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_horoscope_user_date ON horoscope_cache(user_id, date);
+  `);
+
   // 创建玩家表
   db.exec(`
     CREATE TABLE IF NOT EXISTS players (

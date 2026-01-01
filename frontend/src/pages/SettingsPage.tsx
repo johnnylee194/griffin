@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const { user, updateUser } = useAuth()
   const [editingUserName, setEditingUserName] = useState('')
   const [isEditingName, setIsEditingName] = useState(false)
+  const [birthDate, setBirthDate] = useState('')
+  const [isEditingBirthDate, setIsEditingBirthDate] = useState(false)
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -33,6 +35,7 @@ export default function SettingsPage() {
       const res = await authApi.getProfile()
       if (res.data.user) {
         setEditingUserName(res.data.user.name || res.data.user.username)
+        setBirthDate(res.data.user.birthDate || '')
       }
     } catch (error) {
       console.error('Failed to load user profile:', error)
@@ -216,6 +219,23 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSaveBirthDate = async () => {
+    if (!birthDate) {
+      alert('请选择出生日期')
+      return
+    }
+
+    try {
+      const res = await authApi.updateProfile({ birthDate })
+      updateUser(res.data.user)
+      setIsEditingBirthDate(false)
+      alert('修改成功')
+    } catch (error: any) {
+      console.error('Failed to update birth date:', error)
+      alert(error.response?.data?.error || '修改失败')
+    }
+  }
+
   const handleChangePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
       alert('请填写所有密码字段')
@@ -344,7 +364,55 @@ export default function SettingsPage() {
                     autoFocus
                   />
                 ) : (
-                  <div className="text-text">{user?.name || user?.username || '未设置'}</div>
+                  <div className="text-text font-semibold">
+                    {user?.name || user?.username || '-'}
+                  </div>
+                )}
+              </div>
+
+              {/* 出生日期编辑 */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-text-secondary">出生日期：</span>
+                  {!isEditingBirthDate ? (
+                    <button
+                      onClick={() => setIsEditingBirthDate(true)}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                    >
+                      编辑
+                    </button>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handleSaveBirthDate}
+                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                      >
+                        保存
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingBirthDate(false)
+                          setBirthDate(user?.birthDate || '')
+                        }}
+                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {isEditingBirthDate ? (
+                  <input
+                    type="date"
+                    value={birthDate}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    className="input w-full text-sm"
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                ) : (
+                  <div className="text-text font-semibold">
+                    {user?.birthDate ? new Date(user.birthDate).toLocaleDateString('zh-CN') : '未设置'}
+                  </div>
                 )}
               </div>
 

@@ -82,10 +82,20 @@ export default function HomePage() {
     <div className="h-full max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-4 overflow-y-auto">
       {/* 欢迎横幅 */}
       <div className="card bg-gradient-to-br from-primary/10 to-accent-yellow/10 py-2 sm:py-4">
-        <h2 className="text-lg sm:text-2xl font-bold text-primary mb-0.5 sm:mb-1">
-          欢迎回来{user?.name ? `，${user.name}` : ''}！
-        </h2>
-        <p className="text-xs sm:text-base text-text-secondary">让我们继续追踪你的胜利</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg sm:text-2xl font-bold text-primary mb-0.5 sm:mb-1">
+              欢迎回来{user?.name ? `，${user.name}` : ''}！
+            </h2>
+            <p className="text-xs sm:text-base text-text-secondary">让我们继续追踪你的胜利</p>
+          </div>
+          <button
+            onClick={() => window.location.href = '/settings'}
+            className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
+          >
+            ⚙️ 设置
+          </button>
+        </div>
       </div>
 
       {/* 本月统计 */}

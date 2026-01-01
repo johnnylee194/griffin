@@ -5,6 +5,7 @@ interface User {
   id: string;
   username: string;
   name?: string;
+  birthDate?: string;
 }
 
 interface AuthContextType {
