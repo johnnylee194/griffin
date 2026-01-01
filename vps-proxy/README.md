@@ -17,14 +17,40 @@ curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
-### 2. 克隆或上传代码
+### 2. 上传代码到VPS
 
-将 `vps-proxy` 文件夹上传到VPS，或直接在VPS上创建：
+**只需要 `vps-proxy` 目录下的文件，不需要整个repo！**
 
+有两种方式：
+
+#### 方式1：直接上传文件（推荐）
+
+将 `vps-proxy` 目录下的以下文件上传到VPS：
+- `package.json`
+- `index.js`
+- `.env.example`（可选，用于参考）
+
+上传到VPS的目录，例如：
 ```bash
 mkdir -p ~/gemini-proxy
 cd ~/gemini-proxy
+# 然后上传上述文件到此目录
 ```
+
+#### 方式2：从GitHub下载（如果repo是公开的）
+
+如果repo是公开的，可以直接下载vps-proxy目录：
+```bash
+mkdir -p ~/gemini-proxy
+cd ~/gemini-proxy
+# 下载vps-proxy目录（需要替换为实际的repo地址）
+curl -L https://github.com/your-username/griffin/archive/main.zip -o repo.zip
+unzip repo.zip
+cp -r griffin-main/vps-proxy/* .
+rm -rf griffin-main repo.zip
+```
+
+**注意：只需要vps-proxy目录的文件，不需要整个项目！**
 
 ### 3. 配置npm镜像源（可选）
 
@@ -46,7 +72,7 @@ npm config get registry
 npm install
 ```
 
-### 5. 配置环境变量
+### 6. 配置环境变量
 
 ```bash
 # 复制示例文件
@@ -61,7 +87,7 @@ nano .env
 - `API_SECRET`: 用于验证请求的密钥（可选，但建议设置）
 - `PORT`: 服务端口（默认3000）
 
-### 6. 启动服务
+### 7. 启动服务
 
 #### 方式1：直接运行（测试用）
 
@@ -126,7 +152,7 @@ sudo systemctl start gemini-proxy
 sudo systemctl status gemini-proxy
 ```
 
-### 7. 配置Nginx反向代理（可选，如果使用域名）
+### 8. 配置Nginx反向代理（可选，如果使用域名）
 
 如果使用域名 `us-proxy.januslab.cn`，需要配置Nginx：
 
@@ -153,7 +179,7 @@ sudo apt-get install certbot python3-certbot-nginx
 sudo certbot --nginx -d us-proxy.januslab.cn
 ```
 
-### 8. 测试服务
+### 9. 测试服务
 
 ```bash
 # 健康检查
