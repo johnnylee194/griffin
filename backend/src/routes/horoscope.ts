@@ -291,6 +291,10 @@ ${gameStats ? `
  * 通过VPS代理调用Gemini API
  */
 async function callGeminiAPI(prompt: string): Promise<string> {
+  checkConfig(); // 确保配置已检查
+  const VPS_PROXY_URL = getVpsProxyUrl();
+  const API_SECRET = getApiSecret();
+  
   try {
     const response = await axios.post(`${VPS_PROXY_URL}/api/gemini/generate`, {
       prompt,
