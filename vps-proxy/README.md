@@ -64,7 +64,7 @@ npm -v
 将 `vps-proxy` 目录下的以下文件上传到VPS：
 - `package.json`
 - `index.js`
-- `.env.example`（可选，用于参考）
+- `.env.example`（用于参考，创建.env文件）
 
 上传到VPS的目录，例如：
 ```bash
@@ -110,18 +110,30 @@ npm install
 
 ### 6. 配置环境变量
 
-```bash
-# 复制示例文件
-cp .env.example .env
+创建 `.env` 文件：
 
-# 编辑.env文件
+```bash
+# 创建.env文件
 nano .env
 ```
 
-在 `.env` 文件中填入：
-- `GEMINI_API_KEY`: 你的Google Gemini API Key
-- `API_SECRET`: 用于验证请求的密钥（可选，但建议设置）
-- `PORT`: 服务端口（默认3000）
+在 `.env` 文件中填入以下内容：
+
+```env
+# Gemini API Key
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# API Secret (用于验证请求来源，可选但建议设置)
+API_SECRET=your-secret-key-here
+
+# 服务端口
+PORT=3000
+```
+
+**重要：**
+- 将 `your-gemini-api-key-here` 替换为你的实际 Gemini API Key
+- 将 `your-secret-key-here` 替换为一个强密码（用于验证请求）
+- `API_SECRET` 需要与腾讯云后端的配置保持一致
 
 ### 7. 启动服务
 
@@ -292,4 +304,5 @@ pm2 logs gemini-proxy
 # 查看资源使用
 pm2 monit
 ```
+
 
