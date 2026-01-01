@@ -8,7 +8,11 @@
 # 1. 进入代理服务目录
 cd ~/gemini-proxy  # 或你上传的目录
 
-# 2. 安装依赖
+# 2. 配置npm镜像源（可选，如果VPS在国外，使用默认源即可）
+# 如果VPS在国内或访问npm较慢，可以使用镜像源：
+# npm config set registry https://registry.npmmirror.com
+
+# 3. 安装依赖
 npm install
 
 # 3. 配置环境变量
@@ -44,7 +48,21 @@ pm2 save
 # 1. 进入后端目录
 cd backend
 
-# 2. 安装依赖
+# 2. 配置npm镜像源（推荐，加速安装）
+# 选项1：使用腾讯云镜像（推荐，在腾讯云上最快）
+npm config set registry https://mirrors.cloud.tencent.com/npm/
+
+# 选项2：使用淘宝镜像（国内常用）
+npm config set registry https://registry.npmmirror.com
+
+# 选项3：使用cnpm（淘宝官方工具）
+npm install -g cnpm --registry=https://registry.npmmirror.com
+# 然后使用 cnpm install 代替 npm install
+
+# 查看当前镜像源
+npm config get registry
+
+# 3. 安装依赖
 npm install
 
 # 如果 lunar-javascript 安装失败（需要编译），可以尝试：

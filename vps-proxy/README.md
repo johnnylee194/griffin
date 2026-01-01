@@ -26,13 +26,27 @@ mkdir -p ~/gemini-proxy
 cd ~/gemini-proxy
 ```
 
-### 3. 安装依赖
+### 3. 配置npm镜像源（可选）
+
+如果VPS在国内或访问npm较慢，可以配置镜像源：
+
+```bash
+# 使用淘宝镜像（国内常用）
+npm config set registry https://registry.npmmirror.com
+
+# 查看当前镜像源
+npm config get registry
+```
+
+如果VPS在国外，使用默认源即可。
+
+### 4. 安装依赖
 
 ```bash
 npm install
 ```
 
-### 4. 配置环境变量
+### 5. 配置环境变量
 
 ```bash
 # 复制示例文件
@@ -47,7 +61,7 @@ nano .env
 - `API_SECRET`: 用于验证请求的密钥（可选，但建议设置）
 - `PORT`: 服务端口（默认3000）
 
-### 5. 启动服务
+### 6. 启动服务
 
 #### 方式1：直接运行（测试用）
 
@@ -112,7 +126,7 @@ sudo systemctl start gemini-proxy
 sudo systemctl status gemini-proxy
 ```
 
-### 6. 配置Nginx反向代理（可选，如果使用域名）
+### 7. 配置Nginx反向代理（可选，如果使用域名）
 
 如果使用域名 `us-proxy.januslab.cn`，需要配置Nginx：
 
@@ -139,7 +153,7 @@ sudo apt-get install certbot python3-certbot-nginx
 sudo certbot --nginx -d us-proxy.januslab.cn
 ```
 
-### 7. 测试服务
+### 8. 测试服务
 
 ```bash
 # 健康检查
