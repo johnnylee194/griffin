@@ -96,10 +96,34 @@ PORT=3000
 ```
 
 ### 腾讯云后端需要配置：
-```env
-VPS_PROXY_URL=http://us-proxy.januslab.cn
-API_SECRET=你的密钥（与VPS上的相同）
+
+在 `backend` 目录下创建 `.env` 文件：
+
+```bash
+cd backend
+nano .env
 ```
+
+填入以下内容：
+
+```env
+# 服务器端口
+PORT=3000
+
+# JWT密钥（用于token加密）
+JWT_SECRET=griffin-secret-key-2025
+
+# VPS代理服务地址
+VPS_PROXY_URL=http://us-proxy.januslab.cn:8080
+
+# API密钥（用于验证VPS代理请求，需要与VPS上的API_SECRET保持一致）
+API_SECRET=your-secret-key-here
+```
+
+**重要：**
+- `VPS_PROXY_URL` 需要包含端口号（如 `:8080`）
+- `API_SECRET` 必须与VPS上的 `.env` 文件中的 `API_SECRET` 完全一致
+- `JWT_SECRET` 建议修改为一个强密码
 
 ---
 
