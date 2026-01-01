@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -41,16 +41,23 @@ app.post('/api/gemini/generate', async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    // 初始化Gemini（使用v1beta API版本）
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, {
-      apiVersion: 'v1beta'
-    });
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
+    // 使用v1beta API直接调用
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+      {
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      },
+      {
+        headers: {
+          'x-goog-api-key': GEMINI_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-    // 生成内容
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const text = response.data.candidates[0].content.parts[0].text;
 
     res.json({ 
       success: true,
@@ -79,19 +86,26 @@ app.post('/api/gemini/generate-batch', async (req, res) => {
       return res.status(400).json({ error: 'Prompts array is required' });
     }
 
-    // 初始化Gemini（使用v1beta API版本）
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY, {
-      apiVersion: 'v1beta'
-    });
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
-
-    // 并发生成所有内容
+    // 使用v1beta API直接调用（批量）
     const results = await Promise.all(
       prompts.map(async (prompt) => {
         try {
-          const result = await model.generateContent(prompt);
-          const response = await result.response;
-          return { success: true, text: response.text() };
+          const response = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+            {
+              contents: [{
+                parts: [{ text: prompt }]
+              }]
+            },
+            {
+              headers: {
+                'x-goog-api-key': GEMINI_API_KEY,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          const text = response.data.candidates[0].content.parts[0].text;
+          return { success: true, text: text };
         } catch (error) {
           return { success: false, error: error.message };
         }
