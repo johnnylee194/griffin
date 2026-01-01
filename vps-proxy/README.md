@@ -356,6 +356,8 @@ server {
     listen 8080;  # 或使用其他端口，如80、443等
     
     # 限制只允许来自腾讯云服务器IP的访问（推荐）
+    # 注意：如果需要在VPS本地测试，需要允许localhost
+    allow 127.0.0.1;  # 允许localhost（用于本地测试）
     allow 129.28.42.64;  # 替换为你的腾讯云服务器公网IP
     deny all;
 
@@ -370,6 +372,35 @@ server {
     }
 }
 ```
+
+**如果遇到403 Forbidden错误：**
+
+1. **检查IP限制**：确保配置中允许了你的访问IP
+   - 如果从VPS本地测试，需要添加 `allow 127.0.0.1;`
+   - 如果从腾讯云服务器访问，确保IP正确
+
+2. **临时允许所有IP（仅用于测试）：**
+   ```nginx
+   server {
+       listen 8080;
+       # 临时注释掉IP限制用于测试
+       # allow 127.0.0.1;
+       # allow 129.28.42.64;
+       # deny all;
+
+       location / {
+           proxy_pass http://localhost:3000;
+           # ... 其他配置
+       }
+   }
+   ```
+   **注意：** 测试完成后记得恢复IP限制！
+
+3. **直接测试Node.js服务（绕过nginx）：**
+   ```bash
+   # 直接测试3000端口
+   curl http://localhost:3000/health
+   ```
 
 **重要修改点：**
 1. ✅ `proxy_pass` 改为 `http://localhost:3000`（本地Node.js服务）
