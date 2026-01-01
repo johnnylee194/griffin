@@ -46,13 +46,17 @@ COPY prisma ./prisma/
 # 配置淘宝 NPM 镜像
 RUN npm config set registry https://registry.npmmirror.com
 
-# 安装纯 JS 依赖（跳过原生模块编译）
+# 安装所有生产依赖（包括 better-sqlite3 的源码）
 RUN npm install --only=production --ignore-scripts
 
-# 从构建阶段复制编译后的代码、Prisma Client 和 better-sqlite3
+# 临时安装编译工具，重新编译 better-sqlite3，然后删除编译工具
+RUN apk add --no-cache --virtual .build-deps python3 make g++ && \
+    npm rebuild better-sqlite3 && \
+    apk del .build-deps
+
+# 从构建阶段复制编译后的代码和 Prisma Client
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
 # 暴露端口
 EXPOSE 3000

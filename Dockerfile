@@ -48,15 +48,16 @@ COPY backend/package.json ./
 # 配置淘宝 NPM 镜像
 RUN npm config set registry https://registry.npmmirror.com
 
-# 安装纯 JS 依赖（跳过 better-sqlite3）
+# 安装所有生产依赖（包括 better-sqlite3 的源码）
 RUN npm install --only=production --ignore-scripts
 
-# 复制构建阶段已编译好的 node_modules（包含 better-sqlite3）
-# better-sqlite3 需要完整复制，包括 build 目录
-COPY --from=backend-builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+# 临时安装编译工具，重新编译 better-sqlite3，然后删除编译工具
+RUN apk add --no-cache --virtual .build-deps python3 make g++ && \
+    npm rebuild better-sqlite3 && \
+    apk del .build-deps
+
+# 复制其他可能需要的依赖
 COPY --from=backend-builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
-# 确保复制所有必要的依赖
-COPY --from=backend-builder /app/node_modules/bindings ./node_modules/bindings
 
 # 复制构建产物
 COPY --from=backend-builder /app/dist ./dist
