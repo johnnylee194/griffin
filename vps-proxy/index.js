@@ -43,7 +43,6 @@ app.post('/api/gemini/generate', async (req, res) => {
 
     // 使用v1beta API直接调用
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`;
-    console.log(`📡 Calling Gemini API: ${apiUrl}`);
     
     const response = await axios.post(
       apiUrl,
@@ -91,7 +90,6 @@ app.post('/api/gemini/generate-batch', async (req, res) => {
 
     // 使用v1beta API直接调用（批量）
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`;
-    console.log(`📡 Calling Gemini API (batch): ${apiUrl}`);
     
     const results = await Promise.all(
       prompts.map(async (prompt) => {
@@ -113,7 +111,6 @@ app.post('/api/gemini/generate-batch', async (req, res) => {
           const text = response.data.candidates[0].content.parts[0].text;
           return { success: true, text: text };
         } catch (error) {
-          console.error(`❌ Gemini API Error for prompt:`, error.response?.status, error.response?.data || error.message);
           return { success: false, error: error.message };
         }
       })

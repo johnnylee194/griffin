@@ -134,41 +134,45 @@ function buildChineseHoroscopePrompt(
 - 今日日期：${dateStr}（农历：${lunarDateStr}）
 - 今日黄历：宜${almanac.suitable.join('、')}，忌${almanac.avoid.join('、')}
 ${gameInfo}
-请生成一份中式风格的今日运势，包含：
 
-1. 【今日宜忌】
-   - 宜：${almanac.suitable.join('、')}
-   - 适合打牌的时间段：{best_gaming_time}
-   - 适合打牌的地点方位：{lucky_direction}
-   - 忌：${almanac.avoid.join('、')}
-
-2. 【财运分析】
-   - 财位：{wealth_direction}
-   - 财神方位：{wealth_god_direction}
-   - 今日财运指数：⭐️⭐️⭐️⭐️⭐️（1-5星）
-   ${gameStats ? `- 结合对局表现，今日是否适合打牌：{gaming_advice}` : ''}
-
-3. 【五行运势】
-   - 今日五行：{five_elements}
-   - 你的五行属性：{user_elements}
-   - 相生相克分析：{element_analysis}
-
-4. 【时辰吉凶】
-   - 吉时：{lucky_hours}
-   - 凶时：{unlucky_hours}
-   ${gameStats ? `- 最佳打牌时段：{best_gaming_hours}` : ''}
-
-5. 【生肖运势】
-   - 今日整体：{daily_overview}
-   - 特别提醒：{special_reminder}
+请生成一份中式风格的今日运势，并以JSON格式返回，格式如下：
+{
+  "intro": "一段50-80字的开场白，介绍用户命理和今日整体情况",
+  "dosAndDonts": {
+    "suitable": ["打牌", "聚会", "出行"],
+    "bestGamingTime": "未时(13:00-15:00)",
+    "luckyDirection": "正南方位(背靠南方而坐)",
+    "avoid": ["大额投资", "重要决策"]
+  },
+  "wealthAnalysis": {
+    "wealthPosition": "东南",
+    "wealthGodPosition": "正北",
+    "wealthIndex": 4,
+    "gamingAdvice": "结合对局表现，今日是否适合打牌的建议（50-80字）"
+  },
+  "fiveElements": {
+    "todayElements": "天干甲木,地支辰土",
+    "userElements": "炉中火(丙寅)",
+    "analysis": "相生相克分析（50-80字）"
+  },
+  "timeFortune": {
+    "luckyHours": ["未时(13:00-15:00)", "戌时(19:00-21:00)"],
+    "unluckyHours": ["申时(15:00-17:00,虎猴相冲)"],
+    "bestGamingHours": "未时(13:00-15:00)、戌时(19:00-21:00)"
+  },
+  "zodiacFortune": {
+    "dailyOverview": "今日整体运势（50-80字）",
+    "specialReminder": "特别提醒（30-50字）"
+  }
+}
 
 要求：
+- 必须返回有效的JSON格式，不要包含任何其他文字
 - 使用传统中式命理术语
 - 结合黄历和生肖特点
 ${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
 - 语言要专业但易懂
-- 总字数150-200字
-- 用{}标记需要填充的具体内容，如{best_gaming_time}，请用具体时间替换`;
+- wealthIndex是1-5的整数，表示财运指数`;
 }
 
 /**
@@ -200,43 +204,47 @@ function buildWesternHoroscopePrompt(
 - 星座：${zodiacSign}
 - 今日日期：${dateStr}
 ${gameInfo}
-请生成一份西式风格的今日运势，包含：
 
-1. 【整体运势】
-   - 综合指数：⭐️⭐️⭐️⭐️⭐️（1-5星）
-   - 今日主题：{daily_theme}
-
-2. 【事业运势】
-   - 工作/学习方面的建议
-   - 今日是否适合重要决策
-
-3. 【财运运势】
-   - 财务方面的建议
-   ${gameStats ? `- 结合对局表现，今日是否适合打牌：{gaming_advice}` : ''}
-   ${gameStats ? `- 最佳打牌时间：{best_gaming_time}` : ''}
-
-4. 【感情运势】
-   - 人际关系和感情方面的建议
-
-5. 【健康运势】
-   - 健康方面的提醒
-
-6. 【幸运元素】
-   - 幸运数字：{lucky_number}
-   - 幸运颜色：{lucky_color}
-   - 幸运方位：{lucky_direction}
-
-7. 【今日建议】
-   - 1-2条具体的行动建议
-   ${gameStats ? `- 特别针对打牌的建议：{gaming_tips}` : ''}
+请生成一份西式风格的今日运势，并以JSON格式返回，格式如下：
+{
+  "overall": {
+    "index": 4,
+    "theme": "今日主题（10-20字）"
+  },
+  "career": {
+    "advice": "工作/学习方面的建议（50-80字）",
+    "suitableForDecisions": true
+  },
+  "wealth": {
+    "advice": "财务方面的建议（50-80字）",
+    "gamingAdvice": "结合对局表现，今日是否适合打牌（50-80字）",
+    "bestGamingTime": "最佳打牌时间，如：下午2-4点"
+  },
+  "love": {
+    "advice": "人际关系和感情方面的建议（50-80字）"
+  },
+  "health": {
+    "advice": "健康方面的提醒（30-50字）"
+  },
+  "luckyElements": {
+    "number": "7",
+    "color": "蓝色",
+    "direction": "东方"
+  },
+  "dailyAdvice": {
+    "tips": ["建议1（20-30字）", "建议2（20-30字）"],
+    "gamingTips": "特别针对打牌的建议（30-50字）"
+  }
+}
 
 要求：
+- 必须返回有效的JSON格式，不要包含任何其他文字
 - 使用现代占星术语
 - 结合星座特点给出个性化建议
 ${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
 - 语言要亲切自然
-- 总字数150-200字
-- 用{}标记需要填充的具体内容，请用具体信息替换`;
+- index是1-5的整数，表示综合指数
+- suitableForDecisions是布尔值`;
 }
 
 /**
@@ -261,17 +269,24 @@ ${gameStats ? `
 - 胜率趋势：${gameStats.trend}
 ` : ''}
 
-请生成一份综合建议，包含：
-1. 今日是否适合打牌（明确回答：适合/不适合/谨慎）
-2. 最佳打牌时段（具体时间）
-3. 推荐方位
-4. 2-3条具体行动建议
+请生成一份综合建议，并以JSON格式返回，格式如下：
+{
+  "suitableForGaming": "适合",
+  "bestGamingTime": "未时(13:00-15:00)、戌时(19:00-21:00)",
+  "recommendedDirection": "正南方位",
+  "advice": [
+    "建议1（20-30字）",
+    "建议2（20-30字）",
+    "建议3（20-30字）"
+  ]
+}
 
 要求：
+- 必须返回有效的JSON格式，不要包含任何其他文字
 - 综合两种运势的观点
 - 给出明确的建议
 - 语言简洁有力
-- 总字数100-150字`;
+- suitableForGaming的值必须是：适合、不适合、谨慎 之一`;
 }
 
 /**
@@ -369,11 +384,34 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
     `).get(userId, dateParam) as any;
 
     if (cached) {
+      // 解析缓存的JSON
+      let chineseHoroscope: any;
+      let westernHoroscope: any;
+      let combinedAdvice: any;
+      
+      try {
+        chineseHoroscope = JSON.parse(cached.chinese_horoscope);
+      } catch {
+        chineseHoroscope = cached.chinese_horoscope; // 向后兼容
+      }
+      
+      try {
+        westernHoroscope = JSON.parse(cached.western_horoscope);
+      } catch {
+        westernHoroscope = cached.western_horoscope; // 向后兼容
+      }
+      
+      try {
+        combinedAdvice = JSON.parse(cached.combined_advice);
+      } catch {
+        combinedAdvice = cached.combined_advice; // 向后兼容
+      }
+
       return res.json({
         date: dateParam,
-        chineseHoroscope: cached.chinese_horoscope,
-        westernHoroscope: cached.western_horoscope,
-        combinedAdvice: cached.combined_advice,
+        chineseHoroscope,
+        westernHoroscope,
+        combinedAdvice,
         cached: true
       });
     }
@@ -393,13 +431,44 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
     const westernPrompt = buildWesternHoroscopePrompt(user.birth_date, zodiacSign, targetDate, gameStats);
 
     // 调用API生成运势
-    const [chineseHoroscope, westernHoroscope] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
+    const [chineseHoroscopeRaw, westernHoroscopeRaw] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
+
+    // 解析JSON响应
+    let chineseHoroscope: any;
+    let westernHoroscope: any;
+    try {
+      // 尝试提取JSON（可能包含markdown代码块）
+      const chineseJsonMatch = chineseHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || chineseHoroscopeRaw.match(/\{[\s\S]*\}/);
+      const westernJsonMatch = westernHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || westernHoroscopeRaw.match(/\{[\s\S]*\}/);
+      
+      chineseHoroscope = JSON.parse(chineseJsonMatch ? chineseJsonMatch[1] || chineseJsonMatch[0] : chineseHoroscopeRaw);
+      westernHoroscope = JSON.parse(westernJsonMatch ? westernJsonMatch[1] || westernJsonMatch[0] : westernHoroscopeRaw);
+    } catch (parseError) {
+      console.error('Failed to parse JSON:', parseError);
+      // 如果解析失败，返回原始文本（向后兼容）
+      chineseHoroscope = chineseHoroscopeRaw;
+      westernHoroscope = westernHoroscopeRaw;
+    }
 
     // 生成综合建议
-    const combinedPrompt = buildCombinedAdvicePrompt(chineseHoroscope, westernHoroscope, gameStats);
-    const combinedAdvice = await callGeminiAPI(combinedPrompt);
+    const combinedPrompt = buildCombinedAdvicePrompt(
+      typeof chineseHoroscope === 'string' ? chineseHoroscope : JSON.stringify(chineseHoroscope),
+      typeof westernHoroscope === 'string' ? westernHoroscope : JSON.stringify(westernHoroscope),
+      gameStats
+    );
+    const combinedAdviceRaw = await callGeminiAPI(combinedPrompt);
 
-    // 保存到缓存
+    // 解析综合建议JSON
+    let combinedAdvice: any;
+    try {
+      const combinedJsonMatch = combinedAdviceRaw.match(/```json\s*([\s\S]*?)\s*```/) || combinedAdviceRaw.match(/\{[\s\S]*\}/);
+      combinedAdvice = JSON.parse(combinedJsonMatch ? combinedJsonMatch[1] || combinedJsonMatch[0] : combinedAdviceRaw);
+    } catch (parseError) {
+      console.error('Failed to parse combined advice JSON:', parseError);
+      combinedAdvice = combinedAdviceRaw;
+    }
+
+    // 保存到缓存（存储JSON字符串）
     const cacheId = require('../database').generateId();
     db.prepare(`
       INSERT INTO horoscope_cache (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, created_at)
@@ -408,9 +477,9 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
       cacheId,
       userId,
       dateParam,
-      chineseHoroscope,
-      westernHoroscope,
-      combinedAdvice,
+      JSON.stringify(chineseHoroscope),
+      JSON.stringify(westernHoroscope),
+      JSON.stringify(combinedAdvice),
       new Date().toISOString()
     );
 
