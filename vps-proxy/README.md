@@ -170,9 +170,13 @@ npm install -g pm2
 # 启动服务
 pm2 start index.js --name gemini-proxy
 
-# 设置开机自启（重要！）
+# 设置开机自启（重要！必须执行）
 pm2 startup
-# 执行上面命令后，会显示一个sudo命令，复制执行它
+# ⚠️ 执行上面命令后，会显示一个sudo命令，例如：
+# sudo env PATH=$PATH:/usr/bin /home/jlee/.nvm/versions/node/v18.20.4/bin/pm2 startup systemd -u jlee --hp /home/jlee
+# 复制这个命令并执行它，这样才能实现开机自启
+
+# 保存当前PM2进程列表（重要！）
 pm2 save
 
 # 常用命令
@@ -327,20 +331,62 @@ fuser 3000/tcp
 **如果端口未被占用：**
 - 命令不会返回任何结果，可以正常启动服务
 
-### 10. 测试服务
+### 10. 验证配置
+
+#### 检查服务状态
 
 ```bash
-# 健康检查
+# 查看PM2状态（应该显示 online）
+pm2 status
+
+# 查看日志（确认没有错误）
+pm2 logs gemini-proxy --lines 50
+```
+
+#### 测试服务
+
+```bash
+# 1. 健康检查（应该返回 {"status":"ok","service":"gemini-proxy"}）
 curl http://localhost:3000/health
 
-# 测试生成（需要设置API_SECRET）
+# 2. 测试Gemini API（需要设置正确的API_SECRET）
 curl -X POST http://localhost:3000/api/gemini/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "你好",
-    "apiSecret": "your-secret-key"
+    "prompt": "你好，请用一句话介绍你自己",
+    "apiSecret": "your-secret-key-here"
   }'
 ```
+
+**如果测试成功，应该返回：**
+```json
+{
+  "success": true,
+  "text": "生成的内容..."
+}
+```
+
+#### 确认开机自启
+
+```bash
+# 检查是否已设置开机自启
+pm2 startup
+
+# 如果显示 "PM2 startup script already setup"，说明已配置
+# 可以重启服务器测试（不推荐在生产环境测试）
+```
+
+### 11. 完成检查清单
+
+✅ Node.js版本 >= v18  
+✅ 依赖已安装（npm install）  
+✅ .env文件已配置（GEMINI_API_KEY、API_SECRET、PORT）  
+✅ 服务已启动（pm2 status 显示 online）  
+✅ 开机自启已设置（pm2 startup + pm2 save）  
+✅ 健康检查通过（curl http://localhost:3000/health）  
+✅ API测试通过（可选，但建议测试）
+
+**如果以上都完成，服务就配置好了！** 🎉
 
 ## API 端点
 
