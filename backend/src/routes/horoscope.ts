@@ -38,8 +38,12 @@ function checkConfig() {
 /**
  * 计算单个时间段的统计信息
  */
-function calculateTimeSlotStats(records: any[], endDate: Date) {
+function calculateTimeSlotStats(records: any[], endDate: Date, timeSlotName: string) {
+  console.log(`\n📊 计算${timeSlotName}统计数据:`);
+  console.log(`   - 记录总数: ${records.length}`);
+  
   if (records.length === 0) {
+    console.log(`   - 无记录，返回空统计`);
     return {
       totalGames: 0,
       wins: 0,
@@ -52,10 +56,22 @@ function calculateTimeSlotStats(records: any[], endDate: Date) {
     };
   }
 
+  // 输出前几条记录的详细信息用于调试
+  console.log(`   - 前5条记录详情:`);
+  records.slice(0, 5).forEach((r, idx) => {
+    const recordDate = new Date(r.created_at);
+    const hour = recordDate.getHours();
+    const dateStr = recordDate.toISOString().split('T')[0];
+    const timeStr = recordDate.toTimeString().split(' ')[0];
+    console.log(`     [${idx + 1}] ${dateStr} ${timeStr} (${hour}时) - chips: ${r.chips}`);
+  });
+
   const wins = records.filter(r => r.chips > 0).length;
   const losses = records.filter(r => r.chips < 0).length;
   const winRate = records.length > 0 ? Math.round((wins / records.length) * 100) : 0;
   const totalChips = records.reduce((sum, r) => sum + (r.chips || 0), 0);
+
+  console.log(`   - 基础统计: 胜${wins}场, 负${losses}场, 胜率${winRate}%, 总盈亏${totalChips >= 0 ? '+' : ''}${totalChips}`);
 
   // 计算趋势（最近3天 vs 前3天）
   const recent3Days = records.filter(r => {
@@ -69,6 +85,8 @@ function calculateTimeSlotStats(records: any[], endDate: Date) {
     return daysDiff > 3 && daysDiff <= 6;
   });
 
+  console.log(`   - 趋势计算: 最近3天${recent3Days.length}场, 前3天${previous3Days.length}场`);
+
   const recentWinRate = recent3Days.length > 0 
     ? Math.round((recent3Days.filter(r => r.chips > 0).length / recent3Days.length) * 100)
     : 0;
@@ -78,7 +96,9 @@ function calculateTimeSlotStats(records: any[], endDate: Date) {
 
   const trend = recentWinRate > previousWinRate ? '上升' : recentWinRate < previousWinRate ? '下降' : '平稳';
 
-  return {
+  console.log(`   - 趋势结果: 最近3天胜率${recentWinRate}%, 前3天胜率${previousWinRate}%, 趋势${trend}`);
+
+  const result = {
     totalGames: records.length,
     wins,
     losses,
@@ -88,6 +108,10 @@ function calculateTimeSlotStats(records: any[], endDate: Date) {
     recentWinRate,
     previousWinRate
   };
+
+  console.log(`   - 最终统计结果:`, JSON.stringify(result, null, 2));
+
+  return result;
 }
 
 /**
@@ -105,8 +129,16 @@ function calculateTimeSlotStats(records: any[], endDate: Date) {
  */
 function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
   try {
+    console.log('\n🎮 开始计算对局统计数据...');
+    console.log(`📅 基准日期: ${baseDate.toISOString().split('T')[0]}`);
+    console.log(`📆 查询天数: ${days}天`);
+
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
-    if (!mePlayer) return null;
+    if (!mePlayer) {
+      console.log('❌ 未找到"我"的玩家记录');
+      return null;
+    }
+    console.log(`👤 玩家ID: ${mePlayer.id}`);
 
     // 使用基准日期计算日期范围
     const endDate = new Date(baseDate);
@@ -114,6 +146,8 @@ function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
     const startDate = new Date(baseDate);
     startDate.setDate(startDate.getDate() - days);
     startDate.setHours(0, 0, 0, 0); // 设置为开始日期的开始时间
+
+    console.log(`📊 查询日期范围: ${startDate.toISOString()} 到 ${endDate.toISOString()}`);
 
     const records = db.prepare(`
       SELECT pr.chips, g.created_at
@@ -125,11 +159,17 @@ function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
         AND pr.chips IS NOT NULL
     `).all(mePlayer.id, startDate.toISOString(), endDate.toISOString()) as any[];
 
-    if (records.length === 0) return null;
+    console.log(`📋 查询到的原始记录数: ${records.length}`);
+
+    if (records.length === 0) {
+      console.log('⚠️ 没有找到对局记录');
+      return null;
+    }
 
     // 按时间段分组：下午（12:00-18:00）和晚上（18:00-24:00）
     const afternoonRecords: any[] = [];
     const eveningRecords: any[] = [];
+    const otherRecords: any[] = []; // 0:00-12:00 的记录
 
     records.forEach(r => {
       const recordDate = new Date(r.created_at);
@@ -139,20 +179,31 @@ function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
         afternoonRecords.push(r);
       } else if (hour >= 18 && hour < 24) {
         eveningRecords.push(r);
+      } else {
+        otherRecords.push(r);
       }
-      // 0:00-12:00 的记录不统计（如果需要可以加到下午或单独处理）
     });
 
-    // 分别计算下午和晚上的统计
-    const afternoon = calculateTimeSlotStats(afternoonRecords, endDate);
-    const evening = calculateTimeSlotStats(eveningRecords, endDate);
+    console.log(`\n⏰ 按时间段分组结果:`);
+    console.log(`   - 下午(12:00-18:00): ${afternoonRecords.length}场`);
+    console.log(`   - 晚上(18:00-24:00): ${eveningRecords.length}场`);
+    console.log(`   - 其他时间(0:00-12:00): ${otherRecords.length}场（不统计）`);
 
-    return {
+    // 分别计算下午和晚上的统计
+    const afternoon = calculateTimeSlotStats(afternoonRecords, endDate, '下午');
+    const evening = calculateTimeSlotStats(eveningRecords, endDate, '晚上');
+
+    const result = {
       afternoon,
       evening
     };
+
+    console.log(`\n✅ 对局统计计算完成:`);
+    console.log(JSON.stringify(result, null, 2));
+
+    return result;
   } catch (error) {
-    console.error('Failed to get user game stats:', error);
+    console.error('❌ Failed to get user game stats:', error);
     return null;
   }
 }
