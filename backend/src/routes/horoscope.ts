@@ -36,15 +36,68 @@ function checkConfig() {
 }
 
 /**
- * 获取用户对局统计数据
+ * 计算单个时间段的统计信息
+ */
+function calculateTimeSlotStats(records: any[], endDate: Date) {
+  if (records.length === 0) {
+    return {
+      totalGames: 0,
+      wins: 0,
+      losses: 0,
+      winRate: 0,
+      totalChips: 0,
+      trend: '平稳' as const,
+      recentWinRate: 0,
+      previousWinRate: 0
+    };
+  }
+
+  const wins = records.filter(r => r.chips > 0).length;
+  const losses = records.filter(r => r.chips < 0).length;
+  const winRate = records.length > 0 ? Math.round((wins / records.length) * 100) : 0;
+  const totalChips = records.reduce((sum, r) => sum + (r.chips || 0), 0);
+
+  // 计算趋势（最近3天 vs 前3天）
+  const recent3Days = records.filter(r => {
+    const recordDate = new Date(r.created_at);
+    const daysDiff = (endDate.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
+    return daysDiff <= 3;
+  });
+  const previous3Days = records.filter(r => {
+    const recordDate = new Date(r.created_at);
+    const daysDiff = (endDate.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
+    return daysDiff > 3 && daysDiff <= 6;
+  });
+
+  const recentWinRate = recent3Days.length > 0 
+    ? Math.round((recent3Days.filter(r => r.chips > 0).length / recent3Days.length) * 100)
+    : 0;
+  const previousWinRate = previous3Days.length > 0
+    ? Math.round((previous3Days.filter(r => r.chips > 0).length / previous3Days.length) * 100)
+    : 0;
+
+  const trend = recentWinRate > previousWinRate ? '上升' : recentWinRate < previousWinRate ? '下降' : '平稳';
+
+  return {
+    totalGames: records.length,
+    wins,
+    losses,
+    winRate,
+    totalChips,
+    trend,
+    recentWinRate,
+    previousWinRate
+  };
+}
+
+/**
+ * 获取用户对局统计数据（按下午和晚上分别统计）
  * 
  * 计算逻辑：
  * 1. 查询基准日期之前N天的对局记录（chips不为NULL的记录）
- * 2. 计算总场次、胜场（chips > 0）、负场（chips < 0）、胜率、总盈亏
- * 3. 计算趋势：比较最近3天 vs 前3天（3-6天前）的胜率
- *    - 如果最近3天胜率 > 前3天胜率，趋势为"上升"
- *    - 如果最近3天胜率 < 前3天胜率，趋势为"下降"
- *    - 否则为"平稳"
+ * 2. 根据时间分为下午（12:00-18:00）和晚上（18:00-24:00）两组
+ * 3. 分别计算每组的：总场次、胜场、负场、胜率、总盈亏、趋势
+ * 4. 趋势计算：比较最近3天 vs 前3天（3-6天前）的胜率
  * 
  * @param userId 用户ID
  * @param baseDate 基准日期（查询此日期之前的数据）
@@ -74,41 +127,29 @@ function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
 
     if (records.length === 0) return null;
 
-    const wins = records.filter(r => r.chips > 0).length;
-    const losses = records.filter(r => r.chips < 0).length;
-    const winRate = records.length > 0 ? Math.round((wins / records.length) * 100) : 0;
-    const totalChips = records.reduce((sum, r) => sum + (r.chips || 0), 0);
+    // 按时间段分组：下午（12:00-18:00）和晚上（18:00-24:00）
+    const afternoonRecords: any[] = [];
+    const eveningRecords: any[] = [];
 
-    // 计算趋势（最近3天 vs 前3天）
-    const recent3Days = records.filter(r => {
+    records.forEach(r => {
       const recordDate = new Date(r.created_at);
-      const daysDiff = (endDate.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
-      return daysDiff <= 3;
-    });
-    const previous3Days = records.filter(r => {
-      const recordDate = new Date(r.created_at);
-      const daysDiff = (endDate.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
-      return daysDiff > 3 && daysDiff <= 6;
+      const hour = recordDate.getHours();
+      
+      if (hour >= 12 && hour < 18) {
+        afternoonRecords.push(r);
+      } else if (hour >= 18 && hour < 24) {
+        eveningRecords.push(r);
+      }
+      // 0:00-12:00 的记录不统计（如果需要可以加到下午或单独处理）
     });
 
-    const recentWinRate = recent3Days.length > 0 
-      ? Math.round((recent3Days.filter(r => r.chips > 0).length / recent3Days.length) * 100)
-      : 0;
-    const previousWinRate = previous3Days.length > 0
-      ? Math.round((previous3Days.filter(r => r.chips > 0).length / previous3Days.length) * 100)
-      : 0;
-
-    const trend = recentWinRate > previousWinRate ? '上升' : recentWinRate < previousWinRate ? '下降' : '平稳';
+    // 分别计算下午和晚上的统计
+    const afternoon = calculateTimeSlotStats(afternoonRecords, endDate);
+    const evening = calculateTimeSlotStats(eveningRecords, endDate);
 
     return {
-      totalGames: records.length,
-      wins,
-      losses,
-      winRate,
-      totalChips,
-      trend,
-      recentWinRate,
-      previousWinRate
+      afternoon,
+      evening
     };
   } catch (error) {
     console.error('Failed to get user game stats:', error);
@@ -131,12 +172,20 @@ function buildChineseHoroscopePrompt(
 
   let gameInfo = '';
   if (gameStats) {
+    const { afternoon, evening } = gameStats;
     gameInfo = `
-对局信息：
-- 最近7天胜率：${gameStats.winRate}%
-- 最近7天对局：${gameStats.totalGames}场（${gameStats.wins}胜${gameStats.losses}负）
-- 胜率趋势：${gameStats.trend}
-- 总盈亏：${gameStats.totalChips >= 0 ? '+' : ''}${gameStats.totalChips}
+对局信息（最近7天）：
+【下午（12:00-18:00）】
+- 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
+- 胜率：${afternoon.winRate}%
+- 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
+- 胜率趋势：${afternoon.trend}
+
+【晚上（18:00-24:00）】
+- 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
+- 胜率：${evening.winRate}%
+- 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
+- 胜率趋势：${evening.trend}
 `;
   }
 
@@ -213,12 +262,20 @@ function buildWesternHoroscopePrompt(
 
   let gameInfo = '';
   if (gameStats) {
+    const { afternoon, evening } = gameStats;
     gameInfo = `
-对局信息：
-- 最近7天胜率：${gameStats.winRate}%
-- 最近7天对局：${gameStats.totalGames}场（${gameStats.wins}胜${gameStats.losses}负）
-- 胜率趋势：${gameStats.trend}
-- 总盈亏：${gameStats.totalChips >= 0 ? '+' : ''}${gameStats.totalChips}
+对局信息（最近7天）：
+【下午（12:00-18:00）】
+- 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
+- 胜率：${afternoon.winRate}%
+- 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
+- 胜率趋势：${afternoon.trend}
+
+【晚上（18:00-24:00）】
+- 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
+- 胜率：${evening.winRate}%
+- 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
+- 胜率趋势：${evening.trend}
 `;
   }
 
@@ -298,9 +355,9 @@ ${chineseHoroscope}
 ${westernHoroscope}
 
 ${gameStats ? `
-【对局数据】
-- 最近7天胜率：${gameStats.winRate}%
-- 胜率趋势：${gameStats.trend}
+【对局数据（最近7天）】
+- 下午（12:00-18:00）：${gameStats.afternoon.totalGames}场，胜率${gameStats.afternoon.winRate}%，趋势${gameStats.afternoon.trend}
+- 晚上（18:00-24:00）：${gameStats.evening.totalGames}场，胜率${gameStats.evening.winRate}%，趋势${gameStats.evening.trend}
 ` : ''}
 
 请综合两种运势的观点，生成一份综合建议，并以JSON格式返回，格式如下：
