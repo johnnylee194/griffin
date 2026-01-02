@@ -73,30 +73,23 @@ function calculateTimeSlotStats(records: any[], endDate: Date, timeSlotName: str
 
   console.log(`   - 基础统计: 胜${wins}场, 负${losses}场, 胜率${winRate}%, 总盈亏${totalChips >= 0 ? '+' : ''}${totalChips}`);
 
-  // 计算趋势（最近3天 vs 前3天）
-  const recent3Days = records.filter(r => {
-    const recordDate = new Date(r.created_at);
-    const daysDiff = (endDate.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
-    return daysDiff <= 3;
-  });
-  const previous3Days = records.filter(r => {
-    const recordDate = new Date(r.created_at);
-    const daysDiff = (endDate.getTime() - recordDate.getTime()) / (1000 * 60 * 60 * 24);
-    return daysDiff > 3 && daysDiff <= 6;
-  });
+  // 计算趋势（最近3场 vs 前3场，即第4-6场）
+  // 记录已经按时间倒序排列，所以前3个是最近的，第4-6个是前3场
+  const recent3Games = records.slice(0, 3);
+  const previous3Games = records.slice(3, 6);
 
-  console.log(`   - 趋势计算: 最近3天${recent3Days.length}场, 前3天${previous3Days.length}场`);
+  console.log(`   - 趋势计算: 最近3场${recent3Games.length}场, 前3场(第4-6场)${previous3Games.length}场`);
 
-  const recentWinRate = recent3Days.length > 0 
-    ? Math.round((recent3Days.filter(r => r.chips > 0).length / recent3Days.length) * 100)
+  const recentWinRate = recent3Games.length > 0 
+    ? Math.round((recent3Games.filter(r => r.chips > 0).length / recent3Games.length) * 100)
     : 0;
-  const previousWinRate = previous3Days.length > 0
-    ? Math.round((previous3Days.filter(r => r.chips > 0).length / previous3Days.length) * 100)
+  const previousWinRate = previous3Games.length > 0
+    ? Math.round((previous3Games.filter(r => r.chips > 0).length / previous3Games.length) * 100)
     : 0;
 
   const trend = recentWinRate > previousWinRate ? '上升' : recentWinRate < previousWinRate ? '下降' : '平稳';
 
-  console.log(`   - 趋势结果: 最近3天胜率${recentWinRate}%, 前3天胜率${previousWinRate}%, 趋势${trend}`);
+  console.log(`   - 趋势结果: 最近3场胜率${recentWinRate}%, 前3场胜率${previousWinRate}%, 趋势${trend}`);
 
   const result = {
     totalGames: records.length,
@@ -118,20 +111,21 @@ function calculateTimeSlotStats(records: any[], endDate: Date, timeSlotName: str
  * 获取用户对局统计数据（按下午和晚上分别统计）
  * 
  * 计算逻辑：
- * 1. 查询基准日期之前N天的对局记录（chips不为NULL的记录）
- * 2. 根据时间分为下午（12:00-18:00）和晚上（18:00-24:00）两组
- * 3. 分别计算每组的：总场次、胜场、负场、胜率、总盈亏、趋势
- * 4. 趋势计算：比较最近3天 vs 前3天（3-6天前）的胜率
+ * 1. 查询基准日期之前的所有对局记录（chips不为NULL的记录）
+ * 2. 根据时间分为下午（12:00-19:00）和晚上（19:00-24:00）两组
+ * 3. 分别取最近7场下午场和最近7场晚场
+ * 4. 分别计算每组的：总场次、胜场、负场、胜率、总盈亏、趋势
+ * 5. 趋势计算：比较最近3场 vs 前3场（第4-6场）的胜率
  * 
  * @param userId 用户ID
  * @param baseDate 基准日期（查询此日期之前的数据）
- * @param days 查询天数，默认7天
+ * @param count 每个时间段取多少场，默认7场
  */
-function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
+function getUserGameStats(userId: string, baseDate: Date, count: number = 7) {
   try {
     console.log('\n🎮 开始计算对局统计数据...');
     console.log(`📅 基准日期: ${baseDate.toISOString().split('T')[0]}`);
-    console.log(`📆 查询天数: ${days}天`);
+    console.log(`📊 每个时间段取最近: ${count}场`);
 
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
     if (!mePlayer) {
@@ -140,44 +134,41 @@ function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
     }
     console.log(`👤 玩家ID: ${mePlayer.id}`);
 
-    // 使用基准日期计算日期范围
+    // 查询基准日期之前的所有记录
     const endDate = new Date(baseDate);
     endDate.setHours(23, 59, 59, 999); // 设置为基准日期的结束时间
-    const startDate = new Date(baseDate);
-    startDate.setDate(startDate.getDate() - days);
-    startDate.setHours(0, 0, 0, 0); // 设置为开始日期的开始时间
 
-    console.log(`📊 查询日期范围: ${startDate.toISOString()} 到 ${endDate.toISOString()}`);
+    console.log(`📊 查询截止日期: ${endDate.toISOString()}`);
 
-    const records = db.prepare(`
+    const allRecords = db.prepare(`
       SELECT pr.chips, g.created_at
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ? 
-        AND g.created_at >= ? 
         AND g.created_at < ?
         AND pr.chips IS NOT NULL
-    `).all(mePlayer.id, startDate.toISOString(), endDate.toISOString()) as any[];
+      ORDER BY g.created_at DESC
+    `).all(mePlayer.id, endDate.toISOString()) as any[];
 
-    console.log(`📋 查询到的原始记录数: ${records.length}`);
+    console.log(`📋 查询到的总记录数: ${allRecords.length}`);
 
-    if (records.length === 0) {
+    if (allRecords.length === 0) {
       console.log('⚠️ 没有找到对局记录');
       return null;
     }
 
-    // 按时间段分组：下午（12:00-18:00）和晚上（18:00-24:00）
+    // 按时间段分组：下午（12:00-19:00）和晚上（19:00-24:00）
     const afternoonRecords: any[] = [];
     const eveningRecords: any[] = [];
     const otherRecords: any[] = []; // 0:00-12:00 的记录
 
-    records.forEach(r => {
+    allRecords.forEach(r => {
       const recordDate = new Date(r.created_at);
       const hour = recordDate.getHours();
       
-      if (hour >= 12 && hour < 18) {
+      if (hour >= 12 && hour < 19) {
         afternoonRecords.push(r);
-      } else if (hour >= 18 && hour < 24) {
+      } else if (hour >= 19 && hour < 24) {
         eveningRecords.push(r);
       } else {
         otherRecords.push(r);
@@ -185,13 +176,21 @@ function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
     });
 
     console.log(`\n⏰ 按时间段分组结果:`);
-    console.log(`   - 下午(12:00-18:00): ${afternoonRecords.length}场`);
-    console.log(`   - 晚上(18:00-24:00): ${eveningRecords.length}场`);
+    console.log(`   - 下午(12:00-19:00): ${afternoonRecords.length}场`);
+    console.log(`   - 晚上(19:00-24:00): ${eveningRecords.length}场`);
     console.log(`   - 其他时间(0:00-12:00): ${otherRecords.length}场（不统计）`);
 
+    // 分别取最近N场（已经按时间倒序排列，所以直接取前N个）
+    const recentAfternoon = afternoonRecords.slice(0, count);
+    const recentEvening = eveningRecords.slice(0, count);
+
+    console.log(`\n📈 取最近场次:`);
+    console.log(`   - 下午场: 取最近${count}场，实际${recentAfternoon.length}场`);
+    console.log(`   - 晚场: 取最近${count}场，实际${recentEvening.length}场`);
+
     // 分别计算下午和晚上的统计
-    const afternoon = calculateTimeSlotStats(afternoonRecords, endDate, '下午');
-    const evening = calculateTimeSlotStats(eveningRecords, endDate, '晚上');
+    const afternoon = calculateTimeSlotStats(recentAfternoon, endDate, '下午');
+    const evening = calculateTimeSlotStats(recentEvening, endDate, '晚上');
 
     const result = {
       afternoon,
@@ -225,14 +224,14 @@ function buildChineseHoroscopePrompt(
   if (gameStats) {
     const { afternoon, evening } = gameStats;
     gameInfo = `
-对局信息（最近7天）：
-【下午（12:00-18:00）】
+对局信息（最近7场）：
+【下午（12:00-19:00）】
 - 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
 - 胜率：${afternoon.winRate}%
 - 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
 - 胜率趋势：${afternoon.trend}
 
-【晚上（18:00-24:00）】
+【晚上（19:00-24:00）】
 - 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
 - 胜率：${evening.winRate}%
 - 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
@@ -315,14 +314,14 @@ function buildWesternHoroscopePrompt(
   if (gameStats) {
     const { afternoon, evening } = gameStats;
     gameInfo = `
-对局信息（最近7天）：
-【下午（12:00-18:00）】
+对局信息（最近7场）：
+【下午（12:00-19:00）】
 - 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
 - 胜率：${afternoon.winRate}%
 - 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
 - 胜率趋势：${afternoon.trend}
 
-【晚上（18:00-24:00）】
+【晚上（19:00-24:00）】
 - 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
 - 胜率：${evening.winRate}%
 - 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
@@ -406,9 +405,9 @@ ${chineseHoroscope}
 ${westernHoroscope}
 
 ${gameStats ? `
-【对局数据（最近7天）】
-- 下午（12:00-18:00）：${gameStats.afternoon.totalGames}场，胜率${gameStats.afternoon.winRate}%，趋势${gameStats.afternoon.trend}
-- 晚上（18:00-24:00）：${gameStats.evening.totalGames}场，胜率${gameStats.evening.winRate}%，趋势${gameStats.evening.trend}
+【对局数据（最近7场）】
+- 下午（12:00-19:00）：${gameStats.afternoon.totalGames}场，胜率${gameStats.afternoon.winRate}%，趋势${gameStats.afternoon.trend}
+- 晚上（19:00-24:00）：${gameStats.evening.totalGames}场，胜率${gameStats.evening.winRate}%，趋势${gameStats.evening.trend}
 ` : ''}
 
 请综合两种运势的观点，生成一份综合建议，并以JSON格式返回，格式如下：
