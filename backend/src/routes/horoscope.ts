@@ -3,7 +3,7 @@ import axios from 'axios';
 import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { getZodiacSign, getZodiacAnimal, formatDate } from '../utils/horoscope';
-import { getLunarDate, getAlmanacInfo, formatLunarDate } from '../utils/lunar';
+import { getLunarDate, formatLunarDate } from '../utils/lunar';
 
 const router = Router();
 
@@ -119,7 +119,6 @@ function buildChineseHoroscopePrompt(
 ): string {
   const zodiacAnimal = getZodiacAnimal(birthDate);
   const lunarDate = getLunarDate(todayDate);
-  const almanac = getAlmanacInfo(todayDate);
   const dateStr = formatDate(todayDate);
   const lunarDateStr = `${lunarDate.yearName}年${lunarDate.month}月${lunarDate.day}日`;
 
@@ -143,33 +142,32 @@ function buildChineseHoroscopePrompt(
 - 出生日期：${birthDate}（农历：${birthLunarDate}）
 - 生肖：${zodiacAnimal}
 - 今日日期：${dateStr}（农历：${lunarDateStr}）
-- 今日黄历：宜${almanac.suitable.join('、')}，忌${almanac.avoid.join('、')}
 ${gameInfo}
 
-请生成一份中式风格的今日运势，并以JSON格式返回，格式如下：
+请根据传统命理学推算今日运势，并以JSON格式返回，格式如下：
 {
   "intro": "一段50-80字的开场白，介绍用户命理和今日整体情况",
   "dosAndDonts": {
-    "suitable": ["打牌", "聚会", "出行"],
-    "bestGamingTime": "未时(13:00-15:00)",
-    "luckyDirection": "正南方位(背靠南方而坐)",
-    "avoid": ["大额投资", "重要决策"]
+    "suitable": ["例如：打牌", "例如：聚会", "例如：出行"],
+    "bestGamingTime": "例如：未时(13:00-15:00)",
+    "luckyDirection": "例如：正南方位(背靠南方而坐)",
+    "avoid": ["例如：大额投资", "例如：重要决策"]
   },
   "wealthAnalysis": {
-    "wealthPosition": "东南",
-    "wealthGodPosition": "正北",
+    "wealthPosition": "例如：东南",
+    "wealthGodPosition": "例如：正北",
     "wealthIndex": 4,
     "gamingAdvice": "结合对局表现，今日是否适合打牌的建议（50-80字）"
   },
   "fiveElements": {
-    "todayElements": "天干甲木,地支辰土",
-    "userElements": "炉中火(丙寅)",
+    "todayElements": "例如：天干甲木,地支辰土",
+    "userElements": "例如：炉中火(丙寅)",
     "analysis": "相生相克分析（50-80字）"
   },
   "timeFortune": {
-    "luckyHours": ["未时(13:00-15:00)", "戌时(19:00-21:00)"],
-    "unluckyHours": ["申时(15:00-17:00,虎猴相冲)"],
-    "bestGamingHours": "未时(13:00-15:00)、戌时(19:00-21:00)"
+    "luckyHours": ["例如：未时(13:00-15:00)", "例如：戌时(19:00-21:00)"],
+    "unluckyHours": ["例如：申时(15:00-17:00,虎猴相冲)"],
+    "bestGamingHours": "例如：未时(13:00-15:00)、戌时(19:00-21:00)"
   },
   "zodiacFortune": {
     "dailyOverview": "今日整体运势（50-80字）",
@@ -179,11 +177,12 @@ ${gameInfo}
 
 要求：
 - 必须返回有效的JSON格式，不要包含任何其他文字
-- 使用传统中式命理术语
-- 结合黄历和生肖特点
+- 根据用户信息和今日日期，运用传统命理学知识推算运势
+- 结合生肖特点和五行相生相克原理
 ${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
 - 语言要专业但易懂
-- wealthIndex是1-5的整数，表示财运指数`;
+- wealthIndex是1-5的整数，表示财运指数
+- 所有示例值都需要根据实际情况推算替换`;
 
   console.log('📝 中式运势Prompt构建完成:');
   console.log('='.repeat(80));
@@ -224,7 +223,7 @@ function buildWesternHoroscopePrompt(
 - 今日日期：${dateStr}
 ${gameInfo}
 
-请生成一份西式风格的今日运势，并以JSON格式返回，格式如下：
+请根据占星学原理推算今日运势，并以JSON格式返回，格式如下：
 {
   "overall": {
     "index": 4,
@@ -237,7 +236,7 @@ ${gameInfo}
   "wealth": {
     "advice": "财务方面的建议（50-80字）",
     "gamingAdvice": "结合对局表现，今日是否适合打牌（50-80字）",
-    "bestGamingTime": "最佳打牌时间，如：下午2-4点"
+    "bestGamingTime": "例如：下午2-4点"
   },
   "love": {
     "advice": "人际关系和感情方面的建议（50-80字）"
@@ -246,24 +245,25 @@ ${gameInfo}
     "advice": "健康方面的提醒（30-50字）"
   },
   "luckyElements": {
-    "number": "7",
-    "color": "蓝色",
-    "direction": "东方"
+    "number": "例如：7",
+    "color": "例如：蓝色",
+    "direction": "例如：东方"
   },
   "dailyAdvice": {
-    "tips": ["建议1（20-30字）", "建议2（20-30字）"],
+    "tips": ["例如：建议1（20-30字）", "例如：建议2（20-30字）"],
     "gamingTips": "特别针对打牌的建议（30-50字）"
   }
 }
 
 要求：
 - 必须返回有效的JSON格式，不要包含任何其他文字
-- 使用现代占星术语
+- 根据用户出生日期和今日日期，运用占星学知识推算运势
 - 结合星座特点给出个性化建议
 ${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
 - 语言要亲切自然
 - index是1-5的整数，表示综合指数
-- suitableForDecisions是布尔值`;
+- suitableForDecisions是布尔值
+- 所有示例值都需要根据实际情况推算替换`;
 
   console.log('📝 西式运势Prompt构建完成:');
   console.log('='.repeat(80));
@@ -296,24 +296,24 @@ ${gameStats ? `
 - 胜率趋势：${gameStats.trend}
 ` : ''}
 
-请生成一份综合建议，并以JSON格式返回，格式如下：
+请综合两种运势的观点，生成一份综合建议，并以JSON格式返回，格式如下：
 {
-  "suitableForGaming": "适合",
-  "bestGamingTime": "未时(13:00-15:00)、戌时(19:00-21:00)",
-  "recommendedDirection": "正南方位",
+  "suitableForGaming": "例如：适合",
+  "bestGamingTime": "例如：未时(13:00-15:00)、戌时(19:00-21:00)",
+  "recommendedDirection": "例如：正南方位",
   "advice": [
-    "建议1（20-30字）",
-    "建议2（20-30字）",
-    "建议3（20-30字）"
+    "例如：建议1（20-30字）",
+    "例如：建议2（20-30字）",
+    "例如：建议3（20-30字）"
   ]
 }
 
 要求：
 - 必须返回有效的JSON格式，不要包含任何其他文字
-- 综合两种运势的观点
-- 给出明确的建议
+- 综合两种运势的观点，给出明确的建议
 - 语言简洁有力
-- suitableForGaming的值必须是：适合、不适合、谨慎 之一`;
+- suitableForGaming的值必须是：适合、不适合、谨慎 之一
+- 所有示例值都需要根据实际情况推算替换`;
 
   console.log('📝 综合建议Prompt构建完成:');
   console.log('='.repeat(80));
