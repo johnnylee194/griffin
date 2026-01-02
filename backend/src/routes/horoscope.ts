@@ -39,21 +39,28 @@ function checkConfig() {
  * 获取用户对局统计数据
  * 
  * 计算逻辑：
- * 1. 查询最近N天的对局记录（chips不为NULL的记录）
+ * 1. 查询基准日期之前N天的对局记录（chips不为NULL的记录）
  * 2. 计算总场次、胜场（chips > 0）、负场（chips < 0）、胜率、总盈亏
  * 3. 计算趋势：比较最近3天 vs 前3天（3-6天前）的胜率
  *    - 如果最近3天胜率 > 前3天胜率，趋势为"上升"
  *    - 如果最近3天胜率 < 前3天胜率，趋势为"下降"
  *    - 否则为"平稳"
+ * 
+ * @param userId 用户ID
+ * @param baseDate 基准日期（查询此日期之前的数据）
+ * @param days 查询天数，默认7天
  */
-function getUserGameStats(userId: string, days: number = 7) {
+function getUserGameStats(userId: string, baseDate: Date, days: number = 7) {
   try {
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
     if (!mePlayer) return null;
 
-    const endDate = new Date();
-    const startDate = new Date();
+    // 使用基准日期计算日期范围
+    const endDate = new Date(baseDate);
+    endDate.setHours(23, 59, 59, 999); // 设置为基准日期的结束时间
+    const startDate = new Date(baseDate);
     startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0); // 设置为开始日期的开始时间
 
     const records = db.prepare(`
       SELECT pr.chips, g.created_at
@@ -457,8 +464,8 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Please set your birth date in settings first' });
     }
 
-    // 获取对局统计
-    const gameStats = getUserGameStats(userId, 7);
+    // 获取对局统计（基于选定日期前7天）
+    const gameStats = getUserGameStats(userId, targetDate, 7);
 
     // 构建Prompt
     console.log('🔨 开始构建运势Prompt...');
