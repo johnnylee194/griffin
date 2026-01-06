@@ -224,17 +224,17 @@ export default function HomePage() {
                 >
                   →
                 </button>
-
-                {/* 回到本月按钮（当不在本月时显示） */}
-                {!isCurrentMonth() && (
-                  <button
-                    onClick={handleCurrentMonth}
-                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded border border-primary bg-primary text-white hover:bg-primary/90 transition-colors ml-2"
-                  >
-                    回到本月
-                  </button>
-                )}
               </div>
+
+              {/* 回到本月按钮（当不在本月时显示） */}
+              {!isCurrentMonth() && (
+                <button
+                  onClick={handleCurrentMonth}
+                  className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded border border-primary bg-primary text-white hover:bg-primary/90 transition-colors"
+                >
+                  回到本月
+                </button>
+              )}
 
               {/* 地点选择器 */}
               {monthlyStats.availableLocations && monthlyStats.availableLocations.length > 0 && (
