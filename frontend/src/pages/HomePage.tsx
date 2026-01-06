@@ -151,13 +151,6 @@ export default function HomePage() {
     setShowCustomMonthPicker(!showCustomMonthPicker)
   }
 
-  // 自定义月份选择
-  const handleCustomMonthChange = (year: number, month: number) => {
-    setSelectedYear(year)
-    setSelectedMonth(month)
-    setShowCustomMonthPicker(false)
-  }
-
 
   if (loading) {
     return (
