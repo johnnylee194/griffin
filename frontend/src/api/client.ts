@@ -52,6 +52,15 @@ export interface Location {
   createdAt: string;
 }
 
+export interface ChipRate {
+  id: string;
+  locationId: string;
+  chipRate: number;
+  isDefault: boolean;
+  note?: string;
+  createdAt: string;
+}
+
 export interface PlayerRecord {
   id: string;
   gameId: string;
@@ -64,7 +73,8 @@ export interface PlayerRecord {
 export interface Game {
   id: string;
   locationId: string;
-  chipRate: number;
+  chipRateId?: string;
+  chipRate: number; // 从location_chip_rates表获取，用于显示
   isComplete: boolean;
   note?: string;
   createdAt: string;
@@ -89,13 +99,22 @@ export const locationsApi = {
   delete: (id: string) => apiClient.delete(`/locations/${id}`),
 };
 
+export const chipRatesApi = {
+  getByLocation: (locationId: string) => apiClient.get<ChipRate[]>(`/chip-rates/location/${locationId}`),
+  create: (data: { locationId: string; chipRate: number; isDefault?: boolean; note?: string }) => 
+    apiClient.post<ChipRate>('/chip-rates', data),
+  update: (id: string, data: { chipRate?: number; isDefault?: boolean; note?: string }) => 
+    apiClient.put<ChipRate>(`/chip-rates/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/chip-rates/${id}`),
+};
+
 export const gamesApi = {
   getAll: (params?: { limit?: number; offset?: number }) => 
     apiClient.get<Game[]>('/games', { params }),
   getOne: (id: string) => apiClient.get<Game>(`/games/${id}`),
   create: (data: {
     locationId: string;
-    chipRate: number;
+    chipRateId: string;
     playerIds: string[];
     myScore: number;
     note?: string;
@@ -103,7 +122,7 @@ export const gamesApi = {
   }) => apiClient.post<Game>('/games', data),
   update: (id: string, data: {
     locationId: string;
-    chipRate: number;
+    chipRateId: string;
     playerIds: string[];
     myScore: number;
     note?: string;

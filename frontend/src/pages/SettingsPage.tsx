@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { playersApi, locationsApi, authApi, Player, Location } from '../api/client'
+import { playersApi, locationsApi, authApi, chipRatesApi, Player, Location, ChipRate } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function SettingsPage() {
@@ -24,6 +24,11 @@ export default function SettingsPage() {
   const [showUserAccountModal, setShowUserAccountModal] = useState(false)
   const [isPlayersExpanded, setIsPlayersExpanded] = useState(false)
   const [isLocationsExpanded, setIsLocationsExpanded] = useState(false)
+  const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)
+  const [locationChipRates, setLocationChipRates] = useState<Record<string, ChipRate[]>>({})
+  const [newChipRate, setNewChipRate] = useState<{ locationId: string; chipRate: number; note: string } | null>(null)
+  const [editingChipRateId, setEditingChipRateId] = useState<string | null>(null)
+  const [editingChipRate, setEditingChipRate] = useState<{ chipRate: number; note: string } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -198,6 +203,103 @@ export default function SettingsPage() {
       alert('修改成功')
     } catch (error: any) {
       console.error('Failed to update location:', error)
+      alert(error.response?.data?.error || '修改失败')
+    }
+  }
+
+  const loadChipRates = async (locationId: string) => {
+    try {
+      const res = await chipRatesApi.getByLocation(locationId)
+      setLocationChipRates(prev => ({ ...prev, [locationId]: res.data }))
+    } catch (error) {
+      console.error('Failed to load chip rates:', error)
+    }
+  }
+
+  const handleToggleChipRates = async (locationId: string) => {
+    if (expandedLocationId === locationId) {
+      setExpandedLocationId(null)
+    } else {
+      setExpandedLocationId(locationId)
+      if (!locationChipRates[locationId]) {
+        await loadChipRates(locationId)
+      }
+    }
+  }
+
+  const handleAddChipRate = async (locationId: string) => {
+    if (!newChipRate || !newChipRate.chipRate) {
+      alert('请输入一分多少钱')
+      return
+    }
+
+    try {
+      await chipRatesApi.create({
+        locationId,
+        chipRate: newChipRate.chipRate,
+        note: newChipRate.note || undefined,
+        isDefault: false
+      })
+      setNewChipRate(null)
+      await loadChipRates(locationId)
+      alert('添加成功')
+    } catch (error: any) {
+      console.error('Failed to add chip rate:', error)
+      alert(error.response?.data?.error || '添加失败')
+    }
+  }
+
+  const handleDeleteChipRate = async (chipRateId: string, locationId: string) => {
+    if (!confirm('确定要删除这个一分多少钱规则吗？')) return
+
+    try {
+      await chipRatesApi.delete(chipRateId)
+      await loadChipRates(locationId)
+      alert('删除成功')
+    } catch (error: any) {
+      console.error('Failed to delete chip rate:', error)
+      alert(error.response?.data?.error || '删除失败')
+    }
+  }
+
+  const handleSetDefaultChipRate = async (chipRateId: string, locationId: string) => {
+    try {
+      await chipRatesApi.update(chipRateId, { isDefault: true })
+      await loadChipRates(locationId)
+      alert('设置成功')
+    } catch (error: any) {
+      console.error('Failed to set default chip rate:', error)
+      alert(error.response?.data?.error || '设置失败')
+    }
+  }
+
+  const handleStartEditChipRate = (chipRate: ChipRate) => {
+    setEditingChipRateId(chipRate.id)
+    setEditingChipRate({ chipRate: chipRate.chipRate, note: chipRate.note || '' })
+  }
+
+  const handleCancelEditChipRate = () => {
+    setEditingChipRateId(null)
+    setEditingChipRate(null)
+  }
+
+  const handleSaveChipRate = async (chipRateId: string, locationId: string) => {
+    if (!editingChipRate || !editingChipRate.chipRate) {
+      alert('请输入一分多少钱')
+      return
+    }
+
+    try {
+      await chipRatesApi.update(chipRateId, {
+        chipRate: editingChipRate.chipRate,
+        note: editingChipRate.note || undefined
+      })
+      setEditingChipRateId(null)
+      setEditingChipRate(null)
+      await loadChipRates(locationId)
+      alert('修改成功')
+    } catch (error: any) {
+      console.error('Failed to update chip rate:', error)
       alert(error.response?.data?.error || '修改失败')
     }
   }
@@ -616,70 +718,200 @@ export default function SettingsPage() {
             {/* 地点列表 */}
             <div className="space-y-2">
           {locations.map(location => (
-            <div key={location.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-              <div className="flex items-center space-x-3 flex-1">
-                {editingLocationId === location.id ? (
-                  <input
-                    type="text"
-                    value={editingLocationName}
-                    onChange={(e) => setEditingLocationName(e.target.value)}
-                    className="input flex-1 text-sm"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') handleSaveLocation(location.id)
-                      if (e.key === 'Escape') handleCancelEditLocation()
-                    }}
-                    autoFocus
-                  />
-                ) : (
-                  <>
-                    <span className="text-text">{location.name}</span>
-                    {location.isDefault && (
-                      <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                {editingLocationId === location.id ? (
-                  <>
-                    <button
-                      onClick={() => handleSaveLocation(location.id)}
-                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                    >
-                      保存
-                    </button>
-                    <button
-                      onClick={handleCancelEditLocation}
-                      className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                    >
-                      取消
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => handleStartEditLocation(location)}
-                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                    >
-                      编辑
-                    </button>
-                    {!location.isDefault && (
+            <div key={location.id} className="bg-gray-50 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-3 flex-1">
+                  {editingLocationId === location.id ? (
+                    <input
+                      type="text"
+                      value={editingLocationName}
+                      onChange={(e) => setEditingLocationName(e.target.value)}
+                      className="input flex-1 text-sm"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') handleSaveLocation(location.id)
+                        if (e.key === 'Escape') handleCancelEditLocation()
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <>
+                      <span className="text-text">{location.name}</span>
+                      {location.isDefault && (
+                        <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
+                      )}
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  {editingLocationId === location.id ? (
+                    <>
                       <button
-                        onClick={() => handleSetDefaultLocation(location.id)}
+                        onClick={() => handleSaveLocation(location.id)}
                         className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
                       >
-                        设为默认
+                        保存
                       </button>
-                    )}
-                    <button
-                      onClick={() => handleDeleteLocation(location.id)}
-                      className="text-accent-red hover:text-red-600 text-sm"
-                    >
-                      删除
-                    </button>
-                  </>
-                )}
+                      <button
+                        onClick={handleCancelEditLocation}
+                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                      >
+                        取消
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleToggleChipRates(location.id)}
+                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                      >
+                        {expandedLocationId === location.id ? '收起' : '💰 一分多少钱'}
+                      </button>
+                      <button
+                        onClick={() => handleStartEditLocation(location)}
+                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                      >
+                        编辑
+                      </button>
+                      {!location.isDefault && (
+                        <button
+                          onClick={() => handleSetDefaultLocation(location.id)}
+                          className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                        >
+                          设为默认
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteLocation(location.id)}
+                        className="text-accent-red hover:text-red-600 text-sm"
+                      >
+                        删除
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
+              
+              {/* Chip Rate 管理 */}
+              {expandedLocationId === location.id && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  {/* 添加 Chip Rate */}
+                  {newChipRate?.locationId === location.id ? (
+                    <div className="flex space-x-2 mb-3">
+                      <input
+                        type="number"
+                        value={newChipRate.chipRate || ''}
+                        onChange={(e) => setNewChipRate({ ...newChipRate, chipRate: parseInt(e.target.value) || 0 })}
+                        placeholder="一分多少钱"
+                        className="input flex-1 text-sm"
+                        min="1"
+                      />
+                      <input
+                        type="text"
+                        value={newChipRate.note}
+                        onChange={(e) => setNewChipRate({ ...newChipRate, note: e.target.value })}
+                        placeholder="备注（可选）"
+                        className="input flex-1 text-sm"
+                      />
+                      <button
+                        onClick={() => handleAddChipRate(location.id)}
+                        className="btn-primary text-sm px-3 py-1"
+                      >
+                        添加
+                      </button>
+                      <button
+                        onClick={() => setNewChipRate(null)}
+                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setNewChipRate({ locationId: location.id, chipRate: 0, note: '' })}
+                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded mb-3"
+                    >
+                      + 添加一分多少钱
+                    </button>
+                  )}
+
+                  {/* Chip Rate 列表 */}
+                  <div className="space-y-2">
+                    {locationChipRates[location.id]?.map(chipRate => (
+                      <div key={chipRate.id} className="flex items-center justify-between bg-white rounded p-2">
+                        {editingChipRateId === chipRate.id ? (
+                          <div className="flex items-center space-x-2 flex-1">
+                            <input
+                              type="number"
+                              value={editingChipRate?.chipRate || ''}
+                              onChange={(e) => setEditingChipRate({ ...editingChipRate!, chipRate: parseInt(e.target.value) || 0 })}
+                              className="input text-sm w-20"
+                              min="1"
+                            />
+                            <input
+                              type="text"
+                              value={editingChipRate?.note || ''}
+                              onChange={(e) => setEditingChipRate({ ...editingChipRate!, note: e.target.value })}
+                              placeholder="备注"
+                              className="input text-sm flex-1"
+                            />
+                            <button
+                              onClick={() => handleSaveChipRate(chipRate.id, location.id)}
+                              className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
+                            >
+                              保存
+                            </button>
+                            <button
+                              onClick={handleCancelEditChipRate}
+                              className="text-text-secondary hover:text-text text-xs px-2 py-1 border border-gray-300 rounded"
+                            >
+                              取消
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-text font-semibold">{chipRate.chipRate}</span>
+                              {chipRate.note && (
+                                <span className="text-text-secondary text-xs">({chipRate.note})</span>
+                              )}
+                              {chipRate.isDefault && (
+                                <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => handleStartEditChipRate(chipRate)}
+                                className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
+                              >
+                                编辑
+                              </button>
+                              {!chipRate.isDefault && (
+                                <button
+                                  onClick={() => handleSetDefaultChipRate(chipRate.id, location.id)}
+                                  className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
+                                >
+                                  设为默认
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteChipRate(chipRate.id, location.id)}
+                                className="text-accent-red hover:text-red-600 text-xs"
+                              >
+                                删除
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    {(!locationChipRates[location.id] || locationChipRates[location.id].length === 0) && (
+                      <div className="text-text-secondary text-sm text-center py-2">
+                        暂无一分多少钱规则，请添加
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
             </div>

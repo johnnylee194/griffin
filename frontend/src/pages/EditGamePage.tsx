@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { playersApi, locationsApi, gamesApi, Player, Location } from '../api/client'
+import { playersApi, locationsApi, gamesApi, chipRatesApi, Player, Location, ChipRate } from '../api/client'
 import NumPad from '../components/NumPad'
 
 export default function EditGamePage() {
@@ -10,7 +10,8 @@ export default function EditGamePage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [selectedLocation, setSelectedLocation] = useState<string>('')
-  const [chipRate, setChipRate] = useState<100 | 200>(100)
+  const [chipRates, setChipRates] = useState<ChipRate[]>([])
+  const [selectedChipRateId, setSelectedChipRateId] = useState<string>('')
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([])
   const [myScore, setMyScore] = useState<number>(0)
   const [gameTime, setGameTime] = useState<string>('')
@@ -27,6 +28,35 @@ export default function EditGamePage() {
     loadData()
   }, [id])
 
+  const loadChipRates = async (locationId: string) => {
+    try {
+      const res = await chipRatesApi.getByLocation(locationId)
+      setChipRates(res.data)
+      // 如果当前没有选中chipRateId，自动选择默认的
+      if (!selectedChipRateId) {
+        const defaultChipRate = res.data.find(cr => cr.isDefault)
+        if (defaultChipRate) {
+          setSelectedChipRateId(defaultChipRate.id)
+        } else if (res.data.length > 0) {
+          setSelectedChipRateId(res.data[0].id)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load chip rates:', error)
+      setChipRates([])
+    }
+  }
+
+  const handleLocationChange = async (locationId: string) => {
+    setSelectedLocation(locationId)
+    if (locationId) {
+      await loadChipRates(locationId)
+    } else {
+      setChipRates([])
+      setSelectedChipRateId('')
+    }
+  }
+
   const loadData = async () => {
     try {
       const [playersRes, locationsRes, gameRes] = await Promise.all([
@@ -41,9 +71,21 @@ export default function EditGamePage() {
       if (gameRes) {
         const game = gameRes.data
         setSelectedLocation(game.locationId)
-        setChipRate(game.chipRate as 100 | 200)
+        if (game.chipRateId) {
+          setSelectedChipRateId(game.chipRateId)
+        }
         setSelectedPlayerIds(game.records.map(r => r.playerId))
         setNote(game.note || '')
+        
+        // 加载该地点的chip-rates
+        if (game.locationId) {
+          try {
+            const chipRatesRes = await chipRatesApi.getByLocation(game.locationId)
+            setChipRates(chipRatesRes.data)
+          } catch (error) {
+            console.error('Failed to load chip rates:', error)
+          }
+        }
         
         // 设置我的分数
         const myRecord = game.records.find(r => r.player.isMe)
@@ -141,6 +183,11 @@ export default function EditGamePage() {
       }
     }
 
+    if (!selectedChipRateId) {
+      alert('请选择一分多少钱')
+      return
+    }
+
     try {
       // 将本地时间转换为 ISO 格式（不带时区标识）
       const gameDateTime = new Date(gameTime)
@@ -154,7 +201,7 @@ export default function EditGamePage() {
 
       await gamesApi.update(id!, {
         locationId: selectedLocation,
-        chipRate,
+        chipRateId: selectedChipRateId,
         playerIds: selectedPlayerIds,
         myScore,
         note: note || undefined,
@@ -231,11 +278,11 @@ export default function EditGamePage() {
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       <h2 className="text-xl sm:text-2xl font-bold text-text">编辑对局</h2>
 
-      {/* 地点和筹码比率 - 合并为一行小按钮 */}
+      {/* 地点和筹码比率 - 合并为一行 */}
       <div className="flex items-center gap-2">
         <select
           value={selectedLocation}
-          onChange={(e) => setSelectedLocation(e.target.value)}
+          onChange={(e) => handleLocationChange(e.target.value)}
           className="flex-1 text-sm py-2 px-3 rounded-lg border border-gray-300 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="">📍 选择地点</option>
@@ -243,22 +290,19 @@ export default function EditGamePage() {
             <option key={loc.id} value={loc.id}>{loc.name}</option>
           ))}
         </select>
-        <button
-          onClick={() => setChipRate(100)}
-          className={`px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${
-            chipRate === 100 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-          }`}
+        <select
+          value={selectedChipRateId}
+          onChange={(e) => setSelectedChipRateId(e.target.value)}
+          disabled={!selectedLocation || chipRates.length === 0}
+          className="text-sm py-2 px-3 rounded-lg border border-gray-300 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400"
         >
-          100
-        </button>
-        <button
-          onClick={() => setChipRate(200)}
-          className={`px-3 py-2 text-sm rounded-lg font-semibold transition-colors ${
-            chipRate === 200 ? 'bg-primary text-white' : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          200
-        </button>
+          <option value="">💰 一分多少钱</option>
+          {chipRates.map(cr => (
+            <option key={cr.id} value={cr.id}>
+              {cr.chipRate}{cr.note ? ` (${cr.note})` : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* 玩家选择 */}
