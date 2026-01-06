@@ -66,8 +66,13 @@ router.post('/', (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Location name already exists' });
     }
 
+    // 检查用户是否已有地点
+    const locationCount = db.prepare('SELECT COUNT(*) as count FROM locations WHERE user_id = ?').get(userId) as { count: number };
+    // 如果这是第一个地点，自动设置为默认
+    const shouldBeDefault = locationCount.count === 0 || isDefault;
+
     // 如果设置为默认地点，先将其他地点的isDefault设为false（同一用户下）
-    if (isDefault) {
+    if (shouldBeDefault) {
       db.prepare('UPDATE locations SET is_default = 0 WHERE is_default = 1 AND user_id = ?').run(userId);
     }
 
@@ -77,7 +82,7 @@ router.post('/', (req: AuthRequest, res) => {
     db.prepare(`
       INSERT INTO locations (id, user_id, name, is_default, created_at)
       VALUES (?, ?, ?, ?, ?)
-    `).run(id, userId, name, isDefault ? 1 : 0, now);
+    `).run(id, userId, name, shouldBeDefault ? 1 : 0, now);
 
     const location = db.prepare(`
       SELECT 

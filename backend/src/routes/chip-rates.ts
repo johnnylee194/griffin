@@ -74,8 +74,15 @@ router.post('/', (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Chip rate already exists for this location' });
     }
 
+    // 检查该地点是否已有chip_rate
+    const chipRateCount = db.prepare(`
+      SELECT COUNT(*) as count FROM location_chip_rates WHERE location_id = ?
+    `).get(locationId) as { count: number };
+    // 如果这是第一个chip_rate，自动设置为默认
+    const shouldBeDefault = chipRateCount.count === 0 || isDefault;
+
     // 如果设置为默认，先将其他规则的isDefault设为false
-    if (isDefault) {
+    if (shouldBeDefault) {
       db.prepare(`
         UPDATE location_chip_rates 
         SET is_default = 0 
@@ -89,7 +96,7 @@ router.post('/', (req: AuthRequest, res) => {
     db.prepare(`
       INSERT INTO location_chip_rates (id, location_id, chip_rate, is_default, note, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, locationId, chipRate, isDefault ? 1 : 0, note || null, now);
+    `).run(id, locationId, chipRate, shouldBeDefault ? 1 : 0, note || null, now);
 
     const chipRateRecord = db.prepare(`
       SELECT 
