@@ -48,10 +48,14 @@ export default function NewGamePage() {
         await loadChipRates(defaultLoc.id)
       }
       
-      // 自动添加本人
+      // 自动添加本人（必须包含"我"）
       const me = playersRes.data.find(p => p.isMe)
       if (me) {
-        setSelectedPlayerIds([me.id])
+        // 确保"我"始终在selectedPlayerIds中（放在第一位）
+        setSelectedPlayerIds([me.id, ...selectedPlayerIds.filter(id => id !== me.id)])
+      } else {
+        // 如果没有"我"，selectedPlayerIds应该为空（等待AuthContext创建）
+        setSelectedPlayerIds([])
       }
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -89,7 +93,13 @@ export default function NewGamePage() {
   }
 
   const togglePlayer = (player: Player) => {
-    if (player.isMe) return // 不能取消选择"我"
+    if (player.isMe) {
+      // "我"始终被选中，不能取消
+      if (!selectedPlayerIds.includes(player.id)) {
+        setSelectedPlayerIds([...selectedPlayerIds, player.id])
+      }
+      return
+    }
     
     const index = selectedPlayerIds.indexOf(player.id)
     if (index > -1) {
@@ -264,7 +274,8 @@ export default function NewGamePage() {
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
           {players.map(player => {
-            const isSelected = selectedPlayerIds.includes(player.id)
+            // "我"始终被视为选中状态
+            const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
             return (
               <button
                 key={player.id}
@@ -274,7 +285,7 @@ export default function NewGamePage() {
                   isSelected
                     ? 'bg-primary text-white'
                     : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-                } ${player.isMe ? 'opacity-100 cursor-default' : ''}`}
+                } ${player.isMe ? 'opacity-100 cursor-not-allowed' : ''}`}
               >
                 {player.name} {player.isMe && '(我)'}
               </button>
