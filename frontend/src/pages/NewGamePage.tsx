@@ -290,9 +290,9 @@ export default function NewGamePage() {
       </div>
 
       {/* 我的分数输入 */}
-      {selectedPlayerIds.length > 0 && (
-        <div className="card">
-          <label className="block text-text font-semibold mb-3">🎯 我的分数</label>
+      <div className="card">
+        <label className="block text-text font-semibold mb-3">🎯 我的分数</label>
+        {selectedPlayerIds.length > 0 ? (
           <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg">
             <span className="text-primary font-semibold">我的成绩</span>
             <button
@@ -308,8 +308,12 @@ export default function NewGamePage() {
               {myScore > 0 ? '+' : ''}{myScore}
             </button>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="p-4 bg-gray-50 rounded-lg text-center text-text-secondary">
+            <p className="text-sm">请先选择玩家（必须包含"我"）</p>
+          </div>
+        )}
+      </div>
 
       {/* 参与玩家列表（只显示，不输入分数） */}
       {selectedPlayerIds.length > 1 && (
