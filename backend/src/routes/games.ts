@@ -486,6 +486,24 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     `;
     const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, userId, startDate, endDate) as any[];
     
+    // 获取最早有数据的月份（用于限制左箭头）
+    const earliestDateQuery = `
+      SELECT MIN(g.created_at) as earliest_date
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND pr.chips IS NOT NULL
+    `;
+    const earliestDateResult = db.prepare(earliestDateQuery).get(mePlayer.id, userId) as any;
+    let earliestYear = null;
+    let earliestMonth = null;
+    if (earliestDateResult && earliestDateResult.earliest_date) {
+      const earliestDate = new Date(earliestDateResult.earliest_date);
+      earliestYear = earliestDate.getFullYear();
+      earliestMonth = earliestDate.getMonth() + 1; // 1-12
+    }
+    
     // 计算总体统计
     let totalIncome = 0;
     let totalExpense = 0;
@@ -559,6 +577,10 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
         id: loc.location_id,
         name: loc.name
       })),
+      earliestMonth: earliestYear && earliestMonth ? {
+        year: earliestYear,
+        month: earliestMonth
+      } : null,
       overall: {
         totalIncome,
         totalExpense,
