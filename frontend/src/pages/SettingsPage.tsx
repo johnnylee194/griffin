@@ -97,18 +97,6 @@ export default function SettingsPage() {
     }
   }
 
-  const handleSetMe = async (id: string) => {
-    if (!confirm('确定要将此玩家设置为本人吗？')) return
-
-    try {
-      await playersApi.update(id, { isMe: true })
-      loadData()
-      alert('设置成功')
-    } catch (error) {
-      console.error('Failed to update player:', error)
-      alert('设置失败')
-    }
-  }
 
   const handleAddLocation = async () => {
     if (!newLocationName.trim()) {
@@ -661,14 +649,6 @@ export default function SettingsPage() {
                     >
                       编辑
                     </button>
-                    {!player.isMe && (
-                      <button
-                        onClick={() => handleSetMe(player.id)}
-                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                      >
-                        设为本人
-                      </button>
-                    )}
                     <button
                       onClick={() => handleDeletePlayer(player.id, player.isMe)}
                       disabled={player.isMe}
