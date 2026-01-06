@@ -85,11 +85,6 @@ export default function HomePage() {
     return selectedYear === currentYear && selectedMonth === currentMonth
   }
 
-  // 获取月份显示文本（统一格式，避免布局跳动）
-  const getMonthDisplayText = () => {
-    return `${selectedYear}年${selectedMonth}月`
-  }
-
   // 是否可以点击左箭头（上一月）
   const canGoPrevMonth = () => {
     if (!earliestYear || !earliestMonth) {
