@@ -193,7 +193,7 @@ export default function HomePage() {
                 <button
                   onClick={handlePrevMonth}
                   disabled={!canGoPrevMonth()}
-                  className={`text-xl sm:text-2xl px-3 sm:px-4 py-2 sm:py-2.5 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
+                  className={`text-xl sm:text-2xl px-3 sm:px-4 h-8 sm:h-9 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
                     canGoPrevMonth()
                       ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
                       : 'text-gray-300 cursor-not-allowed'
@@ -206,7 +206,7 @@ export default function HomePage() {
                 {/* 中间年月显示（可点击弹出选择） */}
                 <button
                   onClick={toggleCustomMonthPicker}
-                  className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded border border-gray-300 bg-white text-text hover:border-primary hover:text-primary transition-colors min-w-[100px] sm:min-w-[120px]"
+                  className="text-xs sm:text-sm px-3 sm:px-4 h-8 sm:h-9 rounded border border-gray-300 bg-white text-text hover:border-primary hover:text-primary transition-colors min-w-[100px] sm:min-w-[120px] flex items-center justify-center"
                 >
                   {getMonthDisplayText()}
                 </button>
@@ -215,7 +215,7 @@ export default function HomePage() {
                 <button
                   onClick={handleNextMonth}
                   disabled={!canGoNextMonth()}
-                  className={`text-xl sm:text-2xl px-3 sm:px-4 py-2 sm:py-2.5 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
+                  className={`text-xl sm:text-2xl px-3 sm:px-4 h-8 sm:h-9 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
                     canGoNextMonth()
                       ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
                       : 'text-gray-300 cursor-not-allowed'
@@ -230,7 +230,7 @@ export default function HomePage() {
               <button
                 onClick={handleCurrentMonth}
                 disabled={isCurrentMonth()}
-                className={`text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded border transition-colors ${
+                className={`text-xs sm:text-sm px-2 sm:px-3 h-8 sm:h-9 rounded border transition-colors flex items-center justify-center ${
                   isCurrentMonth()
                     ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'border-primary bg-primary text-white hover:bg-primary/90'
@@ -244,7 +244,7 @@ export default function HomePage() {
                 <select
                   value={selectedLocationId}
                   onChange={(e) => setSelectedLocationId(e.target.value)}
-                  className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                  className="text-xs sm:text-sm border border-gray-300 rounded px-2 sm:px-3 h-8 sm:h-9 bg-white text-text"
                 >
                   <option value="">全部地点</option>
                   {monthlyStats.availableLocations.map(location => (
