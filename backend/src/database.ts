@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { randomBytes } from 'crypto';
-import bcrypt from 'bcryptjs';
 
 const dbDir = path.join(__dirname, '../data');
 if (!fs.existsSync(dbDir)) {
@@ -185,31 +184,8 @@ export const initDatabase = () => {
 
 // 初始化默认数据
 export const seedDefaultData = () => {
-  // 检查并创建admin用户
-  const adminUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin') as any;
-  if (!adminUser) {
-    const userId = generateId();
-    const hashedPassword = bcrypt.hashSync('admin123', 10);
-    db.prepare(`
-      INSERT INTO users (id, username, password, name, created_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
-    `).run(userId, 'admin', hashedPassword, 'admin');
-    
-    console.log('✅ Default user "admin" created (password: admin123)');
-  }
-
-  // 检查并创建xmf用户
-  const xmfUser = db.prepare('SELECT id FROM users WHERE username = ?').get('xmf') as any;
-  if (!xmfUser) {
-    const userId = generateId();
-    const hashedPassword = bcrypt.hashSync('jiong123', 10);
-    db.prepare(`
-      INSERT INTO users (id, username, password, name, created_at)
-      VALUES (?, ?, ?, ?, datetime('now'))
-    `).run(userId, 'xmf', hashedPassword, 'xmf');
-    
-    console.log('✅ User "xmf" created (password: jiong123)');
-  }
+  // 注意：用户创建请使用 scripts/add-user.js 脚本
+  // 使用方法: node scripts/add-user.js <username> <password> [name]
 
   // 检查是否已有数据
   const locationCount = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
