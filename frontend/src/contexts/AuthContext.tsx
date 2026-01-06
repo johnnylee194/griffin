@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiClient } from '../api/client';
+import { apiClient, playersApi } from '../api/client';
 
 interface User {
   id: string;
@@ -31,9 +31,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
       // 验证 token
       apiClient.get('/auth/verify')
-        .then(res => {
+        .then(async res => {
           setToken(storedToken);
           setUser(res.data.user);
+          // 验证成功后，初始化用户数据（确保有"我"这个玩家）
+          await initializeUserData();
         })
         .catch(() => {
           localStorage.removeItem('token');
@@ -44,6 +46,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
     }
   }, []);
+
+  // 初始化用户数据：确保有"我"这个玩家
+  const initializeUserData = async () => {
+    try {
+      const playersRes = await playersApi.getAll();
+      const me = playersRes.data.find(p => p.isMe);
+      
+      if (!me) {
+        // 如果没有"我"，自动创建
+        console.log('AuthContext: 未找到"我"玩家，自动创建...');
+        await playersApi.create({ name: '我', isMe: true });
+        console.log('AuthContext: "我"玩家创建成功');
+      }
+    } catch (error) {
+      console.error('AuthContext: 初始化用户数据失败:', error);
+      // 不抛出错误，避免影响登录流程
+    }
+  };
 
   const login = async (username: string, password: string) => {
     console.log('AuthContext: 调用登录API');
@@ -57,6 +77,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('token', newToken);
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       console.log('AuthContext: 登录状态已更新');
+      
+      // 登录后初始化用户数据（确保有"我"这个玩家）
+      await initializeUserData();
     } catch (error) {
       console.error('AuthContext: 登录API错误:', error);
       throw error;
