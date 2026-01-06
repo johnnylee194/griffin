@@ -190,85 +190,9 @@ export default function HomePage() {
       {/* 本月统计 */}
       {monthlyStats && (
         <div className="space-y-2 sm:space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-base sm:text-lg font-semibold text-text">月度统计</h3>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              {/* 时间选择器：箭头 + 年月显示 */}
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                {/* 左箭头：上一月 */}
-                <button
-                  onClick={handlePrevMonth}
-                  disabled={!canGoPrevMonth()}
-                  className={`text-xl sm:text-2xl px-3 sm:px-4 py-2 sm:py-2.5 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
-                    canGoPrevMonth()
-                      ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
-                      : 'text-gray-300 cursor-not-allowed'
-                  }`}
-                  title="上一月"
-                >
-                  ←
-                </button>
-
-                {/* 中间年月显示（可点击展开） */}
-                <button
-                  onClick={toggleCustomMonthPicker}
-                  className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded border border-gray-300 bg-white text-text hover:border-primary hover:text-primary transition-colors min-w-[100px] sm:min-w-[120px]"
-                >
-                  {getMonthDisplayText()}
-                </button>
-
-                {/* 右箭头：下一月 */}
-                <button
-                  onClick={handleNextMonth}
-                  disabled={!canGoNextMonth()}
-                  className={`text-xl sm:text-2xl px-3 sm:px-4 py-2 sm:py-2.5 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
-                    canGoNextMonth()
-                      ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
-                      : 'text-gray-300 cursor-not-allowed'
-                  }`}
-                  title="下一月"
-                >
-                  →
-                </button>
-              </div>
-
-              {/* 自定义月份选择器（展开时显示） */}
-              {showCustomMonthPicker && (
-                <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => handleCustomMonthChange(parseInt(e.target.value), selectedMonth)}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 bg-white text-text hover:border-primary focus:border-primary focus:outline-none"
-                  >
-                    {Array.from({ length: 5 }, (_, i) => {
-                      const year = currentYear - i
-                      return (
-                        <option key={year} value={year}>{year}年</option>
-                      )
-                    })}
-                  </select>
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => handleCustomMonthChange(selectedYear, parseInt(e.target.value))}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 sm:px-3 py-1.5 sm:py-2 bg-white text-text hover:border-primary focus:border-primary focus:outline-none"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
-                      <option key={month} value={month}>{month}月</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* 回到本月按钮（当不在本月时显示） */}
-              {!isCurrentMonth() && (
-                <button
-                  onClick={handleCurrentMonth}
-                  className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded border border-primary bg-primary text-white hover:bg-primary/90 transition-colors"
-                >
-                  回到本月
-                </button>
-              )}
-
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-base sm:text-lg font-semibold text-text">月度统计</h3>
               {/* 地点选择器 */}
               {monthlyStats.availableLocations && monthlyStats.availableLocations.length > 0 && (
                 <select
@@ -283,7 +207,126 @@ export default function HomePage() {
                 </select>
               )}
             </div>
+            
+            {/* 时间选择器：居中显示 */}
+            <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+              {/* 左箭头：上一月 */}
+              <button
+                onClick={handlePrevMonth}
+                disabled={!canGoPrevMonth()}
+                className={`text-xl sm:text-2xl px-3 sm:px-4 py-2 sm:py-2.5 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
+                  canGoPrevMonth()
+                    ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
+                    : 'text-gray-300 cursor-not-allowed'
+                }`}
+                title="上一月"
+              >
+                ←
+              </button>
+
+              {/* 中间年月显示（可点击弹出选择） */}
+              <button
+                onClick={toggleCustomMonthPicker}
+                className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 rounded border border-gray-300 bg-white text-text hover:border-primary hover:text-primary transition-colors min-w-[100px] sm:min-w-[120px]"
+              >
+                {getMonthDisplayText()}
+              </button>
+
+              {/* 右箭头：下一月 */}
+              <button
+                onClick={handleNextMonth}
+                disabled={!canGoNextMonth()}
+                className={`text-xl sm:text-2xl px-3 sm:px-4 py-2 sm:py-2.5 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
+                  canGoNextMonth()
+                    ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
+                    : 'text-gray-300 cursor-not-allowed'
+                }`}
+                title="下一月"
+              >
+                →
+              </button>
+
+              {/* 回到本月按钮（当不在本月时显示） */}
+              {!isCurrentMonth() && (
+                <button
+                  onClick={handleCurrentMonth}
+                  className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded border border-primary bg-primary text-white hover:bg-primary/90 transition-colors ml-2"
+                >
+                  回到本月
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* 年月选择弹出框 */}
+          {showCustomMonthPicker && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+              onClick={() => setShowCustomMonthPicker(false)}
+            >
+              <div 
+                className="bg-white rounded-lg max-w-sm w-full p-6 space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg sm:text-xl font-semibold text-text">选择年月</h3>
+                  <button
+                    onClick={() => setShowCustomMonthPicker(false)}
+                    className="text-text-secondary hover:text-text text-xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <label className="block text-sm text-text-secondary mb-2">年份</label>
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      className="w-full text-sm border border-gray-300 rounded px-3 py-2 bg-white text-text hover:border-primary focus:border-primary focus:outline-none"
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = currentYear - i
+                        return (
+                          <option key={year} value={year}>{year}年</option>
+                        )
+                      })}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm text-text-secondary mb-2">月份</label>
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                      className="w-full text-sm border border-gray-300 rounded px-3 py-2 bg-white text-text hover:border-primary focus:border-primary focus:outline-none"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
+                        <option key={month} value={month}>{month}月</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <button
+                    onClick={() => setShowCustomMonthPicker(false)}
+                    className="px-4 py-2 text-sm border border-gray-300 rounded text-text hover:bg-gray-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCustomMonthPicker(false)
+                    }}
+                    className="px-4 py-2 text-sm bg-primary text-white rounded hover:bg-primary/90 transition-colors"
+                  >
+                    确定
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* 收支情况 */}
           <div className="card">
