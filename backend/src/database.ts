@@ -185,11 +185,9 @@ export const initDatabase = () => {
 
 // 初始化默认数据
 export const seedDefaultData = () => {
-  // 检查是否已有用户
-  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number };
-  
-  if (userCount.count === 0) {
-    // 创建默认用户（用户名: admin, 密码: admin123）
+  // 检查并创建admin用户
+  const adminUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin') as any;
+  if (!adminUser) {
     const userId = generateId();
     const hashedPassword = bcrypt.hashSync('admin123', 10);
     db.prepare(`
@@ -198,6 +196,19 @@ export const seedDefaultData = () => {
     `).run(userId, 'admin', hashedPassword, 'admin');
     
     console.log('✅ Default user "admin" created (password: admin123)');
+  }
+
+  // 检查并创建xmf用户
+  const xmfUser = db.prepare('SELECT id FROM users WHERE username = ?').get('xmf') as any;
+  if (!xmfUser) {
+    const userId = generateId();
+    const hashedPassword = bcrypt.hashSync('jiong123', 10);
+    db.prepare(`
+      INSERT INTO users (id, username, password, name, created_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+    `).run(userId, 'xmf', hashedPassword, 'xmf');
+    
+    console.log('✅ User "xmf" created (password: jiong123)');
   }
 
   // 检查是否已有数据
