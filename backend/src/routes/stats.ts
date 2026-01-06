@@ -1,17 +1,30 @@
 import { Router } from 'express';
 import db from '../database';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// 所有路由都需要认证
+router.use(authMiddleware);
+
 // 获取玩家统计数据
-router.get('/player/:playerId', (req, res) => {
+router.get('/player/:playerId', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const { playerId } = req.params;
     const { startDate, endDate, locationId } = req.query;
 
+    // 验证玩家是否属于当前用户
+    const player = db.prepare(`
+      SELECT id FROM players WHERE id = ? AND user_id = ?
+    `).get(playerId, userId) as any;
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
     // 构建查询条件
     let dateFilter = '';
-    const params: any[] = [playerId];
+    const params: any[] = [playerId, userId];
     
     if (startDate || endDate) {
       if (startDate && endDate) {
@@ -29,11 +42,18 @@ router.get('/player/:playerId', (req, res) => {
     // 添加地点筛选
     let locationFilter = '';
     if (locationId) {
+      // 验证地点是否属于当前用户
+      const location = db.prepare(`
+        SELECT id FROM locations WHERE id = ? AND user_id = ?
+      `).get(locationId, userId) as any;
+      if (!location) {
+        return res.status(404).json({ error: 'Location not found' });
+      }
       locationFilter = ' AND g.location_id = ?';
       params.push(locationId as string);
     }
 
-    // 获取所有记录
+    // 获取所有记录（只查询当前用户的游戏）
     const records = db.prepare(`
       SELECT 
         pr.id,
@@ -46,7 +66,7 @@ router.get('/player/:playerId', (req, res) => {
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       JOIN locations l ON g.location_id = l.id
-      WHERE pr.player_id = ?${dateFilter}${locationFilter}
+      WHERE pr.player_id = ? AND g.user_id = ?${dateFilter}${locationFilter}
       ORDER BY g.created_at DESC
     `).all(...params) as any[];
 
@@ -119,29 +139,30 @@ router.get('/player/:playerId', (req, res) => {
 });
 
 // 获取总体统计
-router.get('/overview', (req, res) => {
+router.get('/overview', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const { startDate, endDate } = req.query;
 
     let dateFilter = '';
-    const params: any[] = [];
+    const params: any[] = [userId];
     
     if (startDate || endDate) {
       if (startDate && endDate) {
-        dateFilter = ' WHERE created_at BETWEEN ? AND ?';
+        dateFilter = ' AND created_at BETWEEN ? AND ?';
         params.push(startDate as string, endDate as string);
       } else if (startDate) {
-        dateFilter = ' WHERE created_at >= ?';
+        dateFilter = ' AND created_at >= ?';
         params.push(startDate as string);
       } else if (endDate) {
-        dateFilter = ' WHERE created_at <= ?';
+        dateFilter = ' AND created_at <= ?';
         params.push(endDate as string);
       }
     }
 
-    const totalGames = db.prepare(`SELECT COUNT(*) as count FROM games${dateFilter}`).get(...params) as { count: number };
-    const totalPlayers = db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number };
-    const totalLocations = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
+    const totalGames = db.prepare(`SELECT COUNT(*) as count FROM games WHERE user_id = ?${dateFilter}`).get(...params) as { count: number };
+    const totalPlayers = db.prepare('SELECT COUNT(*) as count FROM players WHERE user_id = ?').get(userId) as { count: number };
+    const totalLocations = db.prepare('SELECT COUNT(*) as count FROM locations WHERE user_id = ?').get(userId) as { count: number };
 
     res.json({
       totalGames: totalGames.count,
@@ -206,12 +227,13 @@ function getLunarYear(date: Date): { year: number; startDate: string; endDate: s
 }
 
 // 获取年度统计（支持年份参数）
-router.get('/annual', (req, res) => {
+router.get('/annual', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     // 统计都是针对"我"的，直接获取"我"的玩家ID
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
-      return res.status(404).json({ error: 'Current user not found' });
+      return res.status(404).json({ error: 'Current user not found, please create "我" player first' });
     }
     const currentUserId = mePlayer.id;
 
@@ -220,7 +242,7 @@ router.get('/annual', (req, res) => {
     const startDate = `${yearParam}-01-01T00:00:00`;
     const endDate = `${yearParam + 1}-01-01T00:00:00`;
 
-    // 获取该年的所有记录
+    // 获取该年的所有记录（只查询当前用户的游戏）
     const records = db.prepare(`
       SELECT 
         pr.chips,
@@ -228,10 +250,11 @@ router.get('/annual', (req, res) => {
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ?
+        AND g.user_id = ?
         AND g.created_at >= ?
         AND g.created_at < ?
       ORDER BY g.created_at ASC
-    `).all(currentUserId, startDate, endDate) as any[];
+    `).all(currentUserId, userId, startDate, endDate) as any[];
 
     // 计算总体统计
     let totalIncome = 0;
@@ -272,12 +295,13 @@ router.get('/annual', (req, res) => {
 });
 
 // 获取农历年统计（支持年份参数）
-router.get('/lunar-annual', (req, res) => {
+router.get('/lunar-annual', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     // 统计都是针对"我"的，直接获取"我"的玩家ID
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
-      return res.status(404).json({ error: 'Current user not found' });
+      return res.status(404).json({ error: 'Current user not found, please create "我" player first' });
     }
     const currentUserId = mePlayer.id;
 
@@ -314,7 +338,7 @@ router.get('/lunar-annual', (req, res) => {
     const startDate = `${lunarYearInfo.startDate}T00:00:00`;
     const endDate = `${lunarYearInfo.endDate}T00:00:00`;
 
-    // 获取该农历年的所有记录
+    // 获取该农历年的所有记录（只查询当前用户的游戏）
     const records = db.prepare(`
       SELECT 
         pr.chips,
@@ -322,10 +346,11 @@ router.get('/lunar-annual', (req, res) => {
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ?
+        AND g.user_id = ?
         AND g.created_at >= ?
         AND g.created_at < ?
       ORDER BY g.created_at ASC
-    `).all(currentUserId, startDate, endDate) as any[];
+    `).all(currentUserId, userId, startDate, endDate) as any[];
 
     // 计算总体统计
     let totalIncome = 0;
@@ -368,21 +393,22 @@ router.get('/lunar-annual', (req, res) => {
 });
 
 // 获取单个玩家在场时我的胜率统计
-router.get('/player-performance', (req, res) => {
+router.get('/player-performance', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     // 获取"我"的玩家ID
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
-      return res.status(404).json({ error: '当前用户未找到' });
+      return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
     }
 
-    // 获取所有四人局（is_complete = 1）的对局
+    // 获取所有四人局（is_complete = 1）的对局（只查询当前用户的）
     const games = db.prepare(`
       SELECT g.id, g.created_at
       FROM games g
-      WHERE g.is_complete = 1
+      WHERE g.is_complete = 1 AND g.user_id = ?
       ORDER BY g.created_at DESC
-    `).all() as any[];
+    `).all(userId) as any[];
 
     // 统计每个玩家在场时我的胜率
     const playerStatsMap: Record<string, { wins: number; total: number; winRate: number; playerName: string }> = {};
@@ -449,21 +475,22 @@ router.get('/player-performance', (req, res) => {
 });
 
 // 获取三个玩家组合和我一起时的胜率统计
-router.get('/triple-combination', (req, res) => {
+router.get('/triple-combination', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     // 获取"我"的玩家ID
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
-      return res.status(404).json({ error: '当前用户未找到' });
+      return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
     }
 
-    // 获取所有四人局（is_complete = 1）的对局
+    // 获取所有四人局（is_complete = 1）的对局（只查询当前用户的）
     const games = db.prepare(`
       SELECT g.id, g.created_at
       FROM games g
-      WHERE g.is_complete = 1
+      WHERE g.is_complete = 1 AND g.user_id = ?
       ORDER BY g.created_at DESC
-    `).all() as any[];
+    `).all(userId) as any[];
 
     // 统计每个三个玩家组合的胜率
     const combinationStatsMap: Record<string, { wins: number; total: number; playerNames: string[] }> = {};
@@ -534,12 +561,21 @@ router.get('/triple-combination', (req, res) => {
 });
 
 // 根据下午分数统计晚上胜率
-router.get('/afternoon-evening-correlation', (req, res) => {
+router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const { locationId, score, scoreType } = req.query;
     
     if (!locationId || score === undefined) {
       return res.status(400).json({ error: 'locationId 和 score 参数必填' });
+    }
+    
+    // 验证地点是否属于当前用户
+    const location = db.prepare(`
+      SELECT id FROM locations WHERE id = ? AND user_id = ?
+    `).get(locationId, userId) as any;
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found' });
     }
     
     const scoreValue = parseInt(score as string);
@@ -548,12 +584,12 @@ router.get('/afternoon-evening-correlation', (req, res) => {
     const threshold = Math.abs(scoreValue);
     
     // 获取"我"的玩家ID
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
-      return res.status(404).json({ error: '当前用户未找到' });
+      return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
     }
     
-    // 获取指定地点的所有对局（只统计"我"的记录）
+    // 获取指定地点的所有对局（只统计"我"的记录，只查询当前用户的游戏）
     const allRecords = db.prepare(`
       SELECT 
         pr.score,
@@ -564,10 +600,11 @@ router.get('/afternoon-evening-correlation', (req, res) => {
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ?
+        AND g.user_id = ?
         AND g.location_id = ?
         AND pr.score IS NOT NULL
       ORDER BY g.created_at ASC
-    `).all(mePlayer.id, locationId) as any[];
+    `).all(mePlayer.id, userId, locationId) as any[];
     
     // 按日期分组（同一天可能有多个下午场和晚上场）
     const gamesByDate: Record<string, { afternoon: any[]; evening: any[] }> = {};

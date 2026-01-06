@@ -127,7 +127,7 @@ function getUserGameStats(userId: string, baseDate: Date, count: number = 7) {
     console.log(`📅 基准日期: ${baseDate.toISOString().split('T')[0]}`);
     console.log(`📊 每个时间段取最近: ${count}场`);
 
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1').get() as any;
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
       console.log('❌ 未找到"我"的玩家记录');
       return null;
@@ -145,10 +145,11 @@ function getUserGameStats(userId: string, baseDate: Date, count: number = 7) {
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ? 
+        AND g.user_id = ?
         AND g.created_at < ?
         AND pr.chips IS NOT NULL
       ORDER BY g.created_at DESC
-    `).all(mePlayer.id, endDate.toISOString()) as any[];
+    `).all(mePlayer.id, userId, endDate.toISOString()) as any[];
 
     console.log(`📋 查询到的总记录数: ${allRecords.length}`);
 

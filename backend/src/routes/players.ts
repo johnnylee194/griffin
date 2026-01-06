@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import db, { generateId } from '../database';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+
+// 所有路由都需要认证
+router.use(authMiddleware);
 
 // 辅助函数：获取中国本地时间（UTC+8）的ISO字符串（不带时区标识，精确到秒）
 function getLocalTimestamp(): string {
@@ -21,9 +25,10 @@ function getLocalTimestamp(): string {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
 
-// 获取所有玩家
-router.get('/', (req, res) => {
+// 获取所有玩家（当前用户的）
+router.get('/', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const players = db.prepare(`
       SELECT 
         id,
@@ -33,8 +38,9 @@ router.get('/', (req, res) => {
         created_at as createdAt,
         updated_at as updatedAt
       FROM players
+      WHERE user_id = ?
       ORDER BY is_me DESC, updated_at DESC
-    `).all() as any[];
+    `).all(userId) as any[];
     
     res.json(players.map((p: any) => ({
       ...p,
@@ -47,8 +53,12 @@ router.get('/', (req, res) => {
 });
 
 // 获取单个玩家（包含其游戏记录）
-router.get('/:id', (req, res) => {
+router.get('/:id', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // 验证玩家是否属于当前用户
     const player = db.prepare(`
       SELECT 
         id,
@@ -58,14 +68,14 @@ router.get('/:id', (req, res) => {
         created_at as createdAt,
         updated_at as updatedAt
       FROM players
-      WHERE id = ?
-    `).get(req.params.id) as any;
+      WHERE id = ? AND user_id = ?
+    `).get(id, userId) as any;
 
     if (!player) {
       return res.status(404).json({ error: 'Player not found' });
     }
 
-    // 获取玩家的游戏记录
+    // 获取玩家的游戏记录（只查询当前用户的游戏）
     const records = db.prepare(`
       SELECT 
         pr.id,
@@ -75,15 +85,16 @@ router.get('/:id', (req, res) => {
         pr.chips,
         pr.created_at as createdAt,
         g.location_id as locationId,
-        g.chip_rate as chipRate,
+        lcr.chip_rate as chipRate,
         g.is_complete as isComplete,
         g.note,
         g.created_at as gameCreatedAt
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ?
+      LEFT JOIN location_chip_rates lcr ON g.chip_rate_id = lcr.id
+      WHERE pr.player_id = ? AND g.user_id = ?
       ORDER BY g.created_at DESC
-    `).all(req.params.id) as any[];
+    `).all(id, userId) as any[];
 
     res.json({
       ...player,
@@ -100,28 +111,29 @@ router.get('/:id', (req, res) => {
 });
 
 // 创建玩家
-router.post('/', (req, res) => {
+router.post('/', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
     const { name, avatar, isMe } = req.body;
     
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    // 如果是创建本人，先将其他玩家的isMe设为false
+    // 如果是创建本人，先将其他玩家的isMe设为false（同一用户下）
     if (isMe) {
       db.prepare(`
-        UPDATE players SET is_me = 0 WHERE is_me = 1
-      `).run();
+        UPDATE players SET is_me = 0 WHERE is_me = 1 AND user_id = ?
+      `).run(userId);
     }
 
     const id = generateId();
     const now = getLocalTimestamp();
     
     db.prepare(`
-      INSERT INTO players (id, name, avatar, is_me, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, name, avatar || null, isMe ? 1 : 0, now, now);
+      INSERT INTO players (id, user_id, name, avatar, is_me, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, userId, name, avatar || null, isMe ? 1 : 0, now, now);
 
     const player = db.prepare(`
       SELECT 
@@ -146,15 +158,26 @@ router.post('/', (req, res) => {
 });
 
 // 更新玩家
-router.put('/:id', (req, res) => {
+router.put('/:id', (req: AuthRequest, res) => {
   try {
+    const userId = req.user!.id;
+    const { id } = req.params;
     const { name, avatar, isMe } = req.body;
     
-    // 如果要设置为本人，先将其他玩家的isMe设为false
+    // 验证玩家是否属于当前用户
+    const player = db.prepare(`
+      SELECT id FROM players WHERE id = ? AND user_id = ?
+    `).get(id, userId) as any;
+
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    // 如果要设置为本人，先将其他玩家的isMe设为false（同一用户下）
     if (isMe) {
       db.prepare(`
-        UPDATE players SET is_me = 0 WHERE is_me = 1 AND id != ?
-      `).run(req.params.id);
+        UPDATE players SET is_me = 0 WHERE is_me = 1 AND id != ? AND user_id = ?
+      `).run(id, userId);
     }
 
     const now = getLocalTimestamp();
@@ -177,13 +200,13 @@ router.put('/:id', (req, res) => {
     
     updateFields.push('updated_at = ?');
     values.push(now);
-    values.push(req.params.id);
+    values.push(id);
 
     db.prepare(`
       UPDATE players SET ${updateFields.join(', ')} WHERE id = ?
     `).run(...values);
 
-    const player = db.prepare(`
+    const updated = db.prepare(`
       SELECT 
         id,
         name,
@@ -193,11 +216,11 @@ router.put('/:id', (req, res) => {
         updated_at as updatedAt
       FROM players
       WHERE id = ?
-    `).get(req.params.id) as any;
+    `).get(id) as any;
 
     res.json({
-      ...player,
-      isMe: Boolean(player.isMe)
+      ...updated,
+      isMe: Boolean(updated.isMe)
     });
   } catch (error) {
     console.error('Failed to update player:', error);
@@ -206,9 +229,35 @@ router.put('/:id', (req, res) => {
 });
 
 // 删除玩家
-router.delete('/:id', (req, res) => {
+router.delete('/:id', (req: AuthRequest, res) => {
   try {
-    const result = db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    // 验证玩家是否属于当前用户
+    const player = db.prepare(`
+      SELECT id FROM players WHERE id = ? AND user_id = ?
+    `).get(id, userId) as any;
+
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    // 检查是否有对局记录
+    const recordsCount = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ? AND g.user_id = ?
+    `).get(id, userId) as { count: number };
+
+    if (recordsCount.count > 0) {
+      return res.status(400).json({ 
+        error: `Cannot delete player: ${recordsCount.count} game record(s) exist` 
+      });
+    }
+
+    const result = db.prepare('DELETE FROM players WHERE id = ? AND user_id = ?').run(id, userId);
     
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Player not found' });

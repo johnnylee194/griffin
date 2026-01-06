@@ -68,41 +68,166 @@ export const initDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_horoscope_user_date ON horoscope_cache(user_id, date);
   `);
 
-  // 创建玩家表
+  // 创建玩家表（添加user_id）
   db.exec(`
     CREATE TABLE IF NOT EXISTS players (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
       name TEXT NOT NULL,
       avatar TEXT,
       is_me INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
-  // 创建地点表
+  // 迁移现有数据：添加user_id字段到players表
+  try {
+    db.exec(`ALTER TABLE players ADD COLUMN user_id TEXT`);
+    console.log('✅ Added user_id column to players table');
+    // 注意：现有数据需要手动分配user_id，这里不自动分配
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add user_id column to players table:', error.message);
+    }
+  }
+
+  // 创建地点表（添加user_id，移除UNIQUE约束）
   db.exec(`
     CREATE TABLE IF NOT EXISTS locations (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
       is_default INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(user_id, name)
     )
   `);
 
-  // 创建对局表
+  // 迁移现有数据：添加user_id字段到locations表
+  try {
+    db.exec(`ALTER TABLE locations ADD COLUMN user_id TEXT`);
+    console.log('✅ Added user_id column to locations table');
+    // 注意：现有数据需要手动分配user_id，这里不自动分配
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add user_id column to locations table:', error.message);
+    }
+  }
+
+  // 创建地点chip_rate规则表（一个地点可以有多个chip_rate）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS location_chip_rates (
+      id TEXT PRIMARY KEY,
+      location_id TEXT NOT NULL,
+      chip_rate INTEGER NOT NULL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE,
+      UNIQUE(location_id, chip_rate)
+    )
+  `);
+
+  // 创建对局表（添加user_id，移除chip_rate字段）
   db.exec(`
     CREATE TABLE IF NOT EXISTS games (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
       location_id TEXT NOT NULL,
-      chip_rate INTEGER NOT NULL DEFAULT 100,
+      chip_rate_id TEXT,
       is_complete INTEGER NOT NULL DEFAULT 0,
       note TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (location_id) REFERENCES locations(id)
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (location_id) REFERENCES locations(id),
+      FOREIGN KEY (chip_rate_id) REFERENCES location_chip_rates(id)
     )
   `);
+
+  // 迁移现有数据：添加user_id字段到games表
+  try {
+    db.exec(`ALTER TABLE games ADD COLUMN user_id TEXT`);
+    console.log('✅ Added user_id column to games table');
+    // 注意：现有数据需要手动分配user_id，这里不自动分配
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add user_id column to games table:', error.message);
+    }
+  }
+
+  // 迁移现有数据：添加chip_rate_id字段到games表
+  try {
+    db.exec(`ALTER TABLE games ADD COLUMN chip_rate_id TEXT`);
+    console.log('✅ Added chip_rate_id column to games table');
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add chip_rate_id column to games table:', error.message);
+    }
+  }
+
+  // 迁移现有数据：从games表移除chip_rate字段（需要重建表）
+  try {
+    // 检查games表是否还有chip_rate字段
+    const tableInfo = db.prepare("PRAGMA table_info(games)").all() as any[];
+    const hasChipRate = tableInfo.some((col: any) => col.name === 'chip_rate');
+    
+    if (hasChipRate) {
+      // 有chip_rate字段，需要迁移数据到location_chip_rates表
+      console.log('🔄 Migrating chip_rate from games to location_chip_rates...');
+      
+      // 获取所有唯一的location_id和chip_rate组合
+      const gameChipRates = db.prepare(`
+        SELECT DISTINCT location_id, chip_rate 
+        FROM games 
+        WHERE chip_rate IS NOT NULL
+      `).all() as any[];
+      
+      // 为每个组合创建location_chip_rate记录
+      for (const { location_id, chip_rate } of gameChipRates) {
+        // 检查是否已存在
+        const existing = db.prepare(`
+          SELECT id FROM location_chip_rates 
+          WHERE location_id = ? AND chip_rate = ?
+        `).get(location_id, chip_rate);
+        
+        if (!existing) {
+          const chipRateId = generateId();
+          db.prepare(`
+            INSERT INTO location_chip_rates (id, location_id, chip_rate, is_default, created_at)
+            VALUES (?, ?, ?, 1, datetime('now'))
+          `).run(chipRateId, location_id, chip_rate);
+        }
+      }
+      
+      // 更新games表的chip_rate_id
+      const gamesWithChipRate = db.prepare(`
+        SELECT id, location_id, chip_rate 
+        FROM games 
+        WHERE chip_rate IS NOT NULL
+      `).all() as any[];
+      
+      for (const game of gamesWithChipRate) {
+        const chipRate = db.prepare(`
+          SELECT id FROM location_chip_rates 
+          WHERE location_id = ? AND chip_rate = ?
+        `).get(game.location_id, game.chip_rate) as any;
+        
+        if (chipRate) {
+          db.prepare(`
+            UPDATE games SET chip_rate_id = ? WHERE id = ?
+          `).run(chipRate.id, game.id);
+        }
+      }
+      
+      console.log('✅ Migrated chip_rate data to location_chip_rates table');
+    }
+  } catch (error: any) {
+    console.warn('⚠️ Could not migrate chip_rate:', error.message);
+  }
 
   // 创建玩家记录表（score和chips可为NULL，用于不计分的玩家）
   db.exec(`
@@ -121,8 +246,12 @@ export const initDatabase = () => {
 
   // 创建索引
   db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_players_user ON players(user_id);
+    CREATE INDEX IF NOT EXISTS idx_locations_user ON locations(user_id);
+    CREATE INDEX IF NOT EXISTS idx_games_user ON games(user_id);
     CREATE INDEX IF NOT EXISTS idx_games_location ON games(location_id);
     CREATE INDEX IF NOT EXISTS idx_games_created ON games(created_at);
+    CREATE INDEX IF NOT EXISTS idx_location_chip_rates_location ON location_chip_rates(location_id);
     CREATE INDEX IF NOT EXISTS idx_records_game ON player_records(game_id);
     CREATE INDEX IF NOT EXISTS idx_records_player ON player_records(player_id);
   `);
@@ -182,38 +311,15 @@ export const initDatabase = () => {
   console.log('✅ Database initialized successfully');
 };
 
-// 初始化默认数据
+// 初始化默认数据（已废弃，用户登录后需要自己创建数据）
 export const seedDefaultData = () => {
   // 注意：用户创建请使用 scripts/add-user.js 脚本
   // 使用方法: node scripts/add-user.js <username> <password> [name]
-
-  // 检查是否已有数据
-  const locationCount = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
-  
-  if (locationCount.count === 0) {
-    // 创建默认地点
-    const locationId = generateId();
-    db.prepare(`
-      INSERT INTO locations (id, name, is_default, created_at)
-      VALUES (?, ?, 1, datetime('now'))
-    `).run(locationId, '紫竹郡');
-    
-    console.log('✅ Default location "紫竹郡" created');
-  }
-
-  // 检查是否已有"我"这个玩家
-  const meCount = db.prepare('SELECT COUNT(*) as count FROM players WHERE is_me = 1').get() as { count: number };
-  
-  if (meCount.count === 0) {
-    // 创建"我"
-    const playerId = generateId();
-    db.prepare(`
-      INSERT INTO players (id, name, is_me, created_at, updated_at)
-      VALUES (?, ?, 1, datetime('now'), datetime('now'))
-    `).run(playerId, '我');
-    
-    console.log('✅ Default player "我" created');
-  }
+  // 
+  // 用户登录后需要自己创建：
+  // - 玩家（包括"我"）
+  // - 地点
+  // - 地点的chip_rate规则
 };
 
 export default db;
