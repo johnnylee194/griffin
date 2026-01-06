@@ -226,15 +226,18 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* 回到本月按钮（当不在本月时显示） */}
-              {!isCurrentMonth() && (
-                <button
-                  onClick={handleCurrentMonth}
-                  className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded border border-primary bg-primary text-white hover:bg-primary/90 transition-colors"
-                >
-                  回到本月
-                </button>
-              )}
+              {/* 回到本月按钮（始终显示，本月时禁用） */}
+              <button
+                onClick={handleCurrentMonth}
+                disabled={isCurrentMonth()}
+                className={`text-xs sm:text-sm px-2 sm:px-3 py-1.5 sm:py-2 rounded border transition-colors ${
+                  isCurrentMonth()
+                    ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'border-primary bg-primary text-white hover:bg-primary/90'
+                }`}
+              >
+                回到本月
+              </button>
 
               {/* 地点选择器 */}
               {monthlyStats.availableLocations && monthlyStats.availableLocations.length > 0 && (
