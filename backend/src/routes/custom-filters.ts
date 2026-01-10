@@ -354,11 +354,15 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
         maxLossScore,
         maxWinChips,
         maxLossChips,
+        maxDayWinScore: 0,
+        maxDayLossScore: 0,
+        maxDayWinChips: 0,
+        maxDayLossChips: 0,
       };
     };
 
     // 总体统计
-    const overall = calculateStats(gameDetails);
+    const overall: any = calculateStats(gameDetails);
 
     // 分时段统计
     const afternoonGames = gameDetails.filter(g => g.timeSlot === 'afternoon');
