@@ -14,7 +14,9 @@
     "react-router-dom": "^6.21.1",
     "axios": "^1.6.2",
     "date-fns": "^3.0.6",
-    "recharts": "^2.10.3"
+    "recharts": "^2.10.3",
+    "chart.js": "^4.4.1",
+    "react-chartjs-2": "^5.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.45",
