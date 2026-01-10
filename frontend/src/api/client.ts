@@ -243,6 +243,19 @@ export interface FilterStats {
     eveningGames: number;
   }>;
   hasOtherTimeGames: boolean;
+  games: Array<{
+    id: string;
+    createdAt: string;
+    location: { id: string; name: string };
+    chipRate: number;
+    records: Array<{
+      id: string;
+      playerId: string;
+      score: number | null;
+      chips: number | null;
+      player: { name: string; isMe: boolean };
+    }>;
+  }>;
 }
 
 export const customFiltersApi = {

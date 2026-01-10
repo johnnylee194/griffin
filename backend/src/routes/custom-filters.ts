@@ -289,6 +289,7 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
         },
         dailyStats: [],
         hasOtherTimeGames: false,
+        games: [],
       });
     }
 
@@ -415,12 +416,48 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
     overall.maxDayWinChips = dailyChips.length > 0 ? Math.max(...dailyChips.filter(c => c > 0)) : 0;
     overall.maxDayLossChips = dailyChips.length > 0 ? Math.min(...dailyChips.filter(c => c < 0)) : 0;
 
+    // 构建对局列表（包含完整信息）
+    const gamesWithDetails = games.map(game => {
+      // 获取地点信息
+      const location = db.prepare('SELECT id, name FROM locations WHERE id = ?').get(game.location_id) as any;
+      
+      // 获取chip_rate信息
+      const chipRateInfo = db.prepare('SELECT chip_rate FROM location_chip_rates WHERE id = ?').get(game.chip_rate_id) as any;
+      
+      // 获取所有玩家记录
+      const records = db.prepare(`
+        SELECT pr.id, pr.player_id, pr.score, pr.chips, p.name as player_name, p.is_me
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id = ?
+        ORDER BY p.is_me DESC
+      `).all(game.id) as any[];
+
+      return {
+        id: game.id,
+        createdAt: game.created_at,
+        location: location || { id: game.location_id, name: '未知' },
+        chipRate: chipRateInfo?.chip_rate || 0,
+        records: records.map(r => ({
+          id: r.id,
+          playerId: r.player_id,
+          score: r.score,
+          chips: r.chips,
+          player: {
+            name: r.player_name,
+            isMe: r.is_me === 1,
+          },
+        })),
+      };
+    });
+
     res.json({
       overall,
       afternoon,
       evening,
       dailyStats,
       hasOtherTimeGames,
+      games: gamesWithDetails,
     });
   } catch (error) {
     console.error('Error calculating filter stats:', error);

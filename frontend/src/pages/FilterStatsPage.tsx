@@ -440,6 +440,126 @@ export const FilterStatsPage: React.FC = () => {
           </div>
         )}
 
+        {/* 对局列表 */}
+        {stats.games && stats.games.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <h3 className="text-sm font-medium text-gray-600 mb-4">对局列表</h3>
+            <div className="space-y-3">
+              {/* 按日期分组 */}
+              {(() => {
+                const grouped: { [date: string]: typeof stats.games } = {};
+                stats.games.forEach(game => {
+                  const date = game.createdAt.split(' ')[0];
+                  if (!grouped[date]) {
+                    grouped[date] = [];
+                  }
+                  grouped[date].push(game);
+                });
+
+                const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+                return sortedDates.map(date => {
+                  const dateGames = grouped[date];
+                  const dateObj = new Date(date);
+                  const displayDate = `${dateObj.getFullYear()}年${String(dateObj.getMonth() + 1).padStart(2, '0')}月${String(dateObj.getDate()).padStart(2, '0')}日`;
+
+                  // 计算当日统计
+                  let totalScore = 0;
+                  let afternoonScore = 0;
+                  let eveningScore = 0;
+                  dateGames.forEach(game => {
+                    const myRecord = game.records.find(r => r.player.isMe);
+                    if (myRecord && myRecord.chips !== null) {
+                      const hour = new Date(game.createdAt).getHours();
+                      totalScore += myRecord.chips;
+                      if (hour >= 12 && hour < 19) {
+                        afternoonScore += myRecord.chips;
+                      } else if (hour >= 19 && hour < 24) {
+                        eveningScore += myRecord.chips;
+                      }
+                    }
+                  });
+
+                  return (
+                    <div key={date} className="bg-gray-50 rounded-lg p-3">
+                      {/* 日期统计 */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-4">
+                          <span className="text-sm font-semibold text-text">{displayDate}</span>
+                          <div className="flex items-center space-x-4 text-xs text-gray-500">
+                            <span>
+                              总计<span className={`ml-1 font-bold ${totalScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {totalScore >= 0 ? '+' : ''}{totalScore}
+                              </span>
+                            </span>
+                            <span>
+                              下午<span className={`ml-1 font-bold ${afternoonScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {afternoonScore >= 0 ? '+' : ''}{afternoonScore}
+                              </span>
+                            </span>
+                            <span>
+                              晚上<span className={`ml-1 font-bold ${eveningScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {eveningScore >= 0 ? '+' : ''}{eveningScore}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500">{dateGames.length} 局</div>
+                      </div>
+
+                      {/* 对局列表 */}
+                      <div className="space-y-2 border-t border-gray-200 pt-2">
+                        {dateGames.map(game => {
+                          const dateTime = new Date(game.createdAt);
+                          const timeStr = dateTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+                          return (
+                            <div key={game.id} className="bg-white rounded-lg p-2">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-xs text-gray-500">
+                                    {game.location.name} · {game.chipRate}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {String(dateTime.getMonth() + 1).padStart(2, '0')}/{String(dateTime.getDate()).padStart(2, '0')} {timeStr}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {game.records.map(record => {
+                                  if (record.chips === null) {
+                                    return (
+                                      <div key={record.id} className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-500">{record.player.name}</span>
+                                        <span className="text-gray-400">-</span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div key={record.id} className="flex items-center justify-between text-xs">
+                                      <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-gray-700'}>
+                                        {record.player.name}
+                                      </span>
+                                      <span className={record.chips >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                        {record.chips >= 0 ? '+' : ''}{record.chips}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        )}
+
         {/* 无数据提示 */}
         {stats.overall.totalGames === 0 && (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
