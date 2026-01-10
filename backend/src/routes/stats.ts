@@ -449,6 +449,30 @@ router.get('/player-performance', (req: AuthRequest, res) => {
       }
     }
 
+    // 计算每个玩家的总盈亏
+    const playerChipsMap: Record<string, { totalScore: number; totalChips: number }> = {};
+    for (const game of games) {
+      const records = db.prepare(`
+        SELECT pr.player_id, pr.chips, pr.score, p.is_me
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id = ?
+      `).all(game.id) as any[];
+
+      const myRecord = records.find(r => r.is_me === 1);
+      if (!myRecord) continue;
+
+      for (const record of records) {
+        if (record.is_me === 1) continue;
+        const playerId = record.player_id;
+        if (!playerChipsMap[playerId]) {
+          playerChipsMap[playerId] = { totalScore: 0, totalChips: 0 };
+        }
+        playerChipsMap[playerId].totalScore += myRecord.score || 0;
+        playerChipsMap[playerId].totalChips += myRecord.chips || 0;
+      }
+    }
+
     // 计算胜率并转换为数组
     const playerStats = Object.entries(playerStatsMap)
       .map(([playerId, stats]) => ({
@@ -457,13 +481,14 @@ router.get('/player-performance', (req: AuthRequest, res) => {
         totalGames: stats.total,
         wins: stats.wins,
         losses: stats.total - stats.wins,
-        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0
+        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0,
+        totalScore: playerChipsMap[playerId]?.totalScore || 0,
+        totalChips: playerChipsMap[playerId]?.totalChips || 0,
+        avgScorePerGame: stats.total > 0 ? Math.round((playerChipsMap[playerId]?.totalScore || 0) / stats.total) : 0,
+        avgChipsPerGame: stats.total > 0 ? Math.round((playerChipsMap[playerId]?.totalChips || 0) / stats.total) : 0,
       }))
       .sort((a, b) => {
-        // 先按胜率排序（胜率高的优先），胜率相同则按总场次排序
-        if (b.winRate !== a.winRate) {
-          return b.winRate - a.winRate;
-        }
+        // 按总场次排序（场次多的优先）
         return b.totalGames - a.totalGames;
       });
 
@@ -471,6 +496,105 @@ router.get('/player-performance', (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Failed to fetch player performance stats:', error);
     res.status(500).json({ error: 'Failed to fetch player performance stats' });
+  }
+});
+
+// 获取两个玩家组合和我一起时的胜率统计
+router.get('/double-combination', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
+    }
+
+    // 获取所有对局（只查询当前用户的）
+    const games = db.prepare(`
+      SELECT g.id, g.created_at
+      FROM games g
+      WHERE g.is_complete = 1 AND g.user_id = ?
+      ORDER BY g.created_at DESC
+    `).all(userId) as any[];
+
+    // 统计每个两个玩家组合的胜率
+    const combinationStatsMap: Record<string, { wins: number; total: number; playerNames: string[]; totalScore: number; totalChips: number }> = {};
+
+    for (const game of games) {
+      // 获取该对局的所有玩家记录
+      const records = db.prepare(`
+        SELECT pr.player_id, pr.chips, pr.score, p.name, p.is_me
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id = ?
+      `).all(game.id) as any[];
+
+      // 获取我的记录（判断是否赢）
+      const myRecord = records.find(r => r.is_me === 1);
+      if (!myRecord) continue;
+
+      const isWin = myRecord.chips > 0;
+
+      // 获取其他玩家（排除我）
+      const otherPlayers = records
+        .filter(r => r.is_me !== 1)
+        .map(r => ({ id: r.player_id, name: r.name }));
+
+      if (otherPlayers.length < 2) continue; // 至少要有2个其他玩家
+
+      // 生成所有两人组合
+      for (let i = 0; i < otherPlayers.length; i++) {
+        for (let j = i + 1; j < otherPlayers.length; j++) {
+          const player1 = otherPlayers[i];
+          const player2 = otherPlayers[j];
+          
+          // 生成组合key（按player_id排序，确保组合唯一）
+          const playerIds = [player1.id, player2.id].sort();
+          const combinationKey = playerIds.join(',');
+
+          if (!combinationStatsMap[combinationKey]) {
+            combinationStatsMap[combinationKey] = {
+              wins: 0,
+              total: 0,
+              playerNames: [player1.name, player2.name].sort(),
+              totalScore: 0,
+              totalChips: 0,
+            };
+          }
+
+          combinationStatsMap[combinationKey].total++;
+          combinationStatsMap[combinationKey].totalScore += myRecord.score || 0;
+          combinationStatsMap[combinationKey].totalChips += myRecord.chips || 0;
+          if (isWin) {
+            combinationStatsMap[combinationKey].wins++;
+          }
+        }
+      }
+    }
+
+    // 计算胜率并转换为数组
+    const combinationStats = Object.entries(combinationStatsMap)
+      .map(([key, stats]) => ({
+        playerIds: key.split(','),
+        playerNames: stats.playerNames,
+        totalGames: stats.total,
+        wins: stats.wins,
+        losses: stats.total - stats.wins,
+        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0,
+        totalScore: stats.totalScore,
+        totalChips: stats.totalChips,
+        avgScorePerGame: stats.total > 0 ? Math.round(stats.totalScore / stats.total) : 0,
+        avgChipsPerGame: stats.total > 0 ? Math.round(stats.totalChips / stats.total) : 0,
+      }))
+      .sort((a, b) => {
+        // 按总场次排序（场次多的优先）
+        return b.totalGames - a.totalGames;
+      });
+
+    res.json(combinationStats);
+  } catch (error) {
+    console.error('Failed to fetch double combination stats:', error);
+    res.status(500).json({ error: 'Failed to fetch double combination stats' });
   }
 });
 
@@ -493,12 +617,12 @@ router.get('/triple-combination', (req: AuthRequest, res) => {
     `).all(userId) as any[];
 
     // 统计每个三个玩家组合的胜率
-    const combinationStatsMap: Record<string, { wins: number; total: number; playerNames: string[] }> = {};
+    const combinationStatsMap: Record<string, { wins: number; total: number; playerNames: string[]; totalScore: number; totalChips: number }> = {};
 
     for (const game of games) {
       // 获取该对局的所有玩家记录
       const records = db.prepare(`
-        SELECT pr.player_id, pr.chips, p.name, p.is_me
+        SELECT pr.player_id, pr.chips, pr.score, p.name, p.is_me
         FROM player_records pr
         JOIN players p ON pr.player_id = p.id
         WHERE pr.game_id = ?
@@ -515,7 +639,7 @@ router.get('/triple-combination', (req: AuthRequest, res) => {
         .filter(r => r.is_me !== 1)
         .map(r => ({ id: r.player_id, name: r.name }));
 
-      if (otherPlayers.length !== 3) continue; // 必须是3个其他玩家
+      if (otherPlayers.length !== 3) continue; // 必须是恰好3个其他玩家（总共4人）
 
       // 生成组合key（按player_id排序，确保组合唯一）
       const playerIds = otherPlayers.map(p => p.id).sort();
@@ -525,11 +649,15 @@ router.get('/triple-combination', (req: AuthRequest, res) => {
         combinationStatsMap[combinationKey] = {
           wins: 0,
           total: 0,
-          playerNames: otherPlayers.map(p => p.name).sort()
+          playerNames: otherPlayers.map(p => p.name).sort(),
+          totalScore: 0,
+          totalChips: 0,
         };
       }
 
       combinationStatsMap[combinationKey].total++;
+      combinationStatsMap[combinationKey].totalScore += myRecord.score || 0;
+      combinationStatsMap[combinationKey].totalChips += myRecord.chips || 0;
       if (isWin) {
         combinationStatsMap[combinationKey].wins++;
       }
@@ -543,13 +671,14 @@ router.get('/triple-combination', (req: AuthRequest, res) => {
         totalGames: stats.total,
         wins: stats.wins,
         losses: stats.total - stats.wins,
-        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0
+        winRate: stats.total > 0 ? Math.round((stats.wins / stats.total) * 100) : 0,
+        totalScore: stats.totalScore,
+        totalChips: stats.totalChips,
+        avgScorePerGame: stats.total > 0 ? Math.round(stats.totalScore / stats.total) : 0,
+        avgChipsPerGame: stats.total > 0 ? Math.round(stats.totalChips / stats.total) : 0,
       }))
       .sort((a, b) => {
-        // 先按胜率排序（胜率高的优先），胜率相同则按总场次排序
-        if (b.winRate !== a.winRate) {
-          return b.winRate - a.winRate;
-        }
+        // 按总场次排序（场次多的优先）
         return b.totalGames - a.totalGames;
       });
 
