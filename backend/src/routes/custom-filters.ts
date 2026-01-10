@@ -302,7 +302,8 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
         WHERE pr.game_id = ? AND pr.player_id = ?
       `).get(game.chip_rate_id, game.id, mePlayer.id) as any;
 
-      const hour = new Date(game.created_at).getHours();
+      const gameDate = new Date(game.created_at);
+      const hour = gameDate.getHours();
       let timeSlot = 'other';
       if (hour >= 12 && hour < 19) {
         timeSlot = 'afternoon';
@@ -310,12 +311,18 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
         timeSlot = 'evening';
       }
 
+      // 确保日期格式为 YYYY-MM-DD
+      const year = gameDate.getFullYear();
+      const month = String(gameDate.getMonth() + 1).padStart(2, '0');
+      const day = String(gameDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
       return {
         ...game,
         score: myRecord?.score || 0,
         chips: myRecord?.chips || 0,
         chipRate: myRecord?.chip_rate || 0,
-        date: game.created_at.split(' ')[0],
+        date: dateStr,
         timeSlot,
       };
     });
