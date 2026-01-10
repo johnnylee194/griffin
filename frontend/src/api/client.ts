@@ -170,3 +170,99 @@ export const horoscopeApi = {
   refresh: (date?: string) => apiClient.post(`/horoscope/refresh${date ? `/${date}` : ''}`),
 };
 
+// 自定义筛选器类型定义
+export interface CustomFilter {
+  id: string;
+  userId: string;
+  name: string;
+  startDate?: string;
+  endDate?: string; // 可以是日期字符串或 "TODAY"
+  locationIds: string[];
+  playerIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FilterStats {
+  overall: {
+    totalGames: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalScore: number;
+    totalChips: number;
+    avgScorePerGame: number;
+    avgChipsPerGame: number;
+    maxWinScore: number;
+    maxLossScore: number;
+    maxWinChips: number;
+    maxLossChips: number;
+    maxDayWinScore: number;
+    maxDayLossScore: number;
+    maxDayWinChips: number;
+    maxDayLossChips: number;
+  };
+  afternoon: {
+    totalGames: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalScore: number;
+    totalChips: number;
+    avgScorePerGame: number;
+    avgChipsPerGame: number;
+    maxWinScore: number;
+    maxLossScore: number;
+    maxWinChips: number;
+    maxLossChips: number;
+  };
+  evening: {
+    totalGames: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalScore: number;
+    totalChips: number;
+    avgScorePerGame: number;
+    avgChipsPerGame: number;
+    maxWinScore: number;
+    maxLossScore: number;
+    maxWinChips: number;
+    maxLossChips: number;
+  };
+  dailyStats: Array<{
+    date: string;
+    totalScore: number;
+    totalChips: number;
+    afternoonScore: number;
+    afternoonChips: number;
+    eveningScore: number;
+    eveningChips: number;
+    totalGames: number;
+    afternoonGames: number;
+    eveningGames: number;
+  }>;
+  hasOtherTimeGames: boolean;
+}
+
+export const customFiltersApi = {
+  getAll: () => apiClient.get<CustomFilter[]>('/custom-filters'),
+  getOne: (id: string) => apiClient.get<CustomFilter>(`/custom-filters/${id}`),
+  create: (data: {
+    name: string;
+    startDate?: string;
+    endDate?: string;
+    locationIds?: string[];
+    playerIds?: string[];
+  }) => apiClient.post<CustomFilter>('/custom-filters', data),
+  update: (id: string, data: {
+    name: string;
+    startDate?: string;
+    endDate?: string;
+    locationIds?: string[];
+    playerIds?: string[];
+  }) => apiClient.put<CustomFilter>(`/custom-filters/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/custom-filters/${id}`),
+  getStats: (id: string) => apiClient.post<FilterStats>(`/custom-filters/${id}/stats`),
+};
+

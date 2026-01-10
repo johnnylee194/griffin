@@ -9,6 +9,8 @@ import HistoryPage from './pages/HistoryPage'
 import StatsPage from './pages/StatsPage'
 import SettingsPage from './pages/SettingsPage'
 import HoroscopePage from './pages/HoroscopePage'
+import { FilterConfigPage } from './pages/FilterConfigPage'
+import { FilterStatsPage } from './pages/FilterStatsPage'
 
 // 受保护的路由组件
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -108,6 +110,9 @@ function AppContent() {
           <Route path="/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
           <Route path="/horoscope" element={<ProtectedRoute><HoroscopePage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/filter/new" element={<ProtectedRoute><FilterConfigPage /></ProtectedRoute>} />
+          <Route path="/filter/edit/:id" element={<ProtectedRoute><FilterConfigPage /></ProtectedRoute>} />
+          <Route path="/filter/:id" element={<ProtectedRoute><FilterStatsPage /></ProtectedRoute>} />
         </Routes>
       </main>
 

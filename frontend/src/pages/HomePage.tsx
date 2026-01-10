@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { gamesApi, apiClient, Game } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { FilterListModal } from '../components/FilterListModal'
 
 interface MonthlyStats {
   month: string
@@ -50,6 +51,7 @@ export default function HomePage() {
   const [showCustomMonthPicker, setShowCustomMonthPicker] = useState<boolean>(false)
   const [earliestYear, setEarliestYear] = useState<number | null>(null)
   const [earliestMonth, setEarliestMonth] = useState<number | null>(null)
+  const [showFilterModal, setShowFilterModal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -171,12 +173,20 @@ export default function HomePage() {
             </h2>
             <p className="text-xs sm:text-base text-text-secondary">让我们继续追踪你的胜利</p>
           </div>
-          <button
-            onClick={() => window.location.href = '/settings'}
-            className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
-          >
-            ⚙️ 设置
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowFilterModal(true)}
+              className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
+            >
+              👁️ 视图
+            </button>
+            <button
+              onClick={() => window.location.href = '/settings'}
+              className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
+            >
+              ⚙️ 设置
+            </button>
+          </div>
         </div>
       </div>
 
@@ -479,6 +489,12 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* 筛选器列表 Modal */}
+      <FilterListModal
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+      />
     </div>
   )
 }

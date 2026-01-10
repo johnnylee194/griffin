@@ -244,6 +244,22 @@ export const initDatabase = () => {
     )
   `);
 
+  // 创建自定义筛选器表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS custom_filters (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      start_date TEXT,
+      end_date TEXT,
+      location_ids TEXT,
+      player_ids TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_players_user ON players(user_id);
@@ -254,6 +270,7 @@ export const initDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_location_chip_rates_location ON location_chip_rates(location_id);
     CREATE INDEX IF NOT EXISTS idx_records_game ON player_records(game_id);
     CREATE INDEX IF NOT EXISTS idx_records_player ON player_records(player_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_filters_user ON custom_filters(user_id);
   `);
 
   // 迁移现有数据：移除is_balanced字段（如果存在）
