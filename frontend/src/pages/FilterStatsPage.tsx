@@ -215,7 +215,15 @@ export const FilterStatsPage: React.FC = () => {
       dailyData = dailyData.slice(-chartDays);
     }
 
-    const labels = dailyData.map(d => d.date.substring(5)); // MM-DD
+    // 格式化日期标签为 MM-DD
+    const labels = dailyData.map(d => {
+      const dateStr = typeof d.date === 'string' ? d.date : String(d.date);
+      // 如果是 YYYY-MM-DD 格式，取后5位
+      if (dateStr.includes('-') && dateStr.length >= 10) {
+        return dateStr.substring(5, 10); // MM-DD
+      }
+      return dateStr;
+    });
 
     const valueKey = chartValueType === 'score' ? 'Score' : 'Chips';
 
