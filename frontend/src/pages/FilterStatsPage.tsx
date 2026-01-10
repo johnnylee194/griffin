@@ -122,7 +122,7 @@ export const FilterStatsPage: React.FC = () => {
     return parts.join(' · ');
   };
 
-  const renderStatCard = (title: string, data: any) => {
+  const renderStatCard = (title: string, data: any, showDailyStats: boolean = true) => {
     return (
       <div className="bg-white rounded-lg shadow-sm p-4">
         <h3 className="text-sm font-medium text-gray-600 mb-3">{title}</h3>
@@ -180,7 +180,7 @@ export const FilterStatsPage: React.FC = () => {
               <div className="text-red-600">¥{data.maxLossChips}</div>
             </div>
           </div>
-          {data.maxDayWinScore !== undefined && (
+          {showDailyStats && data.maxDayWinScore !== undefined && (
             <>
               <div>
                 <div className="text-xs text-gray-500">单日最大盈利</div>
@@ -225,22 +225,25 @@ export const FilterStatsPage: React.FC = () => {
         {
           label: `当日${chartValueType === 'score' ? '分数' : '金额'}`,
           data: dailyData.map(d => d[`total${valueKey}`]),
-          borderColor: 'rgb(99, 102, 241)',
-          backgroundColor: 'rgba(99, 102, 241, 0.1)',
+          borderColor: 'rgb(37, 99, 235)', // 深蓝色
+          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+          borderWidth: 3,
           tension: 0.3,
         },
         {
           label: `下午${chartValueType === 'score' ? '分数' : '金额'}`,
           data: dailyData.map(d => d[`afternoon${valueKey}`]),
-          borderColor: 'rgb(251, 146, 60)',
-          backgroundColor: 'rgba(251, 146, 60, 0.1)',
+          borderColor: 'rgb(251, 146, 60)', // 橙色（浅）
+          backgroundColor: 'rgba(251, 146, 60, 0.05)',
+          borderWidth: 2,
           tension: 0.3,
         },
         {
           label: `晚上${chartValueType === 'score' ? '分数' : '金额'}`,
           data: dailyData.map(d => d[`evening${valueKey}`]),
-          borderColor: 'rgb(139, 92, 246)',
-          backgroundColor: 'rgba(139, 92, 246, 0.1)',
+          borderColor: 'rgb(16, 185, 129)', // 绿色（浅）
+          backgroundColor: 'rgba(16, 185, 129, 0.05)',
+          borderWidth: 2,
           tension: 0.3,
         },
       ],
@@ -318,8 +321,8 @@ export const FilterStatsPage: React.FC = () => {
 
         {/* 分时段统计 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderStatCard('下午场 (12:00-19:00)', stats.afternoon)}
-          {renderStatCard('晚上场 (19:00-24:00)', stats.evening)}
+          {renderStatCard('下午场 (12:00-19:00)', stats.afternoon, false)}
+          {renderStatCard('晚上场 (19:00-24:00)', stats.evening, false)}
         </div>
 
         {/* 按日曲线图 */}
