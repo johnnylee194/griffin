@@ -449,7 +449,9 @@ export const FilterStatsPage: React.FC = () => {
               {(() => {
                 const grouped: { [date: string]: typeof stats.games } = {};
                 stats.games.forEach(game => {
-                  const date = game.createdAt.split(' ')[0];
+                  // 确保日期格式正确，只取日期部分
+                  const dateStr = typeof game.createdAt === 'string' ? game.createdAt : String(game.createdAt);
+                  const date = dateStr.includes(' ') ? dateStr.split(' ')[0] : dateStr.split('T')[0];
                   if (!grouped[date]) {
                     grouped[date] = [];
                   }
