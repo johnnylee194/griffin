@@ -21,7 +21,7 @@
 
 这样应用服务器无需直接访问Google API，绕过网络限制。
 
-## 🔧 实现细节
+## 🔧 后端实现
 
 ### 1. 环境变量配置
 
@@ -40,7 +40,7 @@ API_SECRET=your-secret-key-here
 - `API_SECRET` 用于VPS验证请求合法性，防止滥用
 - VPS代理服务器也需要配置相同的 `API_SECRET`
 
-### 2. 后端实现代码
+### 2. 后端代码实现
 
 #### 2.1 环境变量读取
 
@@ -175,11 +175,11 @@ const results = await callGeminiAPIBatch(prompts);
 // results[1] 是第二个prompt的结果
 ```
 
-### 3. VPS代理服务器实现
+## 🔌 VPS代理接口规范
 
-VPS代理服务器需要实现以下接口：
+VPS代理服务器提供以下接口供应用调用：
 
-#### 3.1 单次生成接口
+### 接口1：单次生成
 
 **接口路径：** `POST /api/gemini/generate`
 
@@ -207,7 +207,7 @@ VPS代理服务器需要实现以下接口：
 }
 ```
 
-#### 3.2 批量生成接口
+### 接口2：批量生成
 
 **接口路径：** `POST /api/gemini/generate-batch`
 
@@ -238,106 +238,6 @@ VPS代理服务器需要实现以下接口：
 }
 ```
 
-#### 3.3 VPS代理服务器参考实现（Express）
-
-```javascript
-// VPS服务器端代码示例
-const express = require('express');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-
-const app = express();
-app.use(express.json());
-
-const API_SECRET = process.env.API_SECRET;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-// 验证API密钥中间件
-function verifyApiSecret(req, res, next) {
-  const { apiSecret } = req.body;
-  if (!apiSecret || apiSecret !== API_SECRET) {
-    return res.status(401).json({ success: false, error: 'Unauthorized' });
-  }
-  next();
-}
-
-// 单次生成
-app.post('/api/gemini/generate', verifyApiSecret, async (req, res) => {
-  try {
-    const { prompt } = req.body;
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    
-    res.json({ success: true, text });
-  } catch (error) {
-    console.error('Gemini API Error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// 批量生成
-app.post('/api/gemini/generate-batch', verifyApiSecret, async (req, res) => {
-  try {
-    const { prompts } = req.body;
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-    
-    const results = await Promise.all(
-      prompts.map(async (prompt) => {
-        try {
-          const result = await model.generateContent(prompt);
-          const text = result.response.text();
-          return { success: true, text };
-        } catch (error) {
-          return { success: false, error: error.message };
-        }
-      })
-    );
-    
-    res.json({ success: true, results });
-  } catch (error) {
-    console.error('Gemini API Batch Error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.listen(8080, () => {
-  console.log('VPS Proxy Server running on port 8080');
-});
-```
-
-## 🔐 安全性考虑
-
-### 1. API密钥验证
-
-- 应用服务器和VPS代理服务器之间使用 `API_SECRET` 验证
-- 防止未授权的第三方使用VPS代理服务
-
-### 2. HTTPS加密（生产环境建议）
-
-```bash
-# VPS代理服务器地址使用HTTPS
-VPS_PROXY_URL=https://us-proxy.januslab.cn:443
-```
-
-### 3. IP白名单（可选）
-
-VPS代理服务器可以配置IP白名单，只允许特定IP访问。
-
-### 4. 频率限制（可选）
-
-VPS代理服务器可以实现频率限制，防止滥用：
-```javascript
-const rateLimit = require('express-rate-limit');
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15分钟
-  max: 100 // 最多100个请求
-});
-
-app.use('/api/gemini/', limiter);
-```
-
 ## 📊 超时设置
 
 ### 应用服务器端
@@ -346,14 +246,6 @@ app.use('/api/gemini/', limiter);
 - **批量调用超时：** 180秒（3分钟）
 
 超时时间应根据实际情况调整，Gemini API生成长文本时可能需要更长时间。
-
-### VPS代理服务器端
-
-建议设置合理的超时时间，避免长时间挂起：
-```javascript
-const server = app.listen(8080);
-server.timeout = 180000; // 180秒
-```
 
 ## 🐛 错误处理
 
@@ -427,58 +319,6 @@ db.prepare(`
 `).run(...);
 ```
 
-## 🚀 部署步骤
-
-### 应用服务器（国内/任意）
-
-1. 配置 `.env` 文件：
-```bash
-VPS_PROXY_URL=http://your-vps-ip:8080
-API_SECRET=your-secret-key
-```
-
-2. 部署应用
-
-### VPS代理服务器（海外）
-
-1. 购买海外VPS（如AWS、Google Cloud、DigitalOcean等）
-
-2. 安装Node.js：
-```bash
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-3. 创建代理服务器项目：
-```bash
-mkdir vps-proxy
-cd vps-proxy
-npm init -y
-npm install express @google/generative-ai dotenv cors
-```
-
-4. 创建 `.env` 文件：
-```bash
-API_SECRET=your-secret-key
-GEMINI_API_KEY=your-google-gemini-api-key
-PORT=8080
-```
-
-5. 创建 `index.js`（使用上面的参考实现）
-
-6. 使用PM2启动服务：
-```bash
-npm install -g pm2
-pm2 start index.js --name vps-proxy
-pm2 save
-pm2 startup
-```
-
-7. 配置防火墙开放端口：
-```bash
-sudo ufw allow 8080
-```
-
 ## 📝 总结
 
 ### 优点
@@ -497,9 +337,24 @@ sudo ufw allow 8080
 - 需要稳定的Google API访问
 - 对延迟要求不是特别苛刻（通常增加200-500ms）
 
+## 🚀 接入步骤
+
+### 应用服务器端
+
+1. 配置 `.env` 文件：
+```bash
+VPS_PROXY_URL=http://us-proxy.januslab.cn:8080
+API_SECRET=your-secret-key
+```
+
+2. 在后端代码中添加上述调用函数
+
+3. 使用 `callGeminiAPI()` 或 `callGeminiAPIBatch()` 调用接口
+
+4. 部署应用
+
 ## 📚 参考资料
 
 - [Google Generative AI Node.js SDK](https://github.com/google/generative-ai-js)
 - [Express.js 文档](https://expressjs.com/)
 - [Axios 文档](https://axios-http.com/)
-
