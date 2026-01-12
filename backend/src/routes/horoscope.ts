@@ -8,12 +8,16 @@ import { getLunarDate, formatLunarDate } from '../utils/lunar';
 const router = Router();
 
 // 获取环境变量的函数（延迟读取，确保dotenv已加载）
-function getVpsProxyUrl(): string {
-  return process.env.VPS_PROXY_URL || 'http://us-proxy.januslab.cn:8080';
+function getIrisUrl(): string {
+  return process.env.IRIS_URL || 'http://us-proxy.januslab.cn:8080';
 }
 
-function getApiSecret(): string {
-  return process.env.API_SECRET || '';
+function getIrisClientId(): string {
+  return process.env.IRIS_CLIENT_ID || '';
+}
+
+function getIrisClientSecret(): string {
+  return process.env.IRIS_CLIENT_SECRET || '';
 }
 
 // 延迟初始化：在第一次使用时检查配置
@@ -22,16 +26,21 @@ function checkConfig() {
   if (configChecked) return;
   configChecked = true;
   
-  const VPS_PROXY_URL = getVpsProxyUrl();
-  const API_SECRET = getApiSecret();
+  const IRIS_URL = getIrisUrl();
+  const IRIS_CLIENT_ID = getIrisClientId();
+  const IRIS_CLIENT_SECRET = getIrisClientSecret();
   
   // 验证配置
-  if (!VPS_PROXY_URL.includes(':8080') && !VPS_PROXY_URL.includes(':3000')) {
-    console.warn('⚠️  VPS_PROXY_URL 可能缺少端口号，建议使用 :8080 或 :3000');
+  if (!IRIS_URL.includes(':8080') && !IRIS_URL.includes(':3000')) {
+    console.warn('⚠️  IRIS_URL 可能缺少端口号，建议使用 :8080 或 :3000');
   }
   
-  if (!API_SECRET) {
-    console.warn('⚠️  API_SECRET 未配置，VPS代理服务可能拒绝请求');
+  if (!IRIS_CLIENT_ID) {
+    console.warn('⚠️  IRIS_CLIENT_ID 未配置，Iris 服务可能拒绝请求');
+  }
+  
+  if (!IRIS_CLIENT_SECRET) {
+    console.warn('⚠️  IRIS_CLIENT_SECRET 未配置，Iris 服务可能拒绝请求');
   }
 }
 
@@ -440,17 +449,19 @@ ${gameStats ? `
 }
 
 /**
- * 通过VPS代理调用Gemini API
+ * 通过 Iris Gateway 调用 AI API
  */
 async function callGeminiAPI(prompt: string): Promise<string> {
   checkConfig(); // 确保配置已检查
-  const VPS_PROXY_URL = getVpsProxyUrl();
-  const API_SECRET = getApiSecret();
+  const IRIS_URL = getIrisUrl();
+  const IRIS_CLIENT_ID = getIrisClientId();
+  const IRIS_CLIENT_SECRET = getIrisClientSecret();
   
   try {
-    const response = await axios.post(`${VPS_PROXY_URL}/api/gemini/generate`, {
+    const response = await axios.post(`${IRIS_URL}/api/gemini/generate`, {
       prompt,
-      apiSecret: API_SECRET
+      clientId: IRIS_CLIENT_ID,
+      clientSecret: IRIS_CLIENT_SECRET
     }, {
       timeout: 120000 // 120秒超时（2分钟）
     });
@@ -461,26 +472,28 @@ async function callGeminiAPI(prompt: string): Promise<string> {
       throw new Error(response.data.error || 'Failed to generate content');
     }
   } catch (error: any) {
-    console.error('Gemini API Error:', error);
-    throw new Error(error.response?.data?.error || error.message || 'Failed to call Gemini API');
+    console.error('Iris API Error:', error);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to call Iris API');
   }
 }
 
 /**
- * 批量调用Gemini API（用于同时生成中式和西式运势）
+ * 批量调用 Iris API（用于同时生成中式和西式运势）
  */
 async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
   checkConfig(); // 确保配置已检查
-  const VPS_PROXY_URL = getVpsProxyUrl();
-  const API_SECRET = getApiSecret();
+  const IRIS_URL = getIrisUrl();
+  const IRIS_CLIENT_ID = getIrisClientId();
+  const IRIS_CLIENT_SECRET = getIrisClientSecret();
   
   try {
-    const url = `${VPS_PROXY_URL}/api/gemini/generate-batch`;
-    console.log(`📡 Calling VPS proxy: ${url}`);
+    const url = `${IRIS_URL}/api/gemini/generate-batch`;
+    console.log(`📡 Calling Iris Gateway: ${url}`);
     
     const response = await axios.post(url, {
       prompts,
-      apiSecret: API_SECRET
+      clientId: IRIS_CLIENT_ID,
+      clientSecret: IRIS_CLIENT_SECRET
     }, {
       timeout: 180000, // 180秒超时（3分钟，批量请求需要更长时间）
       maxRedirects: 0, // 禁止自动重定向，避免POST变GET
@@ -496,20 +509,21 @@ async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
       throw new Error(response.data.error || 'Failed to generate content');
     }
   } catch (error: any) {
-    console.error('Gemini API Batch Error:', error);
+    console.error('Iris API Batch Error:', error);
     if (error.response) {
-      console.error(`❌ VPS Proxy Response Status: ${error.response.status}`);
-      console.error(`❌ VPS Proxy Response Data:`, JSON.stringify(error.response.data));
+      console.error(`❌ Iris Gateway Response Status: ${error.response.status}`);
+      console.error(`❌ Iris Gateway Response Data:`, JSON.stringify(error.response.data));
       console.error(`❌ Request URL: ${error.config?.url}`);
       if (error.response.status === 401) {
-        console.error('❌ 401 Unauthorized - API_SECRET 验证失败');
+        console.error('❌ 401 Unauthorized - Client 验证失败');
         console.error('   请检查：');
-        console.error('   1. 后端 .env 文件中的 API_SECRET 是否配置');
-        console.error('   2. VPS 上的 .env 文件中的 API_SECRET 是否配置');
-        console.error('   3. 两个 API_SECRET 值是否完全一致（区分大小写）');
+        console.error('   1. 后端 .env 文件中的 IRIS_CLIENT_ID 是否配置');
+        console.error('   2. 后端 .env 文件中的 IRIS_CLIENT_SECRET 是否配置');
+        console.error('   3. Iris 服务器上该 Client 是否已配置且 enabled');
+        console.error('   4. IRIS_CLIENT_SECRET 值是否完全一致（区分大小写）');
       }
     }
-    throw new Error(error.response?.data?.error || error.message || 'Failed to call Gemini API');
+    throw new Error(error.response?.data?.error || error.message || 'Failed to call Iris API');
   }
 }
 
