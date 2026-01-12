@@ -14,11 +14,17 @@ router.get('/', authMiddleware, (req: AuthRequest, res: Response) => {
       ORDER BY updated_at DESC
     `).all(userId);
 
-    // 解析JSON字段
+    // 解析JSON字段并转换为camelCase
     const parsedFilters = (filters as any[]).map(filter => ({
-      ...filter,
+      id: filter.id,
+      userId: filter.user_id,
+      name: filter.name,
+      startDate: filter.start_date,
+      endDate: filter.end_date,
       locationIds: filter.location_ids ? JSON.parse(filter.location_ids) : [],
       playerIds: filter.player_ids ? JSON.parse(filter.player_ids) : [],
+      createdAt: filter.created_at,
+      updatedAt: filter.updated_at,
     }));
 
     res.json(parsedFilters);
@@ -43,10 +49,17 @@ router.get('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Filter not found' });
     }
 
+    const f = filter as any;
     const parsedFilter = {
-      ...(filter as any),
-      locationIds: (filter as any).location_ids ? JSON.parse((filter as any).location_ids) : [],
-      playerIds: (filter as any).player_ids ? JSON.parse((filter as any).player_ids) : [],
+      id: f.id,
+      userId: f.user_id,
+      name: f.name,
+      startDate: f.start_date,
+      endDate: f.end_date,
+      locationIds: f.location_ids ? JSON.parse(f.location_ids) : [],
+      playerIds: f.player_ids ? JSON.parse(f.player_ids) : [],
+      createdAt: f.created_at,
+      updatedAt: f.updated_at,
     };
 
     res.json(parsedFilter);
@@ -84,10 +97,17 @@ router.post('/', authMiddleware, (req: AuthRequest, res: Response) => {
       SELECT * FROM custom_filters WHERE id = ?
     `).get(id);
 
+    const f = filter as any;
     const parsedFilter = {
-      ...(filter as any),
-      locationIds: (filter as any).location_ids ? JSON.parse((filter as any).location_ids) : [],
-      playerIds: (filter as any).player_ids ? JSON.parse((filter as any).player_ids) : [],
+      id: f.id,
+      userId: f.user_id,
+      name: f.name,
+      startDate: f.start_date,
+      endDate: f.end_date,
+      locationIds: f.location_ids ? JSON.parse(f.location_ids) : [],
+      playerIds: f.player_ids ? JSON.parse(f.player_ids) : [],
+      createdAt: f.created_at,
+      updatedAt: f.updated_at,
     };
 
     res.status(201).json(parsedFilter);
@@ -131,10 +151,17 @@ router.put('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
       SELECT * FROM custom_filters WHERE id = ?
     `).get(id);
 
+    const f = filter as any;
     const parsedFilter = {
-      ...(filter as any),
-      locationIds: (filter as any).location_ids ? JSON.parse((filter as any).location_ids) : [],
-      playerIds: (filter as any).player_ids ? JSON.parse((filter as any).player_ids) : [],
+      id: f.id,
+      userId: f.user_id,
+      name: f.name,
+      startDate: f.start_date,
+      endDate: f.end_date,
+      locationIds: f.location_ids ? JSON.parse(f.location_ids) : [],
+      playerIds: f.player_ids ? JSON.parse(f.player_ids) : [],
+      createdAt: f.created_at,
+      updatedAt: f.updated_at,
     };
 
     res.json(parsedFilter);
