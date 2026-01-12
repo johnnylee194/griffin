@@ -77,6 +77,8 @@ export default function HoroscopePage() {
   const [horoscope, setHoroscope] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [loadingMessage, setLoadingMessage] = useState('正在准备...')
 
   useEffect(() => {
     loadHoroscope()
@@ -85,13 +87,37 @@ export default function HoroscopePage() {
   const loadHoroscope = async () => {
     try {
       setLoading(true)
+      setLoadingProgress(0)
+      setLoadingMessage('正在准备运势数据...')
+      
+      // 模拟进度更新（因为无法获取真实进度，用定时器模拟）
+      const progressInterval = setInterval(() => {
+        setLoadingProgress((prev) => {
+          if (prev >= 90) return prev // 最多到90%，等真正完成后才到100%
+          return prev + Math.random() * 15
+        })
+      }, 1000)
+      
+      // 更新阶段性提示
+      setTimeout(() => setLoadingMessage('正在生成中式运势...（预计30-60秒）'), 500)
+      setTimeout(() => setLoadingMessage('正在生成西式运势...（预计30-60秒）'), 30000)
+      setTimeout(() => setLoadingMessage('正在生成综合建议...（预计20-40秒）'), 60000)
+      setTimeout(() => setLoadingMessage('即将完成，请稍候...'), 90000)
+      
       const res = await horoscopeApi.get(selectedDate)
+      
+      clearInterval(progressInterval)
+      setLoadingProgress(100)
+      setLoadingMessage('生成完成！')
+      
       setHoroscope(res.data)
     } catch (error: any) {
       console.error('Failed to load horoscope:', error)
       if (error.response?.status === 400 && error.response?.data?.error?.includes('birth date')) {
         alert('请先在设置中设置您的出生日期')
         navigate('/settings')
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        alert('生成运势超时，但可能仍在后台生成中。请稍后刷新页面查看。')
       } else {
         alert('加载运势失败：' + (error.response?.data?.error || error.message))
       }
@@ -103,12 +129,22 @@ export default function HoroscopePage() {
   const handleRefresh = async () => {
     try {
       setRefreshing(true)
+      setLoadingProgress(0)
+      setLoadingMessage('正在清除旧缓存...')
+      
       await horoscopeApi.refresh(selectedDate)
+      
+      setLoadingMessage('开始重新生成运势...')
       await loadHoroscope()
+      
       alert('运势已刷新')
     } catch (error: any) {
       console.error('Failed to refresh horoscope:', error)
-      alert('刷新失败：' + (error.response?.data?.error || error.message))
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        alert('刷新运势超时，但可能仍在后台生成中。请稍后刷新页面查看。')
+      } else {
+        alert('刷新失败：' + (error.response?.data?.error || error.message))
+      }
     } finally {
       setRefreshing(false)
     }
@@ -129,8 +165,36 @@ export default function HoroscopePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-base sm:text-lg">加载中...</div>
+      <div className="flex flex-col items-center justify-center h-full px-4 space-y-6">
+        <div className="text-center space-y-4 max-w-md w-full">
+          <h3 className="text-xl sm:text-2xl font-bold text-primary">
+            {loadingProgress < 100 ? '正在生成运势' : '生成完成'}
+          </h3>
+          
+          <div className="text-text-secondary text-sm sm:text-base">
+            {loadingMessage}
+          </div>
+          
+          {/* 进度条 */}
+          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-primary to-accent-yellow h-full transition-all duration-500 ease-out"
+              style={{ width: `${Math.min(loadingProgress, 100)}%` }}
+            />
+          </div>
+          
+          <div className="text-primary text-sm font-semibold">
+            {Math.round(Math.min(loadingProgress, 100))}%
+          </div>
+          
+          {/* 提示信息 */}
+          <div className="mt-6 p-4 bg-accent-yellow/10 rounded-lg text-xs sm:text-sm text-text-secondary space-y-2">
+            <p>💡 <strong>运势生成需要约1-2分钟</strong></p>
+            <p>• 正在调用AI生成中式运势、西式运势和综合建议</p>
+            <p>• 生成完成后会自动保存缓存，下次访问会更快</p>
+            <p>• 如果超时，运势可能仍在后台生成，请稍后刷新</p>
+          </div>
+        </div>
       </div>
     )
   }

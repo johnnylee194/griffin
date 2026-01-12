@@ -7,6 +7,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 300000, // 5分钟超时（运势生成需要较长时间）
 });
 
 // 请求拦截器：添加 token
