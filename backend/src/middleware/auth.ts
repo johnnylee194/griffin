@@ -12,7 +12,8 @@ export interface AuthRequest extends Request {
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    // 支持从 header 或 query 参数中读取 token（query 用于 SSE，因为 EventSource 不支持自定义 headers）
+    const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string);
 
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });

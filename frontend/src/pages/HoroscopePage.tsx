@@ -90,29 +90,71 @@ export default function HoroscopePage() {
       setLoadingProgress(0)
       setLoadingMessage('正在准备运势数据...')
       
-      // 模拟进度更新（因为无法获取真实进度，用定时器模拟）
-      const progressInterval = setInterval(() => {
-        setLoadingProgress((prev) => {
-          if (prev >= 90) return prev // 最多到90%，等真正完成后才到100%
-          return prev + Math.random() * 15
-        })
-      }, 1000)
+      // 使用 Server-Sent Events 获取实时进度
+      const token = localStorage.getItem('token')
+      const eventSource = new EventSource(
+        `/api/horoscope/stream/${selectedDate}?token=${token}`
+      )
       
-      // 更新阶段性提示
-      setTimeout(() => setLoadingMessage('正在生成中式运势...（预计30-60秒）'), 500)
-      setTimeout(() => setLoadingMessage('正在生成西式运势...（预计30-60秒）'), 30000)
-      setTimeout(() => setLoadingMessage('正在生成综合建议...（预计20-40秒）'), 60000)
-      setTimeout(() => setLoadingMessage('即将完成，请稍候...'), 90000)
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          
+          if (data.error) {
+            eventSource.close()
+            if (data.error.includes('birth date')) {
+              alert('请先在设置中设置您的出生日期')
+              navigate('/settings')
+            } else {
+              alert('加载运势失败：' + data.error)
+            }
+            setLoading(false)
+            return
+          }
+          
+          if (data.progress !== undefined) {
+            setLoadingProgress(data.progress)
+          }
+          
+          if (data.message) {
+            setLoadingMessage(data.message)
+          }
+          
+          if (data.done && data.result) {
+            eventSource.close()
+            setHoroscope(data.result)
+            setLoading(false)
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE data:', err)
+        }
+      }
       
-      const res = await horoscopeApi.get(selectedDate)
+      eventSource.onerror = (error) => {
+        console.error('SSE connection error:', error)
+        eventSource.close()
+        
+        // SSE 失败后，回退到普通 HTTP 请求
+        console.log('SSE failed, falling back to HTTP request...')
+        loadHoroscopeFallback()
+      }
       
-      clearInterval(progressInterval)
-      setLoadingProgress(100)
-      setLoadingMessage('生成完成！')
-      
-      setHoroscope(res.data)
     } catch (error: any) {
       console.error('Failed to load horoscope:', error)
+      setLoading(false)
+      alert('加载运势失败：' + (error.message || '未知错误'))
+    }
+  }
+  
+  // 回退方案：使用普通 HTTP 请求
+  const loadHoroscopeFallback = async () => {
+    try {
+      setLoadingMessage('正在生成运势...（可能需要1-2分钟）')
+      const res = await horoscopeApi.get(selectedDate)
+      setLoadingProgress(100)
+      setHoroscope(res.data)
+    } catch (error: any) {
+      console.error('Failed to load horoscope (fallback):', error)
       if (error.response?.status === 400 && error.response?.data?.error?.includes('birth date')) {
         alert('请先在设置中设置您的出生日期')
         navigate('/settings')

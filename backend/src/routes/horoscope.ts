@@ -528,6 +528,157 @@ async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
 }
 
 /**
+ * 使用 Server-Sent Events 流式生成运势并推送进度
+ */
+router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    
+    // 验证日期格式
+    const targetDate = new Date(dateParam);
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    // 设置 SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
+
+    const sendProgress = (progress: number, message: string, data?: any) => {
+      res.write(`data: ${JSON.stringify({ progress, message, data })}\n\n`);
+    };
+
+    // 检查缓存
+    sendProgress(5, '正在检查缓存...');
+    const cached = db.prepare(`
+      SELECT * FROM horoscope_cache 
+      WHERE user_id = ? AND date = ?
+    `).get(userId, dateParam) as any;
+
+    if (cached) {
+      sendProgress(100, '使用缓存数据');
+      let chineseHoroscope: any, westernHoroscope: any, combinedAdvice: any;
+      try {
+        chineseHoroscope = JSON.parse(cached.chinese_horoscope);
+        westernHoroscope = JSON.parse(cached.western_horoscope);
+        combinedAdvice = JSON.parse(cached.combined_advice);
+      } catch {
+        chineseHoroscope = cached.chinese_horoscope;
+        westernHoroscope = cached.western_horoscope;
+        combinedAdvice = cached.combined_advice;
+      }
+      res.write(`data: ${JSON.stringify({
+        progress: 100,
+        message: '完成',
+        done: true,
+        result: {
+          date: dateParam,
+          chineseHoroscope,
+          westernHoroscope,
+          combinedAdvice,
+          cached: true
+        }
+      })}\n\n`);
+      return res.end();
+    }
+
+    // 获取用户信息
+    sendProgress(10, '正在获取用户信息...');
+    const user = db.prepare('SELECT birth_date FROM users WHERE id = ?').get(userId) as any;
+    if (!user || !user.birth_date) {
+      res.write(`data: ${JSON.stringify({ error: 'Please set your birth date in settings first' })}\n\n`);
+      return res.end();
+    }
+
+    // 获取对局统计
+    sendProgress(15, '正在分析对局数据...');
+    const gameStats = getUserGameStats(userId, targetDate, 7);
+
+    // 构建Prompt
+    sendProgress(20, '正在准备AI提示词...');
+    const zodiacSign = getZodiacSign(user.birth_date);
+    const chinesePrompt = buildChineseHoroscopePrompt(user.birth_date, targetDate, gameStats);
+    const westernPrompt = buildWesternHoroscopePrompt(user.birth_date, zodiacSign, targetDate, gameStats);
+
+    // 生成中式和西式运势
+    sendProgress(25, '正在生成中式运势...');
+    const [chineseHoroscopeRaw, westernHoroscopeRaw] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
+    sendProgress(70, '中式和西式运势生成完成');
+
+    // 解析JSON
+    sendProgress(75, '正在解析运势数据...');
+    let chineseHoroscope: any, westernHoroscope: any;
+    try {
+      const chineseJsonMatch = chineseHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || chineseHoroscopeRaw.match(/\{[\s\S]*\}/);
+      const westernJsonMatch = westernHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || westernHoroscopeRaw.match(/\{[\s\S]*\}/);
+      chineseHoroscope = JSON.parse(chineseJsonMatch ? chineseJsonMatch[1] || chineseJsonMatch[0] : chineseHoroscopeRaw);
+      westernHoroscope = JSON.parse(westernJsonMatch ? westernJsonMatch[1] || westernJsonMatch[0] : westernHoroscopeRaw);
+    } catch {
+      chineseHoroscope = chineseHoroscopeRaw;
+      westernHoroscope = westernHoroscopeRaw;
+    }
+
+    // 生成综合建议
+    sendProgress(80, '正在生成综合建议...');
+    const combinedPrompt = buildCombinedAdvicePrompt(
+      typeof chineseHoroscope === 'string' ? chineseHoroscope : JSON.stringify(chineseHoroscope),
+      typeof westernHoroscope === 'string' ? westernHoroscope : JSON.stringify(westernHoroscope),
+      gameStats
+    );
+    const combinedAdviceRaw = await callGeminiAPI(combinedPrompt);
+    sendProgress(95, '综合建议生成完成');
+
+    // 解析综合建议
+    let combinedAdvice: any;
+    try {
+      const combinedJsonMatch = combinedAdviceRaw.match(/```json\s*([\s\S]*?)\s*```/) || combinedAdviceRaw.match(/\{[\s\S]*\}/);
+      combinedAdvice = JSON.parse(combinedJsonMatch ? combinedJsonMatch[1] || combinedJsonMatch[0] : combinedAdviceRaw);
+    } catch {
+      combinedAdvice = combinedAdviceRaw;
+    }
+
+    // 保存到缓存
+    sendProgress(98, '正在保存缓存...');
+    const cacheId = require('../database').generateId();
+    db.prepare(`
+      INSERT INTO horoscope_cache (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      cacheId,
+      userId,
+      dateParam,
+      JSON.stringify(chineseHoroscope),
+      JSON.stringify(westernHoroscope),
+      JSON.stringify(combinedAdvice),
+      new Date().toISOString()
+    );
+
+    // 发送最终结果
+    sendProgress(100, '生成完成！');
+    res.write(`data: ${JSON.stringify({
+      progress: 100,
+      message: '完成',
+      done: true,
+      result: {
+        date: dateParam,
+        chineseHoroscope,
+        westernHoroscope,
+        combinedAdvice,
+        cached: false
+      }
+    })}\n\n`);
+    res.end();
+  } catch (error: any) {
+    console.error('Failed to generate horoscope:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message || 'Failed to generate horoscope' })}\n\n`);
+    res.end();
+  }
+});
+
+/**
  * 获取运势（带缓存）
  */
 router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
