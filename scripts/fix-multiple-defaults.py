@@ -104,6 +104,7 @@ for loc_id, loc_name, count, records in problematic_locations:
 print('[2] 统计需要修复的记录...')
 
 # 找出所有需要取消默认的记录（除了每个地点最早的那条）
+# 使用子查询找出每个地点应该保留的默认记录（按 created_at, id 排序的第一条）
 cursor.execute('''
     SELECT 
         lcr.id,
@@ -114,13 +115,14 @@ cursor.execute('''
     FROM location_chip_rates lcr
     JOIN locations l ON lcr.location_id = l.id
     WHERE lcr.is_default = 1
-      AND EXISTS (
-          -- 确保这个地点还有其他更早的默认记录
-          SELECT 1
+      AND lcr.id NOT IN (
+          -- 每个地点只保留最早的一条（如果时间相同，按 id 排序）
+          SELECT lcr3.id
           FROM location_chip_rates lcr3
           WHERE lcr3.location_id = lcr.location_id
             AND lcr3.is_default = 1
-            AND lcr3.created_at < lcr.created_at
+          ORDER BY lcr3.created_at, lcr3.id
+          LIMIT 1
       )
     ORDER BY l.name, lcr.created_at
 ''')
@@ -145,21 +147,21 @@ else:
     print('[3] 执行修复...')
     
     # 执行修复：将所有需要取消默认的记录设为 is_default = 0
+    # 对于每个地点，只保留最早的一条（按 created_at, id 排序）
+    # 使用相关子查询找出应该保留的记录，然后排除它
     cursor.execute('''
         UPDATE location_chip_rates
         SET is_default = 0
-        WHERE id IN (
-            SELECT lcr2.id
-            FROM location_chip_rates lcr2
-            WHERE lcr2.is_default = 1
-              AND EXISTS (
-                  SELECT 1
-                  FROM location_chip_rates lcr3
-                  WHERE lcr3.location_id = lcr2.location_id
-                    AND lcr3.is_default = 1
-                    AND lcr3.created_at < lcr2.created_at
-              )
-        )
+        WHERE is_default = 1
+          AND id != (
+              -- 每个地点只保留最早的一条（如果时间相同，按 id 排序）
+              SELECT lcr3.id
+              FROM location_chip_rates lcr3
+              WHERE lcr3.location_id = location_chip_rates.location_id
+                AND lcr3.is_default = 1
+              ORDER BY lcr3.created_at, lcr3.id
+              LIMIT 1
+          )
     ''')
     
     affected_rows = cursor.rowcount
