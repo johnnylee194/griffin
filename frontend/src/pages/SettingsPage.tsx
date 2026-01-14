@@ -776,7 +776,7 @@ export default function SettingsPage() {
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   {/* 添加 Chip Rate */}
                   {newChipRate?.locationId === location.id ? (
-                    <div className="flex space-x-2 mb-3">
+                    <div className="flex flex-col sm:flex-row gap-2 mb-3">
                       <input
                         type="number"
                         value={newChipRate.chipRate || ''}
@@ -792,18 +792,20 @@ export default function SettingsPage() {
                         placeholder="备注（可选）"
                         className="input flex-1 text-sm"
                       />
-                      <button
-                        onClick={() => handleAddChipRate(location.id)}
-                        className="btn-primary text-sm px-3 py-1"
-                      >
-                        添加
-                      </button>
-                      <button
-                        onClick={() => setNewChipRate(null)}
-                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                      >
-                        取消
-                      </button>
+                      <div className="flex gap-2 sm:flex-shrink-0">
+                        <button
+                          onClick={() => handleAddChipRate(location.id)}
+                          className="btn-primary text-sm px-3 py-1 flex-1 sm:flex-none"
+                        >
+                          添加
+                        </button>
+                        <button
+                          onClick={() => setNewChipRate(null)}
+                          className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded flex-1 sm:flex-none"
+                        >
+                          取消
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
