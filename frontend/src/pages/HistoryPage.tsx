@@ -271,7 +271,7 @@ export default function HistoryPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-2">
                     <span className="text-xs text-text-light">
-                      {game.location.name} · {game.chipRate === 100 ? '100' : '200'}
+                      {game.location.name} · {game.chipRate}
                     </span>
                     <span className="text-[10px] sm:text-xs text-text-light">
                       {dateStr} {timeStr}

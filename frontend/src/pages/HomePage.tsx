@@ -511,7 +511,7 @@ function GameCard({ game }: { game: Game }) {
           {dateStr} {timeStr}
         </span>
         <span className="text-xs text-text-light">
-          {game.location.name} · {game.chipRate === 100 ? '100' : '200'}
+          {game.location.name} · {game.chipRate}
         </span>
       </div>
       
