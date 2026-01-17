@@ -32,6 +32,7 @@ export default function StatsPage() {
   const [expandedPlayerPerf, setExpandedPlayerPerf] = useState(false)
   const [expandedDoubleComb, setExpandedDoubleComb] = useState(false)
   const [expandedTripleComb, setExpandedTripleComb] = useState(false)
+  const [expandedLosingStreaks, setExpandedLosingStreaks] = useState(false)
 
   useEffect(() => {
     loadPlayers()
@@ -839,7 +840,7 @@ export default function StatsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {losingStreakStats.streaks.slice(0, 5).map((streak: any, index: number) => {
+                    {(expandedLosingStreaks ? losingStreakStats.streaks : losingStreakStats.streaks.slice(0, 5)).map((streak: any, index: number) => {
                       const totalLoss = losingStreakMode === 'chips' ? streak.totalLoss : streak.totalScoreLoss
                       return (
                         <tr key={index} className="border-b last:border-0 hover:bg-gray-50">
@@ -860,9 +861,12 @@ export default function StatsPage() {
                   </tbody>
                 </table>
                 {losingStreakStats.streaks.length > 5 && (
-                  <div className="text-center mt-2 text-xs text-text-light">
-                    仅显示前5条记录
-                  </div>
+                  <button
+                    onClick={() => setExpandedLosingStreaks(!expandedLosingStreaks)}
+                    className="w-full text-center mt-2 text-xs text-primary hover:text-primary/80 py-2 hover:bg-gray-50 rounded"
+                  >
+                    {expandedLosingStreaks ? '收起' : `展开全部 (${losingStreakStats.streaks.length})`}
+                  </button>
                 )}
               </div>
             </div>
