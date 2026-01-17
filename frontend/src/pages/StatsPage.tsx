@@ -22,6 +22,7 @@ export default function StatsPage() {
   const [isCustomPeriod, setIsCustomPeriod] = useState<boolean>(false)
   const [customPeriodValue, setCustomPeriodValue] = useState<string>('')
   const [trendLocationId, setTrendLocationId] = useState<string>('')
+  const [losingStreakLocationId, setLosingStreakLocationId] = useState<string>('')
   const [trendDataType, setTrendDataType] = useState<'chips' | 'score'>('chips')
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedLunarYear, setSelectedLunarYear] = useState<number>(new Date().getFullYear())
@@ -45,6 +46,10 @@ export default function StatsPage() {
   useEffect(() => {
     loadPlayerStats()
   }, [])
+
+  useEffect(() => {
+    loadLosingStreakStats()
+  }, [losingStreakLocationId])
 
   const loadPlayers = async () => {
     try {
@@ -70,6 +75,7 @@ export default function StatsPage() {
       const defaultLoc = res.data.find(l => l.name === '紫竹郡') || res.data.find(l => l.isDefault)
       if (defaultLoc) {
         setCorrelationLocationId(defaultLoc.id)
+        setLosingStreakLocationId(defaultLoc.id)
       }
     } catch (error) {
       console.error('Failed to load locations:', error)
@@ -82,18 +88,29 @@ export default function StatsPage() {
       if (trendLocationId) {
         params.locationId = trendLocationId
       }
-      const [playerStatsRes, annualRes, lunarAnnualRes, losingStreakRes] = await Promise.all([
+      const [playerStatsRes, annualRes, lunarAnnualRes] = await Promise.all([
         statsApi.getPlayerStats(selectedPlayer, params),
         statsApi.getAnnual(selectedYear),
-        statsApi.getLunarAnnual(selectedLunarYear),
-        statsApi.getLosingStreaks(params)
+        statsApi.getLunarAnnual(selectedLunarYear)
       ])
       setStats(playerStatsRes.data)
       setAnnualStats(annualRes.data)
       setLunarAnnualStats(lunarAnnualRes.data)
-      setLosingStreakStats(losingStreakRes.data)
     } catch (error) {
       console.error('Failed to load stats:', error)
+    }
+  }
+
+  const loadLosingStreakStats = async () => {
+    try {
+      const params: { locationId?: string } = {}
+      if (losingStreakLocationId) {
+        params.locationId = losingStreakLocationId
+      }
+      const res = await statsApi.getLosingStreaks(params)
+      setLosingStreakStats(res.data)
+    } catch (error) {
+      console.error('Failed to load losing streak stats:', error)
     }
   }
 
@@ -449,72 +466,6 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* 连输分析 */}
-          {losingStreakStats && losingStreakStats.streaks && losingStreakStats.streaks.length > 0 && (
-            <div className="card">
-              <h3 className="text-base sm:text-xl font-semibold text-text mb-4">📉 连输分析</h3>
-              
-              {/* 摘要信息 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                <StatCard label="总天数" value={losingStreakStats.summary.totalDays} size="small" />
-                <StatCard label="连输次数" value={losingStreakStats.summary.streakCount} size="small" />
-                <StatCard label="最长连输" value={`${losingStreakStats.metrics.maxStreakDays}天`} size="small" />
-                <StatCard label="最大连输金额" value={losingStreakStats.metrics.maxStreakAmount} size="small" color="red" prefix="¥" />
-              </div>
-
-              {/* 建议金额 */}
-              <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                <h4 className="font-semibold text-blue-800 mb-2">💡 建议准备金额</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">覆盖95%情况：</span>
-                    <span className="font-bold text-blue-900">¥{losingStreakStats.suggestions.cover95}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">覆盖99%情况：</span>
-                    <span className="font-bold text-blue-900">¥{losingStreakStats.suggestions.cover99}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">覆盖最长连输：</span>
-                    <span className="font-bold text-blue-900">¥{losingStreakStats.suggestions.coverMaxStreak}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 连输列表 */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b">
-                      <th className="py-2 px-3 text-left font-medium text-gray-500 whitespace-nowrap">期间</th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">天数</th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">总输金额</th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">日均输额</th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">场次</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {losingStreakStats.streaks.slice(0, 5).map((streak: any, index: number) => (
-                      <tr key={index} className="border-b last:border-0 hover:bg-gray-50">
-                        <td className="py-2 px-3 text-gray-900 whitespace-nowrap">
-                          {streak.startDate} ~ {streak.endDate}
-                        </td>
-                        <td className="py-2 px-3 text-right text-gray-900">{streak.days}</td>
-                        <td className="py-2 px-3 text-right text-green-600 font-medium">¥{streak.totalLoss}</td>
-                        <td className="py-2 px-3 text-right text-gray-600">¥{Math.round(streak.totalLoss / streak.days)}</td>
-                        <td className="py-2 px-3 text-right text-gray-600">{streak.gameCounts.reduce((a:number, b:number) => a + b, 0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {losingStreakStats.streaks.length > 5 && (
-                  <div className="text-center mt-2 text-xs text-text-light">
-                    仅显示前5条记录
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* 2. 玩家维度统计 */}
           <div className="space-y-4">
@@ -810,6 +761,85 @@ export default function StatsPage() {
               )}
             </div>
           </div>
+
+          {/* 连败统计 */}
+          {losingStreakStats && losingStreakStats.streaks && losingStreakStats.streaks.length > 0 && (
+            <div className="card">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base sm:text-xl font-semibold text-text">📉 连败统计</h3>
+                <select
+                  value={losingStreakLocationId}
+                  onChange={(e) => setLosingStreakLocationId(e.target.value)}
+                  className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                >
+                  <option value="">全部地点</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 摘要信息 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <StatCard label="总天数" value={losingStreakStats.summary.totalDays} size="small" />
+                <StatCard label="连输次数" value={losingStreakStats.summary.streakCount} size="small" />
+                <StatCard label="最长连输" value={`${losingStreakStats.metrics.maxStreakDays}天`} size="small" />
+                <StatCard label="最大连输金额" value={losingStreakStats.metrics.maxStreakAmount} size="small" color="red" prefix="¥" />
+              </div>
+
+              {/* 建议金额 */}
+              <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                <h4 className="font-semibold text-blue-800 mb-2">💡 建议准备金额</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">覆盖95%情况：</span>
+                    <span className="font-bold text-blue-900">¥{losingStreakStats.suggestions.cover95}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">覆盖99%情况：</span>
+                    <span className="font-bold text-blue-900">¥{losingStreakStats.suggestions.cover99}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">覆盖最长连输：</span>
+                    <span className="font-bold text-blue-900">¥{losingStreakStats.suggestions.coverMaxStreak}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 连输列表 */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="py-2 px-3 text-left font-medium text-gray-500 whitespace-nowrap">期间</th>
+                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">天数</th>
+                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">总输金额</th>
+                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">日均输额</th>
+                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">场次</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {losingStreakStats.streaks.slice(0, 5).map((streak: any, index: number) => (
+                      <tr key={index} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="py-2 px-3 text-gray-900 whitespace-nowrap">
+                          {streak.startDate} ~ {streak.endDate}
+                        </td>
+                        <td className="py-2 px-3 text-right text-gray-900">{streak.days}</td>
+                        <td className="py-2 px-3 text-right text-green-600 font-medium">¥{streak.totalLoss}</td>
+                        <td className="py-2 px-3 text-right text-gray-600">¥{Math.round(streak.totalLoss / streak.days)}</td>
+                        <td className="py-2 px-3 text-right text-gray-600">{streak.gameCounts.reduce((a:number, b:number) => a + b, 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {losingStreakStats.streaks.length > 5 && (
+                  <div className="text-center mt-2 text-xs text-text-light">
+                    仅显示前5条记录
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 4. 本年统计 */}
           {annualStats && (
