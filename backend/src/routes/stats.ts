@@ -812,4 +812,194 @@ router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
   }
 });
 
+// 获取连输统计分析
+router.get('/losing-streaks', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { locationId } = req.query;
+
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: 'Current user not found' });
+    }
+
+    // 构建查询
+    let query = `
+      SELECT 
+        DATE(g.created_at) as gameDate,
+        SUM(pr.chips) as dailyTotal,
+        COUNT(*) as gameCount
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ? AND g.user_id = ?
+    `;
+    const params: any[] = [mePlayer.id, userId];
+
+    if (locationId) {
+      // 验证地点
+      const location = db.prepare('SELECT id FROM locations WHERE id = ? AND user_id = ?').get(locationId, userId);
+      if (!location) {
+        return res.status(404).json({ error: 'Location not found' });
+      }
+      query += ' AND g.location_id = ?';
+      params.push(locationId);
+    }
+
+    query += `
+      GROUP BY DATE(g.created_at)
+      ORDER BY gameDate ASC
+    `;
+
+    const dailyStats = db.prepare(query).all(...params) as any[];
+
+    // 格式化数据
+    const formattedDailyStats = dailyStats.map(stat => ({
+      date: stat.gameDate,
+      totalChips: stat.dailyTotal,
+      gameCount: stat.gameCount,
+      isWin: stat.dailyTotal > 0,
+      lossAmount: stat.dailyTotal < 0 ? Math.abs(stat.dailyTotal) : 0
+    }));
+
+    // 分析连输
+    const losingStreaks: any[] = [];
+    let currentStreak: any = null;
+
+    for (const stat of formattedDailyStats) {
+      if (!stat.isWin && stat.totalChips < 0) { // 输钱才算连输，平局(0)不算
+        if (currentStreak === null) {
+          // 开始新连输
+          currentStreak = {
+            startDate: stat.date,
+            endDate: stat.date,
+            days: 1,
+            totalLoss: stat.lossAmount,
+            dailyLosses: [stat.lossAmount],
+            gameCounts: [stat.gameCount]
+          };
+        } else {
+          // 继续连输
+          currentStreak.endDate = stat.date;
+          currentStreak.days += 1;
+          currentStreak.totalLoss += stat.lossAmount;
+          currentStreak.dailyLosses.push(stat.lossAmount);
+          currentStreak.gameCounts.push(stat.gameCount);
+        }
+      } else if (stat.totalChips > 0) { // 赢钱打断连输
+        if (currentStreak !== null) {
+          losingStreaks.push(currentStreak);
+          currentStreak = null;
+        }
+      }
+      // totalChips === 0 (平局) 不打断连输也不增加连输天数？
+      // 脚本逻辑是: if not stat['is_win'] -> 输了。Python脚本里 is_win: daily_total > 0.
+      // 所以 <= 0 都是输/平。
+      // 但是 loss_amount = abs(daily_total) if daily_total < 0 else 0.
+      // 如果 total_chips == 0, loss_amount = 0.
+      // 如果按脚本逻辑：
+      // if not > 0 (即 <= 0):
+      //   days += 1, total_loss += 0
+      // 这样会把平局天数也算进连输天数里，但金额不增加。
+      // 让我们稍微优化一下：只有真正输钱才算连输，或者保持和脚本一致。
+      // 脚本逻辑：not is_win (total > 0) => <= 0.
+      // 这里我微调一下：只有 < 0 才算输。0算平局，打断连输吗？
+      // 通常"连输"意味着连续亏损。平局应该不算输也不算赢。
+      // 简单起见，我遵循：totalChips < 0 为输。>= 0 为非输（打断）。
+      // 修正上面的循环：
+    }
+    
+    // 重新实现循环逻辑以确保准确性
+    const losingStreaksV2: any[] = [];
+    let currentStreakV2: any = null;
+    
+    for (const stat of formattedDailyStats) {
+      if (stat.totalChips < 0) {
+        if (currentStreakV2 === null) {
+          currentStreakV2 = {
+            startDate: stat.date,
+            endDate: stat.date,
+            days: 1,
+            totalLoss: stat.lossAmount,
+            dailyLosses: [stat.lossAmount],
+            gameCounts: [stat.gameCount]
+          };
+        } else {
+          currentStreakV2.endDate = stat.date;
+          currentStreakV2.days += 1;
+          currentStreakV2.totalLoss += stat.lossAmount;
+          currentStreakV2.dailyLosses.push(stat.lossAmount);
+          currentStreakV2.gameCounts.push(stat.gameCount);
+        }
+      } else {
+        // >= 0 视为终结连输
+        if (currentStreakV2 !== null) {
+          losingStreaksV2.push(currentStreakV2);
+          currentStreakV2 = null;
+        }
+      }
+    }
+    // 处理最后一次连输
+    if (currentStreakV2 !== null) {
+      losingStreaksV2.push(currentStreakV2);
+    }
+
+    // 统计分析
+    const analysis: any = {
+      summary: {
+        totalDays: formattedDailyStats.length,
+        winDays: formattedDailyStats.filter(s => s.totalChips > 0).length,
+        lossDays: formattedDailyStats.filter(s => s.totalChips < 0).length,
+        streakCount: losingStreaksV2.length
+      },
+      streaks: losingStreaksV2.sort((a, b) => b.days - a.days), // 按天数降序
+      metrics: null,
+      suggestions: null
+    };
+
+    if (losingStreaksV2.length > 0) {
+      const totalLosses = losingStreaksV2.map(s => s.totalLoss);
+      const daysList = losingStreaksV2.map(s => s.days);
+      const allDailyLosses = losingStreaksV2.flatMap(s => s.dailyLosses);
+
+      // 计算平均值和中位数
+      const calculateMean = (nums: number[]) => nums.reduce((a, b) => a + b, 0) / nums.length;
+      const calculateMedian = (nums: number[]) => {
+        const sorted = [...nums].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      };
+
+      analysis.metrics = {
+        minStreakAmount: Math.min(...totalLosses),
+        maxStreakAmount: Math.max(...totalLosses),
+        avgStreakAmount: Math.round(calculateMean(totalLosses)),
+        medianStreakAmount: Math.round(calculateMedian(totalLosses)),
+        minStreakDays: Math.min(...daysList),
+        maxStreakDays: Math.max(...daysList),
+        avgStreakDays: parseFloat(calculateMean(daysList).toFixed(1))
+      };
+
+      // 建议金额
+      const sortedDailyLosses = [...allDailyLosses].sort((a, b) => a - b);
+      const getPercentile = (p: number) => {
+        const idx = Math.ceil(sortedDailyLosses.length * (p / 100)) - 1;
+        return sortedDailyLosses[Math.max(0, Math.min(idx, sortedDailyLosses.length - 1))];
+      };
+      
+      analysis.suggestions = {
+        cover95: getPercentile(95),
+        cover99: getPercentile(99),
+        coverMaxStreak: Math.max(...totalLosses)
+      };
+    }
+
+    res.json(analysis);
+
+  } catch (error) {
+    console.error('Failed to fetch losing streaks:', error);
+    res.status(500).json({ error: 'Failed to fetch losing streaks' });
+  }
+});
+
 export default router;

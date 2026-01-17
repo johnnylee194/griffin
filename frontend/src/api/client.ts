@@ -144,6 +144,7 @@ export const statsApi = {
   getTripleCombination: () => apiClient.get('/stats/triple-combination'),
   getAfternoonEveningCorrelation: (locationId: string, score: number, scoreType: 'win' | 'lose') =>
     apiClient.get('/stats/afternoon-evening-correlation', { params: { locationId, score, scoreType } }),
+  getLosingStreaks: (params?: { locationId?: string }) => apiClient.get('/stats/losing-streaks', { params }),
 };
 
 export interface User {
@@ -280,4 +281,3 @@ export const customFiltersApi = {
   delete: (id: string) => apiClient.delete(`/custom-filters/${id}`),
   getStats: (id: string) => apiClient.post<FilterStats>(`/custom-filters/${id}/stats`),
 };
-
