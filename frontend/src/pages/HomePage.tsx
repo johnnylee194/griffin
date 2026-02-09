@@ -108,10 +108,6 @@ export default function HomePage() {
     return !isCurrentMonth() // 当前是本月时禁用
   }
 
-  // 获取月份显示文本
-  const getMonthDisplayText = () => {
-    return `${selectedYear}年${selectedMonth}月`
-  }
 
   // 上一月
   const handlePrevMonth = () => {
@@ -193,74 +189,77 @@ export default function HomePage() {
       {/* 本月统计 */}
       {monthlyStats && (
         <div className="space-y-2 sm:space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-base sm:text-lg font-semibold text-text">月度统计</h3>
-            
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              {/* 时间选择器：箭头 + 年月显示 */}
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                {/* 左箭头：上一月 */}
-                <button
-                  onClick={handlePrevMonth}
-                  disabled={!canGoPrevMonth()}
-                  className={`text-xl sm:text-2xl px-3 sm:px-4 h-8 sm:h-9 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
-                    canGoPrevMonth()
-                      ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
-                      : 'text-gray-300 cursor-not-allowed'
-                  }`}
-                  title="上一月"
-                >
-                  ←
-                </button>
-
-                {/* 中间年月显示（可点击弹出选择） */}
-                <button
-                  onClick={toggleCustomMonthPicker}
-                  className="text-xs sm:text-sm px-3 sm:px-4 h-8 sm:h-9 rounded border border-gray-300 bg-white text-text hover:border-primary hover:text-primary transition-colors min-w-[100px] sm:min-w-[120px] flex items-center justify-center"
-                >
-                  {getMonthDisplayText()}
-                </button>
-
-                {/* 右箭头：下一月 */}
-                <button
-                  onClick={handleNextMonth}
-                  disabled={!canGoNextMonth()}
-                  className={`text-xl sm:text-2xl px-3 sm:px-4 h-8 sm:h-9 rounded transition-colors flex items-center justify-center min-w-[40px] sm:min-w-[48px] ${
-                    canGoNextMonth()
-                      ? 'text-text hover:text-primary hover:bg-gray-100 cursor-pointer'
-                      : 'text-gray-300 cursor-not-allowed'
-                  }`}
-                  title="下一月"
-                >
-                  →
-                </button>
-              </div>
-
-              {/* 回到本月按钮（始终显示，本月时禁用） */}
+          {/* Refactored Header: Date Nav & Actions */}
+          <div className="flex items-center justify-between mb-4 mt-2">
+            {/* Left: Date Navigator as the Main Title */}
+            <div className="flex items-center gap-1">
+              {/* Prev Button */}
               <button
-                onClick={handleCurrentMonth}
-                disabled={isCurrentMonth()}
-                className={`text-xs sm:text-sm px-2 sm:px-3 h-8 sm:h-9 rounded border transition-colors flex items-center justify-center ${
-                  isCurrentMonth()
-                    ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'border-primary bg-primary text-white hover:bg-primary/90'
+                onClick={handlePrevMonth}
+                disabled={!canGoPrevMonth()}
+                className={`p-2 rounded-full transition-colors ${
+                  canGoPrevMonth()
+                    ? 'text-text hover:bg-gray-100 active:bg-gray-200'
+                    : 'text-gray-200 cursor-not-allowed'
                 }`}
               >
-                回到本月
+                <span className="text-xl font-bold">‹</span>
               </button>
 
-              {/* 地点选择器 */}
-              {monthlyStats.availableLocations && monthlyStats.availableLocations.length > 0 && (
-                <select
-                  value={selectedLocationId}
-                  onChange={(e) => setSelectedLocationId(e.target.value)}
-                  className="text-xs sm:text-sm border border-gray-300 rounded px-2 sm:px-3 h-8 sm:h-9 bg-white text-text"
+              {/* Date Trigger */}
+              <button
+                onClick={toggleCustomMonthPicker}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-sm font-semibold text-text">
+                  {selectedYear}年{selectedMonth}月
+                </span>
+                <span className="text-xs text-text-secondary mt-1">▼</span>
+              </button>
+
+              {/* Next Button */}
+              <button
+                onClick={handleNextMonth}
+                disabled={!canGoNextMonth()}
+                className={`p-2 rounded-full transition-colors ${
+                  canGoNextMonth()
+                    ? 'text-text hover:bg-gray-100 active:bg-gray-200'
+                    : 'text-gray-200 cursor-not-allowed'
+                }`}
+              >
+                <span className="text-xl font-bold">›</span>
+              </button>
+            </div>
+
+            {/* Right: Actions (Reset & Filter) */}
+            <div className="flex items-center gap-2">
+              {/* Back to Current (Conditional) */}
+              {!isCurrentMonth() && (
+                <button
+                  onClick={handleCurrentMonth}
+                  className="text-xs font-medium text-primary bg-primary/10 px-3 py-1.5 rounded-full hover:bg-primary/20 transition-colors whitespace-nowrap"
                 >
-                  <option value="">全部地点</option>
-                  {monthlyStats.availableLocations.map(location => (
-                    <option key={location.id} value={location.id}>{location.name}</option>
-                  ))}
-                </select>
+                  回本月
+                </button>
+              )}
+
+              {/* Location Selector (Simplified visual) */}
+              {monthlyStats.availableLocations && monthlyStats.availableLocations.length > 0 && (
+                <div className="relative">
+                  <select
+                    value={selectedLocationId}
+                    onChange={(e) => setSelectedLocationId(e.target.value)}
+                    className="appearance-none text-xs sm:text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 pr-6 text-text focus:outline-none focus:border-primary"
+                  >
+                    <option value="">全部地点</option>
+                    {monthlyStats.availableLocations.map(location => (
+                      <option key={location.id} value={location.id}>{location.name}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <span className="text-[10px] text-gray-400">▼</span>
+                  </div>
+                </div>
               )}
             </div>
           </div>

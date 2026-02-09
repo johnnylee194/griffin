@@ -60,6 +60,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // 只处理 HTTP/HTTPS 请求，忽略 chrome-extension 等协议
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
   // 不缓存的请求
   if (
     request.method !== 'GET' ||  // 非 GET 请求
