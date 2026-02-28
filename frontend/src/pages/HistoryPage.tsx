@@ -12,7 +12,6 @@ export default function HistoryPage() {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
   const [selectedDay, setSelectedDay] = useState<string>('all')
 
-  // 处理月份变化，如果选择的日期超过新月份的天数，重置为"全部"
   const handleMonthChange = (month: number) => {
     setSelectedMonth(month)
     if (selectedDay !== 'all') {
@@ -23,7 +22,6 @@ export default function HistoryPage() {
     }
   }
 
-  // 处理年份变化，如果选择的日期超过新月份的天数，重置为"全部"
   const handleYearChange = (year: number) => {
     setSelectedYear(year)
     if (selectedDay !== 'all') {
@@ -62,23 +60,19 @@ export default function HistoryPage() {
     }
   }
 
-  // 获取我的成绩
   const getMyRecord = (game: Game) => {
     return game.records.find(r => r.player.isMe && r.chips !== null)
   }
 
-  // 生成年份选项
   const getYearOptions = () => {
     const currentYear = new Date().getFullYear()
     const years = []
-    // 从当前年份往前推5年
     for (let i = currentYear; i >= currentYear - 5; i--) {
       years.push(i)
     }
     return years
   }
 
-  // 生成日期选项（当前月的所有日期）
   const getDayOptions = () => {
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate()
     const days = ['all']
@@ -88,18 +82,14 @@ export default function HistoryPage() {
     return days
   }
 
-  // 判断是下午还是晚上（20:00为分界线，与首页逻辑一致）
   const isAfternoon = (dateTime: string) => {
     const date = new Date(dateTime)
     const hours = date.getHours()
     return hours < 20
   }
 
-  // 过滤和分组游戏
   const getFilteredAndGroupedGames = () => {
-    // 先按筛选条件过滤
     let filtered = games.filter(game => {
-      // 按年月日筛选
       const gameDate = new Date(game.createdAt)
       const gameYear = gameDate.getFullYear()
       const gameMonth = gameDate.getMonth() + 1
@@ -113,7 +103,6 @@ export default function HistoryPage() {
         return false
       }
 
-      // 按赢/输筛选
       if (filter === 'all') return true
       const myRecord = getMyRecord(game)
       if (!myRecord || myRecord.chips === null) return false
@@ -122,7 +111,6 @@ export default function HistoryPage() {
       return true
     })
 
-    // 按日期分组
     const grouped: { [date: string]: Game[] } = {}
     filtered.forEach(game => {
       const date = format(new Date(game.createdAt), 'yyyy-MM-dd')
@@ -132,7 +120,6 @@ export default function HistoryPage() {
       grouped[date].push(game)
     })
 
-    // 计算每日统计
     const dailyStats: { [date: string]: { total: number; afternoon: number; evening: number } } = {}
     Object.keys(grouped).forEach(date => {
       let total = 0
@@ -176,7 +163,6 @@ export default function HistoryPage() {
         <div className="text-sm text-text-light">共 {games.length} 局</div>
       </div>
 
-      {/* 筛选器 */}
       <div className="card">
         <div className="flex flex-wrap items-center gap-3">
           <select
@@ -219,7 +205,6 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* 按日期分组的游戏列表 */}
       {sortedDates.length === 0 ? (
         <div className="card text-center text-text-light py-8">
           没有找到记录
@@ -234,7 +219,6 @@ export default function HistoryPage() {
             
             return (
               <div key={date} className="card bg-gray-50 p-3">
-                {/* 日期统计信息 */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-4">
                     <span className="text-base font-semibold text-text">{displayDate}</span>
@@ -259,66 +243,67 @@ export default function HistoryPage() {
                   <div className="text-xs text-text-light">{dateGames.length} 局</div>
                 </div>
 
-                {/* 该日期的游戏列表 */}
                 <div className="space-y-2 border-t border-gray-200 pt-2">
                   {dateGames.map(game => {
-            const date = new Date(game.createdAt)
-            const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-            const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-            
-            return (
-              <div key={game.id} className="bg-white rounded-lg p-2">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-text-light">
-                      {game.location.name} · {game.chipRate}
-                    </span>
-                    <span className="text-[10px] sm:text-xs text-text-light">
-                      {dateStr} {timeStr}
-                    </span>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => navigate(`/edit-game/${game.id}`, { state: { from: 'history' } })}
-                      className="text-primary hover:text-blue-700 text-xs"
-                    >
-                      编辑
-                    </button>
-                    <button
-                      onClick={() => handleDelete(game.id)}
-                      className="text-accent-red hover:text-red-600 text-xs"
-                    >
-                      删除
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {game.records.map(record => {
-                    // 只显示有金额的记录（"我"的记录），其他玩家只显示名字
-                    if (record.chips === null) {
-                      return (
-                        <div key={record.id} className="flex items-center justify-between text-sm">
-                          <span className="text-text-secondary">{record.player.name}</span>
-                          <span className="text-text-light">-</span>
-                        </div>
-                      )
-                    }
+                    const date = new Date(game.createdAt)
+                    const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+                    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                    
                     return (
-                      <div key={record.id} className="flex items-center justify-between text-sm">
-                        <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
-                          {record.player.name}
-                        </span>
-                        <span className={record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
-                          {record.chips >= 0 ? '+' : ''}{record.chips}
-                        </span>
+                      <div key={game.id} className="bg-white rounded-lg p-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <span className="text-xs text-text-light">
+                              {game.location.name} 
+                              {game.gameType && ` · ${game.gameType.name}`}
+                              {' · '}
+                              {game.chipRate}
+                            </span>
+                            <span className="text-[10px] sm:text-xs text-text-light">
+                              {dateStr} {timeStr}
+                            </span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => navigate(`/edit-game/${game.id}`, { state: { from: 'history' } })}
+                              className="text-primary hover:text-blue-700 text-xs"
+                            >
+                              编辑
+                            </button>
+                            <button
+                              onClick={() => handleDelete(game.id)}
+                              className="text-accent-red hover:text-red-600 text-xs"
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {game.records.map(record => {
+                            if (record.chips === null) {
+                              return (
+                                <div key={record.id} className="flex items-center justify-between text-sm">
+                                  <span className="text-text-secondary">{record.player.name}</span>
+                                  <span className="text-text-light">-</span>
+                                </div>
+                              )
+                            }
+                            return (
+                              <div key={record.id} className="flex items-center justify-between text-sm">
+                                <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
+                                  {record.player.name}
+                                </span>
+                                <span className={record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
+                                  {record.chips >= 0 ? '+' : ''}{record.chips}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     )
                   })}
-                </div>
-              </div>
-            )
-          })}
                 </div>
               </div>
             )
@@ -328,4 +313,3 @@ export default function HistoryPage() {
     </div>
   )
 }
-

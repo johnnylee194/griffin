@@ -10,6 +10,7 @@ import gameRoutes from './routes/games';
 import statsRoutes from './routes/stats';
 import horoscopeRoutes from './routes/horoscope';
 import chipRateRoutes from './routes/chip-rates';
+import gameTypeRoutes from './routes/game-types';
 import customFilterRoutes from './routes/custom-filters';
 import { authMiddleware } from './middleware/auth';
 
@@ -41,7 +42,8 @@ app.use('/api/locations', authMiddleware, locationRoutes);
 app.use('/api/games', authMiddleware, gameRoutes);
 app.use('/api/stats', authMiddleware, statsRoutes);
 app.use('/api/horoscope', horoscopeRoutes);
-app.use('/api/chip-rates', chipRateRoutes);
+app.use('/api/chip-rates', authMiddleware, chipRateRoutes);
+app.use('/api/game-types', authMiddleware, gameTypeRoutes);
 app.use('/api/custom-filters', customFilterRoutes);
 
 // 静态文件服务（生产环境）

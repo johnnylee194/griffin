@@ -4,17 +4,12 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// 所有路由都需要认证
 router.use(authMiddleware);
 
-// 辅助函数：获取中国本地时间（UTC+8）的ISO字符串（不带时区标识，精确到秒）
 function getLocalTimestamp(): string {
   const now = new Date();
-  // now.getTime() 返回 UTC 时间戳（毫秒）
-  // 直接加上 8 小时（8 * 60 * 60 * 1000 毫秒）得到中国时间
   const chinaTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
   
-  // 手动格式化为ISO字符串（不带时区标识，精确到秒）
   const year = chinaTime.getUTCFullYear();
   const month = String(chinaTime.getUTCMonth() + 1).padStart(2, '0');
   const day = String(chinaTime.getUTCDate()).padStart(2, '0');
@@ -25,14 +20,15 @@ function getLocalTimestamp(): string {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
 
-// 辅助函数：获取对局的完整信息
 function getGameWithDetails(gameId: string, userId: string) {
   const game = db.prepare(`
     SELECT 
       g.id,
       g.location_id as locationId,
+      g.game_type_id as gameTypeId,
       g.chip_rate_id as chipRateId,
       lcr.chip_rate as chipRate,
+      gt.name as gameTypeName,
       g.is_complete as isComplete,
       g.note,
       g.created_at as createdAt,
@@ -44,6 +40,7 @@ function getGameWithDetails(gameId: string, userId: string) {
     FROM games g
     JOIN locations l ON g.location_id = l.id
     LEFT JOIN location_chip_rates lcr ON g.chip_rate_id = lcr.id
+    LEFT JOIN game_types gt ON g.game_type_id = gt.id
     WHERE g.id = ? AND g.user_id = ?
   `).get(gameId, userId) as any;
 
@@ -69,12 +66,16 @@ function getGameWithDetails(gameId: string, userId: string) {
     ORDER BY pr.created_at ASC
   `).all(gameId, userId) as any[];
 
-  // 重构数据结构
   return {
     id: game.id,
     locationId: game.locationId,
+    gameTypeId: game.gameTypeId,
     chipRateId: game.chipRateId,
     chipRate: game.chipRate,
+    gameType: game.gameTypeName ? {
+      id: game.gameTypeId,
+      name: game.gameTypeName
+    } : undefined,
     isComplete: Boolean(game.isComplete),
     note: game.note,
     createdAt: game.createdAt,
@@ -104,7 +105,6 @@ function getGameWithDetails(gameId: string, userId: string) {
   };
 }
 
-// 获取所有对局（当前用户的）
 router.get('/', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -114,6 +114,7 @@ router.get('/', (req: AuthRequest, res) => {
       SELECT 
         g.id,
         g.location_id as locationId,
+        g.game_type_id as gameTypeId,
         g.chip_rate_id as chipRateId,
         g.is_complete as isComplete,
         g.note,
@@ -136,7 +137,6 @@ router.get('/', (req: AuthRequest, res) => {
     
     const games = db.prepare(query).all(...params);
     
-    // 为每个对局获取详细信息
     const gamesWithDetails = games.map((game: any) => getGameWithDetails(game.id, userId));
     
     res.json(gamesWithDetails);
@@ -146,7 +146,6 @@ router.get('/', (req: AuthRequest, res) => {
   }
 });
 
-// 获取单个对局
 router.get('/:id', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -164,22 +163,19 @@ router.get('/:id', (req: AuthRequest, res) => {
   }
 });
 
-// 创建对局
 router.post('/', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { locationId, chipRateId, playerIds, myScore, note, createdAt } = req.body;
+    const { locationId, gameTypeId, chipRateId, playerIds, myScore, note, createdAt } = req.body;
     
-    // 验证参数
-    if (!locationId || !chipRateId || !playerIds || !Array.isArray(playerIds) || playerIds.length < 1) {
-      return res.status(400).json({ error: '至少需要选择1个玩家，并选择地点和chip_rate' });
+    if (!locationId || !gameTypeId || !chipRateId || !playerIds || !Array.isArray(playerIds) || playerIds.length < 1) {
+      return res.status(400).json({ error: '至少需要选择1个玩家，并选择地点、玩法和倍率' });
     }
     
     if (myScore === undefined || myScore === null) {
       return res.status(400).json({ error: '必须输入我的分数' });
     }
 
-    // 验证地点是否属于当前用户
     const location = db.prepare(`
       SELECT id FROM locations WHERE id = ? AND user_id = ?
     `).get(locationId, userId) as any;
@@ -187,28 +183,31 @@ router.post('/', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Location not found' });
     }
 
-    // 验证chip_rate是否属于该地点
+    const gameType = db.prepare(`
+      SELECT id FROM game_types WHERE id = ? AND location_id = ?
+    `).get(gameTypeId, locationId) as any;
+    if (!gameType) {
+      return res.status(404).json({ error: 'Game type not found for this location' });
+    }
+
     const chipRate = db.prepare(`
       SELECT id, chip_rate 
       FROM location_chip_rates 
-      WHERE id = ? AND location_id = ?
-    `).get(chipRateId, locationId) as any;
+      WHERE id = ? AND location_id = ? AND game_type_id = ?
+    `).get(chipRateId, locationId, gameTypeId) as any;
     if (!chipRate) {
-      return res.status(404).json({ error: 'Chip rate not found for this location' });
+      return res.status(404).json({ error: 'Chip rate not found for this location and game type' });
     }
 
-    // 获取"我"的玩家ID（当前用户的）
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
       return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
     }
     
-    // 验证"我"是否在playerIds中
     if (!playerIds.includes(mePlayer.id)) {
       return res.status(400).json({ error: '玩家列表中必须包含"我"' });
     }
 
-    // 验证所有玩家是否属于当前用户
     const placeholders = playerIds.map(() => '?').join(',');
     const players = db.prepare(`
       SELECT id FROM players WHERE id IN (${placeholders}) AND user_id = ?
@@ -219,27 +218,24 @@ router.post('/', (req: AuthRequest, res) => {
 
     const gameId = generateId();
     const now = getLocalTimestamp();
-    // 使用自定义时间或当前时间
     const gameTime = createdAt || now;
     const myChips = myScore * chipRate.chip_rate;
 
-    // 使用事务创建对局和记录
     const createGame = db.transaction(() => {
-      // 创建对局（强制4人局，is_complete = 1）
       db.prepare(`
-        INSERT INTO games (id, user_id, location_id, chip_rate_id, is_complete, note, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+        INSERT INTO games (id, user_id, location_id, game_type_id, chip_rate_id, is_complete, note, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
       `).run(
         gameId,
         userId,
         locationId,
+        gameTypeId,
         chipRateId,
         note || null,
         gameTime,
         now
       );
 
-      // 创建玩家记录
       const insertRecord = db.prepare(`
         INSERT INTO player_records (id, game_id, player_id, score, chips, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -248,10 +244,8 @@ router.post('/', (req: AuthRequest, res) => {
       for (const playerId of playerIds) {
         const recordId = generateId();
         if (playerId === mePlayer.id) {
-          // 只有"我"记录score和chips
           insertRecord.run(recordId, gameId, playerId, myScore, myChips, gameTime);
         } else {
-          // 其他玩家score和chips为NULL
           insertRecord.run(recordId, gameId, playerId, null, null, gameTime);
         }
       }
@@ -259,7 +253,6 @@ router.post('/', (req: AuthRequest, res) => {
 
     createGame();
 
-    // 获取创建的对局详情
     const game = getGameWithDetails(gameId, userId);
     
     res.status(201).json(game);
@@ -269,23 +262,20 @@ router.post('/', (req: AuthRequest, res) => {
   }
 });
 
-// 更新对局
 router.put('/:id', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { locationId, chipRateId, playerIds, myScore, note, createdAt } = req.body;
+    const { locationId, gameTypeId, chipRateId, playerIds, myScore, note, createdAt } = req.body;
     
-    // 验证参数
-    if (!locationId || !chipRateId || !playerIds || !Array.isArray(playerIds) || playerIds.length < 1) {
-      return res.status(400).json({ error: '至少需要选择1个玩家，并选择地点和chip_rate' });
+    if (!locationId || !gameTypeId || !chipRateId || !playerIds || !Array.isArray(playerIds) || playerIds.length < 1) {
+      return res.status(400).json({ error: '至少需要选择1个玩家，并选择地点、玩法和倍率' });
     }
     
     if (myScore === undefined || myScore === null) {
       return res.status(400).json({ error: '必须输入我的分数' });
     }
 
-    // 验证对局是否属于当前用户
     const existingGame = db.prepare(`
       SELECT id FROM games WHERE id = ? AND user_id = ?
     `).get(id, userId) as any;
@@ -293,7 +283,6 @@ router.put('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    // 验证地点是否属于当前用户
     const location = db.prepare(`
       SELECT id FROM locations WHERE id = ? AND user_id = ?
     `).get(locationId, userId) as any;
@@ -301,28 +290,31 @@ router.put('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Location not found' });
     }
 
-    // 验证chip_rate是否属于该地点
+    const gameType = db.prepare(`
+      SELECT id FROM game_types WHERE id = ? AND location_id = ?
+    `).get(gameTypeId, locationId) as any;
+    if (!gameType) {
+      return res.status(404).json({ error: 'Game type not found for this location' });
+    }
+
     const chipRate = db.prepare(`
       SELECT id, chip_rate 
       FROM location_chip_rates 
-      WHERE id = ? AND location_id = ?
-    `).get(chipRateId, locationId) as any;
+      WHERE id = ? AND location_id = ? AND game_type_id = ?
+    `).get(chipRateId, locationId, gameTypeId) as any;
     if (!chipRate) {
-      return res.status(404).json({ error: 'Chip rate not found for this location' });
+      return res.status(404).json({ error: 'Chip rate not found for this location and game type' });
     }
 
-    // 获取"我"的玩家ID（当前用户的）
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
       return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
     }
     
-    // 验证"我"是否在playerIds中
     if (!playerIds.includes(mePlayer.id)) {
       return res.status(400).json({ error: '玩家列表中必须包含"我"' });
     }
 
-    // 验证所有玩家是否属于当前用户
     const placeholders = playerIds.map(() => '?').join(',');
     const players = db.prepare(`
       SELECT id FROM players WHERE id IN (${placeholders}) AND user_id = ?
@@ -332,22 +324,19 @@ router.put('/:id', (req: AuthRequest, res) => {
     }
 
     const now = getLocalTimestamp();
-    // 使用自定义时间或保持原有时间
     const gameTime = createdAt || now;
     const myChips = myScore * chipRate.chip_rate;
 
-    // 使用事务更新对局和记录
     const updateGame = db.transaction(() => {
-      // 删除旧的记录
       db.prepare('DELETE FROM player_records WHERE game_id = ?').run(id);
 
-      // 更新对局
       db.prepare(`
         UPDATE games 
-        SET location_id = ?, chip_rate_id = ?, is_complete = 1, note = ?, created_at = ?, updated_at = ?
+        SET location_id = ?, game_type_id = ?, chip_rate_id = ?, is_complete = 1, note = ?, created_at = ?, updated_at = ?
         WHERE id = ? AND user_id = ?
       `).run(
         locationId,
+        gameTypeId,
         chipRateId,
         note || null,
         gameTime,
@@ -356,7 +345,6 @@ router.put('/:id', (req: AuthRequest, res) => {
         userId
       );
 
-      // 创建新的记录
       const insertRecord = db.prepare(`
         INSERT INTO player_records (id, game_id, player_id, score, chips, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -365,10 +353,8 @@ router.put('/:id', (req: AuthRequest, res) => {
       for (const playerId of playerIds) {
         const recordId = generateId();
         if (playerId === mePlayer.id) {
-          // 只有"我"记录score和chips
           insertRecord.run(recordId, id, playerId, myScore, myChips, gameTime);
         } else {
-          // 其他玩家score和chips为NULL
           insertRecord.run(recordId, id, playerId, null, null, gameTime);
         }
       }
@@ -376,7 +362,6 @@ router.put('/:id', (req: AuthRequest, res) => {
 
     updateGame();
 
-    // 获取更新后的对局详情
     const game = getGameWithDetails(id, userId);
     
     if (!game) {
@@ -390,13 +375,11 @@ router.put('/:id', (req: AuthRequest, res) => {
   }
 });
 
-// 删除对局
 router.delete('/:id', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
 
-    // 验证对局是否属于当前用户
     const game = db.prepare(`
       SELECT id FROM games WHERE id = ? AND user_id = ?
     `).get(id, userId) as any;
@@ -418,15 +401,13 @@ router.delete('/:id', (req: AuthRequest, res) => {
   }
 });
 
-// 获取月度统计（首页用）
 router.get('/stats/monthly', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    // 支持自定义年月参数，默认为当前月份
     const { year: yearParam, month: monthParam, locationId } = req.query;
     const now = new Date();
     const year = yearParam ? parseInt(yearParam as string) : now.getFullYear();
-    const month = monthParam ? parseInt(monthParam as string) - 1 : now.getMonth(); // 0-11
+    const month = monthParam ? parseInt(monthParam as string) - 1 : now.getMonth();
     
     const firstDayOfMonth = new Date(year, month, 1);
     const firstDayOfNextMonth = new Date(year, month + 1, 1);
@@ -434,13 +415,11 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     const startDate = firstDayOfMonth.toISOString();
     const endDate = firstDayOfNextMonth.toISOString();
     
-    // 获取当前用户（"我"）的ID
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
       return res.status(404).json({ error: 'Current user not found, please create "我" player first' });
     }
     
-    // 构建查询条件
     let query = `
       SELECT 
         pr.chips,
@@ -454,7 +433,6 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     `;
     const params: any[] = [mePlayer.id, userId, startDate, endDate];
     
-    // 如果指定了地点，添加地点筛选（并验证地点属于当前用户）
     if (locationId) {
       const location = db.prepare(`
         SELECT id FROM locations WHERE id = ? AND user_id = ?
@@ -468,10 +446,8 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     
     query += ` ORDER BY g.created_at ASC`;
     
-    // 获取本月所有对局记录（只统计"我"的记录）
     const records = db.prepare(query).all(...params) as any[];
     
-    // 获取该月有数据的地点列表（只返回当前用户的地点）
     const locationQuery = `
       SELECT DISTINCT g.location_id, l.name
       FROM player_records pr
@@ -486,7 +462,6 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     `;
     const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, userId, startDate, endDate) as any[];
     
-    // 获取最早有数据的月份（用于限制左箭头）
     const earliestDateQuery = `
       SELECT MIN(g.created_at) as earliest_date
       FROM player_records pr
@@ -501,22 +476,19 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     if (earliestDateResult && earliestDateResult.earliest_date) {
       const earliestDate = new Date(earliestDateResult.earliest_date);
       earliestYear = earliestDate.getFullYear();
-      earliestMonth = earliestDate.getMonth() + 1; // 1-12
+      earliestMonth = earliestDate.getMonth() + 1;
     }
     
-    // 计算总体统计
     let totalIncome = 0;
     let totalExpense = 0;
     let winGames = 0;
     let loseGames = 0;
     
-    // 下午场统计（20:00前）
     let afternoonWins = 0;
     let afternoonLoses = 0;
     let afternoonIncome = 0;
     let afternoonExpense = 0;
     
-    // 晚上场统计（20:00后）
     let eveningWins = 0;
     let eveningLoses = 0;
     let eveningIncome = 0;
@@ -525,7 +497,6 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     records.forEach(record => {
       const chips = record.chips;
       
-      // 收支统计
       if (chips > 0) {
         totalIncome += chips;
         winGames++;
@@ -534,12 +505,10 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
         loseGames++;
       }
       
-      // 时间段统计
       const gameTime = new Date(record.createdAt);
       const hour = gameTime.getHours();
       
       if (hour < 20) {
-        // 下午场（20:00前）
         if (chips > 0) {
           afternoonWins++;
           afternoonIncome += chips;
@@ -548,7 +517,6 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
           afternoonExpense += Math.abs(chips);
         }
       } else {
-        // 晚上场（20:00后）
         if (chips > 0) {
           eveningWins++;
           eveningIncome += chips;

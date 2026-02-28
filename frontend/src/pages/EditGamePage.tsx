@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { playersApi, locationsApi, gamesApi, chipRatesApi, Player, Location, ChipRate } from '../api/client'
+import { playersApi, locationsApi, gamesApi, chipRatesApi, gameTypesApi, Player, Location, ChipRate, GameType } from '../api/client'
 import NumPad from '../components/NumPad'
 
 export default function EditGamePage() {
@@ -10,6 +10,8 @@ export default function EditGamePage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [selectedLocation, setSelectedLocation] = useState<string>('')
+  const [gameTypes, setGameTypes] = useState<GameType[]>([])
+  const [selectedGameTypeId, setSelectedGameTypeId] = useState<string>('')
   const [chipRates, setChipRates] = useState<ChipRate[]>([])
   const [selectedChipRateId, setSelectedChipRateId] = useState<string>('')
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([])
@@ -28,11 +30,31 @@ export default function EditGamePage() {
     loadData()
   }, [id])
 
-  const loadChipRates = async (locationId: string) => {
+  const loadGameTypes = async (locationId: string) => {
     try {
-      const res = await chipRatesApi.getByLocation(locationId)
+      const res = await gameTypesApi.getByLocation(locationId)
+      setGameTypes(res.data)
+      const defaultGameType = res.data.find(gt => gt.isDefault)
+      if (defaultGameType) {
+        setSelectedGameTypeId(defaultGameType.id)
+        await loadChipRates(locationId, defaultGameType.id)
+      } else if (res.data.length > 0) {
+        setSelectedGameTypeId(res.data[0].id)
+        await loadChipRates(locationId, res.data[0].id)
+      }
+    } catch (error) {
+      console.error('Failed to load game types:', error)
+      setGameTypes([])
+      setSelectedGameTypeId('')
+      setChipRates([])
+      setSelectedChipRateId('')
+    }
+  }
+
+  const loadChipRates = async (locationId: string, gameTypeId: string) => {
+    try {
+      const res = await chipRatesApi.getByLocationAndGameType(locationId, gameTypeId)
       setChipRates(res.data)
-      // 如果当前没有选中chipRateId，自动选择默认的
       if (!selectedChipRateId) {
         const defaultChipRate = res.data.find(cr => cr.isDefault)
         if (defaultChipRate) {
@@ -49,11 +71,23 @@ export default function EditGamePage() {
 
   const handleLocationChange = async (locationId: string) => {
     setSelectedLocation(locationId)
+    setSelectedGameTypeId('')
+    setSelectedChipRateId('')
     if (locationId) {
-      await loadChipRates(locationId)
+      await loadGameTypes(locationId)
+    } else {
+      setGameTypes([])
+      setChipRates([])
+    }
+  }
+
+  const handleGameTypeChange = async (gameTypeId: string) => {
+    setSelectedGameTypeId(gameTypeId)
+    setSelectedChipRateId('')
+    if (gameTypeId && selectedLocation) {
+      await loadChipRates(selectedLocation, gameTypeId)
     } else {
       setChipRates([])
-      setSelectedChipRateId('')
     }
   }
 
@@ -71,29 +105,32 @@ export default function EditGamePage() {
       if (gameRes) {
         const game = gameRes.data
         setSelectedLocation(game.locationId)
+        if (game.gameTypeId) {
+          setSelectedGameTypeId(game.gameTypeId)
+        }
         if (game.chipRateId) {
           setSelectedChipRateId(game.chipRateId)
         }
         setSelectedPlayerIds(game.records.map(r => r.playerId))
         setNote(game.note || '')
         
-        // 加载该地点的chip-rates
         if (game.locationId) {
           try {
-            const chipRatesRes = await chipRatesApi.getByLocation(game.locationId)
-            setChipRates(chipRatesRes.data)
+            await loadGameTypes(game.locationId)
+            if (game.gameTypeId) {
+              setSelectedGameTypeId(game.gameTypeId)
+              await loadChipRates(game.locationId, game.gameTypeId)
+            }
           } catch (error) {
-            console.error('Failed to load chip rates:', error)
+            console.error('Failed to load game types or chip rates:', error)
           }
         }
         
-        // 设置我的分数
         const myRecord = game.records.find(r => r.player.isMe)
         if (myRecord && myRecord.score !== null) {
           setMyScore(myRecord.score)
         }
         
-        // 设置时间（转换为 datetime-local 格式）
         const gameDate = new Date(game.createdAt)
         const year = gameDate.getFullYear()
         const month = String(gameDate.getMonth() + 1).padStart(2, '0')
@@ -103,7 +140,6 @@ export default function EditGamePage() {
         const timeStr = `${year}-${month}-${day}T${hours}:${minutes}`
         setGameTime(timeStr)
         
-        // 检查是否匹配快捷选项（编辑时不默认选中）
         const dateStr = timeStr.split('T')[0]
         const timePart = timeStr.split('T')[1]
         const today = new Date().toISOString().split('T')[0]
@@ -135,14 +171,12 @@ export default function EditGamePage() {
   }
 
   const togglePlayer = (player: Player) => {
-    if (player.isMe) return // 不能取消选择"我"
+    if (player.isMe) return
     
     const index = selectedPlayerIds.indexOf(player.id)
     if (index > -1) {
-      // 已选择，取消选择
       setSelectedPlayerIds(selectedPlayerIds.filter(id => id !== player.id))
     } else {
-      // 未选择，添加
       setSelectedPlayerIds([...selectedPlayerIds, player.id])
     }
   }
@@ -172,6 +206,16 @@ export default function EditGamePage() {
       return
     }
 
+    if (!selectedGameTypeId) {
+      alert('请选择玩法')
+      return
+    }
+
+    if (!selectedChipRateId) {
+      alert('请选择倍率')
+      return
+    }
+
     if (selectedPlayerIds.length < 1) {
       alert('至少需要选择1个玩家（包括我）')
       return
@@ -183,13 +227,7 @@ export default function EditGamePage() {
       }
     }
 
-    if (!selectedChipRateId) {
-      alert('请选择一分多少钱')
-      return
-    }
-
     try {
-      // 将本地时间转换为 ISO 格式（不带时区标识）
       const gameDateTime = new Date(gameTime)
       const year = gameDateTime.getFullYear()
       const month = String(gameDateTime.getMonth() + 1).padStart(2, '0')
@@ -201,6 +239,7 @@ export default function EditGamePage() {
 
       await gamesApi.update(id!, {
         locationId: selectedLocation,
+        gameTypeId: selectedGameTypeId,
         chipRateId: selectedChipRateId,
         playerIds: selectedPlayerIds,
         myScore,
@@ -208,21 +247,12 @@ export default function EditGamePage() {
         createdAt
       })
       alert('对局更新成功！')
-      // 如果是从历史页跳转过来的，返回历史页，否则返回首页
       const fromHistory = location.state?.from === 'history' || document.referrer.includes('/history')
       navigate(fromHistory ? '/history' : '/')
     } catch (error: any) {
       console.error('Failed to update game:', error)
       alert(error.response?.data?.error || '更新失败，请重试')
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-base sm:text-lg">加载中...</div>
-      </div>
-    )
   }
 
   const setQuickDate = (type: 'today' | 'yesterday') => {
@@ -235,7 +265,6 @@ export default function EditGamePage() {
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     
-    // 保持当前选择的时间部分
     const currentTime = gameTime ? gameTime.split('T')[1] : '18:00'
     setGameTime(`${year}-${month}-${day}T${currentTime}`)
   }
@@ -248,10 +277,8 @@ export default function EditGamePage() {
     setGameTime(`${currentDate}T${hours}:${minutes}`)
   }
 
-  // 当手动修改时间输入框时，清除快捷选项的选中状态
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setGameTime(e.target.value)
-    // 检查是否匹配快捷选项
     const date = e.target.value.split('T')[0]
     const time = e.target.value.split('T')[1]
     const today = new Date().toISOString().split('T')[0]
@@ -274,12 +301,19 @@ export default function EditGamePage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-primary text-base sm:text-lg">加载中...</div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       <h2 className="text-xl sm:text-2xl font-bold text-text">编辑对局</h2>
 
-      {/* 地点和筹码比率 - 合并为一行 */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <select
           value={selectedLocation}
           onChange={(e) => handleLocationChange(e.target.value)}
@@ -291,12 +325,23 @@ export default function EditGamePage() {
           ))}
         </select>
         <select
+          value={selectedGameTypeId}
+          onChange={(e) => handleGameTypeChange(e.target.value)}
+          disabled={!selectedLocation || gameTypes.length === 0}
+          className="flex-1 text-sm py-2 px-3 rounded-lg border border-gray-300 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          <option value="">🎮 选择玩法</option>
+          {gameTypes.map(gt => (
+            <option key={gt.id} value={gt.id}>{gt.name}</option>
+          ))}
+        </select>
+        <select
           value={selectedChipRateId}
           onChange={(e) => setSelectedChipRateId(e.target.value)}
-          disabled={!selectedLocation || chipRates.length === 0}
-          className="text-sm py-2 px-3 rounded-lg border border-gray-300 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400"
+          disabled={!selectedGameTypeId || chipRates.length === 0}
+          className="flex-1 text-sm py-2 px-3 rounded-lg border border-gray-300 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 disabled:text-gray-400"
         >
-          <option value="">💰 一分多少钱</option>
+          <option value="">💰 选择倍率</option>
           {chipRates.map(cr => (
             <option key={cr.id} value={cr.id}>
               {cr.chipRate}{cr.note ? ` (${cr.note})` : ''}
@@ -305,7 +350,6 @@ export default function EditGamePage() {
         </select>
       </div>
 
-      {/* 玩家选择 */}
       <div className="card">
         <label className="block text-text font-semibold mb-3">
           👥 玩家 ({selectedPlayerIds.length}/4)
@@ -322,7 +366,7 @@ export default function EditGamePage() {
                   isSelected
                     ? 'bg-primary text-white'
                     : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-                } ${player.isMe ? 'opacity-100 cursor-default' : ''}`}
+                } ${player.isMe ? 'opacity-100 cursor-not-allowed' : ''}`}
               >
                 {player.name} {player.isMe && '(我)'}
               </button>
@@ -337,7 +381,6 @@ export default function EditGamePage() {
         </button>
       </div>
 
-      {/* 我的分数输入 */}
       {selectedPlayerIds.length > 0 && (
         <div className="card">
           <label className="block text-text font-semibold mb-3">🎯 我的分数</label>
@@ -359,7 +402,6 @@ export default function EditGamePage() {
         </div>
       )}
 
-      {/* 参与玩家列表（只显示，不输入分数） */}
       {selectedPlayerIds.length > 1 && (
         <div className="card">
           <label className="block text-text font-semibold mb-3">👥 参与玩家</label>
@@ -384,7 +426,6 @@ export default function EditGamePage() {
         </div>
       )}
 
-      {/* 时间选择 */}
       <div className="card">
         <label className="block text-text font-semibold mb-2">🕐 对局时间</label>
         <div className="space-y-2">
@@ -443,7 +484,6 @@ export default function EditGamePage() {
         />
       </div>
 
-      {/* 备注 - 小按钮 */}
       <div className="flex items-center gap-2">
         <button
           onClick={() => setShowNoteModal(true)}
@@ -455,11 +495,9 @@ export default function EditGamePage() {
         </button>
       </div>
 
-      {/* 提交按钮 */}
       <div className="flex space-x-3">
         <button
           onClick={() => {
-            // 如果是从历史页跳转过来的，返回历史页，否则返回首页
             const fromHistory = location.state?.from === 'history' || document.referrer.includes('/history')
             navigate(fromHistory ? '/history' : '/')
           }}
@@ -469,14 +507,13 @@ export default function EditGamePage() {
         </button>
         <button
           onClick={handleSubmit}
-          disabled={!selectedLocation || selectedPlayerIds.length < 1}
+          disabled={!selectedLocation || !selectedGameTypeId || !selectedChipRateId || selectedPlayerIds.length < 1}
           className="flex-1 btn-primary text-lg py-4 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           保存修改
         </button>
       </div>
 
-      {/* 数字键盘弹窗 */}
       {showNumPad && (
         <NumPad
           onClose={() => setShowNumPad(false)}
@@ -488,7 +525,6 @@ export default function EditGamePage() {
         />
       )}
 
-      {/* 新建玩家弹窗 */}
       {showNewPlayerModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
@@ -527,7 +563,6 @@ export default function EditGamePage() {
         </div>
       )}
 
-      {/* 备注弹窗 */}
       {showNoteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
@@ -561,4 +596,3 @@ export default function EditGamePage() {
     </div>
   )
 }
-

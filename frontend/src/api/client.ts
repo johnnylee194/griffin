@@ -53,9 +53,18 @@ export interface Location {
   createdAt: string;
 }
 
+export interface GameType {
+  id: string;
+  locationId: string;
+  name: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
 export interface ChipRate {
   id: string;
   locationId: string;
+  gameTypeId: string;
   chipRate: number;
   isDefault: boolean;
   note?: string;
@@ -74,8 +83,10 @@ export interface PlayerRecord {
 export interface Game {
   id: string;
   locationId: string;
+  gameTypeId?: string;
   chipRateId?: string;
   chipRate: number; // 从location_chip_rates表获取，用于显示
+  gameType?: GameType; // 玩法信息，用于显示
   isComplete: boolean;
   note?: string;
   createdAt: string;
@@ -100,9 +111,20 @@ export const locationsApi = {
   delete: (id: string) => apiClient.delete(`/locations/${id}`),
 };
 
+export const gameTypesApi = {
+  getByLocation: (locationId: string) => apiClient.get<GameType[]>(`/game-types/location/${locationId}`),
+  create: (data: { locationId: string; name: string; isDefault?: boolean }) => 
+    apiClient.post<GameType>('/game-types', data),
+  update: (id: string, data: { name?: string; isDefault?: boolean }) => 
+    apiClient.put<GameType>(`/game-types/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/game-types/${id}`),
+};
+
 export const chipRatesApi = {
+  getByLocationAndGameType: (locationId: string, gameTypeId: string) => 
+    apiClient.get<ChipRate[]>(`/chip-rates/location/${locationId}/game-type/${gameTypeId}`),
   getByLocation: (locationId: string) => apiClient.get<ChipRate[]>(`/chip-rates/location/${locationId}`),
-  create: (data: { locationId: string; chipRate: number; isDefault?: boolean; note?: string }) => 
+  create: (data: { locationId: string; gameTypeId: string; chipRate: number; isDefault?: boolean; note?: string }) => 
     apiClient.post<ChipRate>('/chip-rates', data),
   update: (id: string, data: { chipRate?: number; isDefault?: boolean; note?: string }) => 
     apiClient.put<ChipRate>(`/chip-rates/${id}`, data),
@@ -115,6 +137,7 @@ export const gamesApi = {
   getOne: (id: string) => apiClient.get<Game>(`/games/${id}`),
   create: (data: {
     locationId: string;
+    gameTypeId: string;
     chipRateId: string;
     playerIds: string[];
     myScore: number;
@@ -123,6 +146,7 @@ export const gamesApi = {
   }) => apiClient.post<Game>('/games', data),
   update: (id: string, data: {
     locationId: string;
+    gameTypeId: string;
     chipRateId: string;
     playerIds: string[];
     myScore: number;

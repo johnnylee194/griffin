@@ -4,16 +4,14 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// 所有路由都需要认证
 router.use(authMiddleware);
 
-// 获取指定地点的所有chip_rate规则
-router.get('/location/:locationId', (req: AuthRequest, res) => {
+// 获取指定地点和玩法的所有倍率规则
+router.get('/location/:locationId/game-type/:gameTypeId', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { locationId } = req.params;
+    const { locationId, gameTypeId } = req.params;
 
-    // 验证地点是否属于当前用户
     const location = db.prepare(`
       SELECT id FROM locations WHERE id = ? AND user_id = ?
     `).get(locationId, userId) as any;
@@ -26,14 +24,15 @@ router.get('/location/:locationId', (req: AuthRequest, res) => {
       SELECT 
         id,
         location_id as locationId,
+        game_type_id as gameTypeId,
         chip_rate as chipRate,
         is_default as isDefault,
         note,
         created_at as createdAt
       FROM location_chip_rates
-      WHERE location_id = ?
+      WHERE location_id = ? AND game_type_id = ?
       ORDER BY is_default DESC, created_at DESC
-    `).all(locationId) as any[];
+    `).all(locationId, gameTypeId) as any[];
 
     res.json(chipRates.map((cr: any) => ({
       ...cr,
@@ -45,17 +44,12 @@ router.get('/location/:locationId', (req: AuthRequest, res) => {
   }
 });
 
-// 创建chip_rate规则
-router.post('/', (req: AuthRequest, res) => {
+// 为了向后兼容，保留原来的接口（使用地点的默认玩法）
+router.get('/location/:locationId', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { locationId, chipRate, isDefault, note } = req.body;
+    const { locationId } = req.params;
 
-    if (!locationId || !chipRate) {
-      return res.status(400).json({ error: 'Location ID and chip rate are required' });
-    }
-
-    // 验证地点是否属于当前用户
     const location = db.prepare(`
       SELECT id FROM locations WHERE id = ? AND user_id = ?
     `).get(locationId, userId) as any;
@@ -64,44 +58,99 @@ router.post('/', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Location not found' });
     }
 
-    // 检查是否已存在相同的chip_rate
-    const existing = db.prepare(`
-      SELECT id FROM location_chip_rates 
-      WHERE location_id = ? AND chip_rate = ?
-    `).get(locationId, chipRate);
+    const defaultGameType = db.prepare(`
+      SELECT id FROM game_types WHERE location_id = ? AND is_default = 1
+    `).get(locationId) as any;
 
-    if (existing) {
-      return res.status(400).json({ error: 'Chip rate already exists for this location' });
+    if (!defaultGameType) {
+      return res.json([]);
     }
 
-    // 检查该地点是否已有chip_rate
+    const chipRates = db.prepare(`
+      SELECT 
+        id,
+        location_id as locationId,
+        game_type_id as gameTypeId,
+        chip_rate as chipRate,
+        is_default as isDefault,
+        note,
+        created_at as createdAt
+      FROM location_chip_rates
+      WHERE location_id = ? AND game_type_id = ?
+      ORDER BY is_default DESC, created_at DESC
+    `).all(locationId, defaultGameType.id) as any[];
+
+    res.json(chipRates.map((cr: any) => ({
+      ...cr,
+      isDefault: Boolean(cr.isDefault)
+    })));
+  } catch (error) {
+    console.error('Failed to fetch chip rates:', error);
+    res.status(500).json({ error: 'Failed to fetch chip rates' });
+  }
+});
+
+// 创建倍率规则
+router.post('/', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { locationId, gameTypeId, chipRate, isDefault, note } = req.body;
+
+    if (!locationId || !gameTypeId || !chipRate) {
+      return res.status(400).json({ error: 'Location ID, game type ID and chip rate are required' });
+    }
+
+    const location = db.prepare(`
+      SELECT id FROM locations WHERE id = ? AND user_id = ?
+    `).get(locationId, userId) as any;
+
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+
+    const gameType = db.prepare(`
+      SELECT id FROM game_types WHERE id = ? AND location_id = ?
+    `).get(gameTypeId, locationId) as any;
+
+    if (!gameType) {
+      return res.status(404).json({ error: 'Game type not found' });
+    }
+
+    const existing = db.prepare(`
+      SELECT id FROM location_chip_rates 
+      WHERE location_id = ? AND game_type_id = ? AND chip_rate = ?
+    `).get(locationId, gameTypeId, chipRate);
+
+    if (existing) {
+      return res.status(400).json({ error: 'Chip rate already exists for this location and game type' });
+    }
+
     const chipRateCount = db.prepare(`
-      SELECT COUNT(*) as count FROM location_chip_rates WHERE location_id = ?
-    `).get(locationId) as { count: number };
-    // 如果这是第一个chip_rate，自动设置为默认
+      SELECT COUNT(*) as count FROM location_chip_rates WHERE location_id = ? AND game_type_id = ?
+    `).get(locationId, gameTypeId) as { count: number };
     const shouldBeDefault = chipRateCount.count === 0 || isDefault;
 
-    // 如果设置为默认，先将其他规则的isDefault设为false
     if (shouldBeDefault) {
       db.prepare(`
         UPDATE location_chip_rates 
         SET is_default = 0 
-        WHERE location_id = ?
-      `).run(locationId);
+        WHERE location_id = ? AND game_type_id = ?
+      `).run(locationId, gameTypeId);
     }
 
     const id = generateId();
     const now = new Date().toISOString().split('T')[0] + 'T' + new Date().toTimeString().split(' ')[0];
 
     db.prepare(`
-      INSERT INTO location_chip_rates (id, location_id, chip_rate, is_default, note, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, locationId, chipRate, shouldBeDefault ? 1 : 0, note || null, now);
+      INSERT INTO location_chip_rates (id, location_id, game_type_id, chip_rate, is_default, note, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, locationId, gameTypeId, chipRate, shouldBeDefault ? 1 : 0, note || null, now);
 
     const chipRateRecord = db.prepare(`
       SELECT 
         id,
         location_id as locationId,
+        game_type_id as gameTypeId,
         chip_rate as chipRate,
         is_default as isDefault,
         note,
@@ -120,16 +169,15 @@ router.post('/', (req: AuthRequest, res) => {
   }
 });
 
-// 更新chip_rate规则
+// 更新倍率规则
 router.put('/:id', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
     const { chipRate, isDefault, note } = req.body;
 
-    // 验证chip_rate是否属于当前用户
     const chipRateRecord = db.prepare(`
-      SELECT lcr.id, lcr.location_id
+      SELECT lcr.id, lcr.location_id, lcr.game_type_id
       FROM location_chip_rates lcr
       JOIN locations l ON lcr.location_id = l.id
       WHERE lcr.id = ? AND l.user_id = ?
@@ -139,26 +187,24 @@ router.put('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Chip rate not found' });
     }
 
-    // 如果设置为默认，先将其他规则的isDefault设为false
     if (isDefault) {
       db.prepare(`
         UPDATE location_chip_rates 
         SET is_default = 0 
-        WHERE location_id = ? AND id != ?
-      `).run(chipRateRecord.location_id, id);
+        WHERE location_id = ? AND game_type_id = ? AND id != ?
+      `).run(chipRateRecord.location_id, chipRateRecord.game_type_id, id);
     }
 
     const updateFields: string[] = [];
     const values: any[] = [];
 
     if (chipRate !== undefined) {
-      // 检查是否与其他规则冲突
       const existing = db.prepare(`
         SELECT id FROM location_chip_rates 
-        WHERE location_id = ? AND chip_rate = ? AND id != ?
-      `).get(chipRateRecord.location_id, chipRate, id);
+        WHERE location_id = ? AND game_type_id = ? AND chip_rate = ? AND id != ?
+      `).get(chipRateRecord.location_id, chipRateRecord.game_type_id, chipRate, id);
       if (existing) {
-        return res.status(400).json({ error: 'Chip rate already exists for this location' });
+        return res.status(400).json({ error: 'Chip rate already exists for this location and game type' });
       }
       updateFields.push('chip_rate = ?');
       values.push(chipRate);
@@ -185,6 +231,7 @@ router.put('/:id', (req: AuthRequest, res) => {
       SELECT 
         id,
         location_id as locationId,
+        game_type_id as gameTypeId,
         chip_rate as chipRate,
         is_default as isDefault,
         note,
@@ -203,13 +250,12 @@ router.put('/:id', (req: AuthRequest, res) => {
   }
 });
 
-// 删除chip_rate规则
+// 删除倍率规则
 router.delete('/:id', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
 
-    // 验证chip_rate是否属于当前用户
     const chipRateRecord = db.prepare(`
       SELECT lcr.id
       FROM location_chip_rates lcr
@@ -221,7 +267,6 @@ router.delete('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Chip rate not found' });
     }
 
-    // 检查是否有对局使用此chip_rate
     const gamesUsing = db.prepare(`
       SELECT COUNT(*) as count FROM games WHERE chip_rate_id = ?
     `).get(id) as { count: number };
@@ -246,4 +291,3 @@ router.delete('/:id', (req: AuthRequest, res) => {
 });
 
 export default router;
-
