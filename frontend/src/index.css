@@ -28,7 +28,7 @@
 
   /* 卡片样式 */
   .card {
-    @apply bg-bg-card border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-shadow;
+    @apply bg-bg-card border border-gray-200 rounded-xl p-2 sm:p-3 shadow-sm hover:shadow-md transition-shadow;
   }
 
   /* 输入框样式 */
