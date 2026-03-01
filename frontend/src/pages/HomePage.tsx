@@ -337,7 +337,7 @@ export default function HomePage() {
           )}
           
           {/* 品字形头部总览区 */}
-          <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-center mb-3">
               <div className={`text-4xl font-bold ${
                 monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
@@ -348,49 +348,30 @@ export default function HomePage() {
             </div>
             <div className="flex justify-between">
               <div className="text-center">
-                <div className="text-base font-semibold text-accent-red">
+                <div className="text-sm font-semibold text-accent-red">
                   +{monthlyStats.overall.totalIncome.toLocaleString()}
                 </div>
-                <div className="text-xs text-text-light">总赢</div>
+                <div className="text-xs text-gray-400">总赢</div>
               </div>
               <div className="text-center">
-                <div className="text-base font-semibold text-accent-green">
+                <div className="text-sm font-semibold text-accent-green">
                   -{monthlyStats.overall.totalExpense.toLocaleString()}
                 </div>
-                <div className="text-xs text-text-light">总输</div>
+                <div className="text-xs text-gray-400">总输</div>
               </div>
             </div>
           </div>
 
           {/* 双列统计卡片网格 */}
           <div className="grid grid-cols-2 gap-3">
-            {/* 整体卡片 */}
-            <div className="bg-white rounded-xl shadow-sm p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-sm">🎲</span>
-                  <span className="text-xs font-semibold text-text">整体</span>
-                </div>
-                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">
-                  {monthlyStats.overall.winRate}%
-                </span>
-              </div>
-              <div className={`text-xl font-bold mb-2 ${
-                monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-              }`}>
-                {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
-              </div>
-              <div className="text-xs text-text-light">共{monthlyStats.overall.totalGames}场</div>
-            </div>
-
             {/* 下午场卡片 */}
-            <div className="bg-white rounded-xl shadow-sm p-3">
+            <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1">
                   <span className="text-sm">🌆</span>
                   <span className="text-xs font-semibold text-text">下午场</span>
                 </div>
-                <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                <span className={`${monthlyStats.afternoon.winRate > 50 ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'} text-xs py-1 px-2 rounded-full`}>
                   {monthlyStats.afternoon.winRate}%
                 </span>
               </div>
@@ -403,13 +384,13 @@ export default function HomePage() {
             </div>
 
             {/* 晚上场卡片 */}
-            <div className="bg-white rounded-xl shadow-sm p-3">
+            <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1">
                   <span className="text-sm">🌙</span>
                   <span className="text-xs font-semibold text-text">晚上场</span>
                 </div>
-                <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                <span className={`${monthlyStats.evening.winRate > 50 ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'} text-xs py-1 px-2 rounded-full`}>
                   {monthlyStats.evening.winRate}%
                 </span>
               </div>
@@ -423,13 +404,13 @@ export default function HomePage() {
 
             {/* 玩法统计卡片 */}
             {Object.values(monthlyStats.byGameType || {}).map((gt, index) => (
-              <div key={`gt-${index}`} className="bg-white rounded-xl shadow-sm p-3">
+              <div key={`gt-${index}`} className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1">
                     <span className="text-sm">🀄️</span>
                     <span className="text-xs font-semibold text-text truncate">{gt.name}</span>
                   </div>
-                  <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                  <span className={`${gt.winRate > 50 ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'} text-xs py-1 px-2 rounded-full`}>
                     {gt.winRate}%
                   </span>
                 </div>
