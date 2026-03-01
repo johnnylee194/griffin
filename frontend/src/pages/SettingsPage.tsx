@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react'
-import { playersApi, locationsApi, authApi, chipRatesApi, gameTypesApi, Player, Location, ChipRate, GameType } from '../api/client'
+import { playersApi, locationsApi, authApi, chipRatesApi, gameTypesApi, Player, Location, ChipRate, GameType, LocationGameType } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function SettingsPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [gameTypes, setGameTypes] = useState<GameType[]>([])
   const [newPlayerName, setNewPlayerName] = useState('')
   const [newLocationName, setNewLocationName] = useState('')
+  const [newGameTypeName, setNewGameTypeName] = useState('')
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null)
   const [editingLocationId, setEditingLocationId] = useState<string | null>(null)
+  const [editingGameTypeId, setEditingGameTypeId] = useState<string | null>(null)
   const [editingPlayerName, setEditingPlayerName] = useState('')
   const [editingLocationName, setEditingLocationName] = useState('')
+  const [editingGameTypeName, setEditingGameTypeName] = useState('')
   const [loading, setLoading] = useState(true)
   const { user, updateUser } = useAuth()
   const [editingUserName, setEditingUserName] = useState('')
@@ -24,16 +28,15 @@ export default function SettingsPage() {
   const [showUserAccountModal, setShowUserAccountModal] = useState(false)
   const [isPlayersExpanded, setIsPlayersExpanded] = useState(false)
   const [isLocationsExpanded, setIsLocationsExpanded] = useState(false)
+  const [isGameTypesExpanded, setIsGameTypesExpanded] = useState(false)
   const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)
-  const [expandedGameTypeId, setExpandedGameTypeId] = useState<string | null>(null)
-  const [locationGameTypes, setLocationGameTypes] = useState<Record<string, GameType[]>>({})
+  const [expandedLocationGameTypeId, setExpandedLocationGameTypeId] = useState<string | null>(null)
+  const [locationGameTypes, setLocationGameTypes] = useState<Record<string, LocationGameType[]>>({})
   const [gameTypeChipRates, setGameTypeChipRates] = useState<Record<string, ChipRate[]>>({})
-  const [newGameType, setNewGameType] = useState<{ locationId: string; name: string } | null>(null)
-  const [newChipRate, setNewChipRate] = useState<{ gameTypeId: string; chipRate: number; note: string } | null>(null)
-  const [editingGameTypeId, setEditingGameTypeId] = useState<string | null>(null)
-  const [editingGameTypeName, setEditingGameTypeName] = useState('')
+  const [newChipRate, setNewChipRate] = useState<{ locationId: string; gameTypeId: string; chipRate: number; note: string } | null>(null)
   const [editingChipRateId, setEditingChipRateId] = useState<string | null>(null)
   const [editingChipRate, setEditingChipRate] = useState<{ chipRate: number; note: string } | null>(null)
+  const [showEnableGameTypeModal, setShowEnableGameTypeModal] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -54,12 +57,14 @@ export default function SettingsPage() {
 
   const loadData = async () => {
     try {
-      const [playersRes, locationsRes] = await Promise.all([
+      const [playersRes, locationsRes, gameTypesRes] = await Promise.all([
         playersApi.getAll(),
-        locationsApi.getAll()
+        locationsApi.getAll(),
+        gameTypesApi.getAll()
       ])
       setPlayers(playersRes.data)
       setLocations(locationsRes.data)
+      setGameTypes(gameTypesRes.data)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -67,19 +72,19 @@ export default function SettingsPage() {
     }
   }
 
-  const loadGameTypes = async (locationId: string) => {
+  const loadLocationGameTypes = async (locationId: string) => {
     try {
       const res = await gameTypesApi.getByLocation(locationId)
       setLocationGameTypes(prev => ({ ...prev, [locationId]: res.data }))
     } catch (error) {
-      console.error('Failed to load game types:', error)
+      console.error('Failed to load location game types:', error)
     }
   }
 
   const loadChipRates = async (gameTypeId: string, locationId: string) => {
     try {
       const res = await chipRatesApi.getByLocationAndGameType(locationId, gameTypeId)
-      setGameTypeChipRates(prev => ({ ...prev, [gameTypeId]: res.data }))
+      setGameTypeChipRates(prev => ({ ...prev, `${locationId}-${gameTypeId}`: res.data }))
     } catch (error) {
       console.error('Failed to load chip rates:', error)
     }
@@ -218,31 +223,27 @@ export default function SettingsPage() {
     }
   }
 
-  const handleToggleGameTypes = async (locationId: string) => {
+  const handleToggleLocationGameTypes = async (locationId: string) => {
     if (expandedLocationId === locationId) {
       setExpandedLocationId(null)
     } else {
       setExpandedLocationId(locationId)
       if (!locationGameTypes[locationId]) {
-        await loadGameTypes(locationId)
+        await loadLocationGameTypes(locationId)
       }
     }
   }
 
-  const handleAddGameType = async (locationId: string) => {
-    if (!newGameType || !newGameType.name.trim()) {
+  const handleAddGameType = async () => {
+    if (!newGameTypeName.trim()) {
       alert('请输入玩法名称')
       return
     }
 
     try {
-      await gameTypesApi.create({
-        locationId,
-        name: newGameType.name.trim(),
-        isDefault: false
-      })
-      setNewGameType(null)
-      await loadGameTypes(locationId)
+      await gameTypesApi.create({ name: newGameTypeName.trim() })
+      setNewGameTypeName('')
+      loadData()
       alert('添加成功')
     } catch (error: any) {
       console.error('Failed to add game type:', error)
@@ -250,27 +251,16 @@ export default function SettingsPage() {
     }
   }
 
-  const handleDeleteGameType = async (gameTypeId: string, locationId: string) => {
+  const handleDeleteGameType = async (gameTypeId: string) => {
     if (!confirm('确定要删除这个玩法吗？')) return
 
     try {
       await gameTypesApi.delete(gameTypeId)
-      await loadGameTypes(locationId)
+      loadData()
       alert('删除成功')
     } catch (error: any) {
       console.error('Failed to delete game type:', error)
       alert(error.response?.data?.error || '删除失败')
-    }
-  }
-
-  const handleSetDefaultGameType = async (gameTypeId: string, locationId: string) => {
-    try {
-      await gameTypesApi.update(gameTypeId, { isDefault: true })
-      await loadGameTypes(locationId)
-      alert('设置成功')
-    } catch (error: any) {
-      console.error('Failed to set default game type:', error)
-      alert(error.response?.data?.error || '设置失败')
     }
   }
 
@@ -284,7 +274,7 @@ export default function SettingsPage() {
     setEditingGameTypeName('')
   }
 
-  const handleSaveGameType = async (gameTypeId: string, locationId: string) => {
+  const handleSaveGameType = async (gameTypeId: string) => {
     if (!editingGameTypeName.trim()) {
       alert('请输入玩法名称')
       return
@@ -294,7 +284,7 @@ export default function SettingsPage() {
       await gameTypesApi.update(gameTypeId, { name: editingGameTypeName.trim() })
       setEditingGameTypeId(null)
       setEditingGameTypeName('')
-      await loadGameTypes(locationId)
+      loadData()
       alert('修改成功')
     } catch (error: any) {
       console.error('Failed to update game type:', error)
@@ -302,18 +292,55 @@ export default function SettingsPage() {
     }
   }
 
-  const handleToggleChipRates = async (gameType: GameType) => {
-    if (expandedGameTypeId === gameType.id) {
-      setExpandedGameTypeId(null)
+  const handleEnableGameType = async (locationId: string, gameTypeId: string) => {
+    try {
+      await gameTypesApi.enableForLocation(locationId, { gameTypeId })
+      setShowEnableGameTypeModal(null)
+      await loadLocationGameTypes(locationId)
+      alert('启用成功')
+    } catch (error: any) {
+      console.error('Failed to enable game type:', error)
+      alert(error.response?.data?.error || '启用失败')
+    }
+  }
+
+  const handleDisableGameType = async (locationId: string, gameTypeId: string) => {
+    if (!confirm('确定要禁用这个玩法吗？')) return
+
+    try {
+      await gameTypesApi.disableForLocation(locationId, gameTypeId)
+      await loadLocationGameTypes(locationId)
+      alert('禁用成功')
+    } catch (error: any) {
+      console.error('Failed to disable game type:', error)
+      alert(error.response?.data?.error || '禁用失败')
+    }
+  }
+
+  const handleSetDefaultLocationGameType = async (locationId: string, gameTypeId: string) => {
+    try {
+      await gameTypesApi.enableForLocation(locationId, { gameTypeId, isDefault: true })
+      await loadLocationGameTypes(locationId)
+      alert('设置成功')
+    } catch (error: any) {
+      console.error('Failed to set default game type:', error)
+      alert(error.response?.data?.error || '设置失败')
+    }
+  }
+
+  const handleToggleChipRates = async (locationGameType: LocationGameType, locationId: string) => {
+    const key = `${locationId}-${locationGameType.gameTypeId}`
+    if (expandedLocationGameTypeId === key) {
+      setExpandedLocationGameTypeId(null)
     } else {
-      setExpandedGameTypeId(gameType.id)
-      if (!gameTypeChipRates[gameType.id]) {
-        await loadChipRates(gameType.id, gameType.locationId)
+      setExpandedLocationGameTypeId(key)
+      if (!gameTypeChipRates[key]) {
+        await loadChipRates(locationGameType.gameTypeId, locationId)
       }
     }
   }
 
-  const handleAddChipRate = async (gameTypeId: string, locationId: string) => {
+  const handleAddChipRate = async (locationId: string, gameTypeId: string) => {
     if (!newChipRate || !newChipRate.chipRate) {
       alert('请输入一分多少钱')
       return
@@ -667,6 +694,96 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* 玩法管理（全局） */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm sm:text-lg font-semibold text-text">🎮 玩法管理（全局）</h3>
+          <button
+            onClick={() => setIsGameTypesExpanded(!isGameTypesExpanded)}
+            className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
+          >
+            {isGameTypesExpanded ? '收起' : '展开'}
+          </button>
+        </div>
+        
+        {isGameTypesExpanded && (
+          <>
+            {/* 添加玩法 */}
+            <div className="flex space-x-2 mb-4">
+              <input
+                type="text"
+                value={newGameTypeName}
+                onChange={(e) => setNewGameTypeName(e.target.value)}
+                placeholder="输入玩法名称"
+                className="input flex-1"
+                onKeyPress={(e) => e.key === 'Enter' && handleAddGameType()}
+              />
+              <button onClick={handleAddGameType} className="btn-primary">
+                添加
+              </button>
+            </div>
+
+            {/* 玩法列表 */}
+            <div className="space-y-2">
+              {gameTypes.map(gameType => (
+                <div key={gameType.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center space-x-3 flex-1">
+                    {editingGameTypeId === gameType.id ? (
+                      <input
+                        type="text"
+                        value={editingGameTypeName}
+                        onChange={(e) => setEditingGameTypeName(e.target.value)}
+                        className="input flex-1 text-sm"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') handleSaveGameType(gameType.id)
+                          if (e.key === 'Escape') handleCancelEditGameType()
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="text-text">{gameType.name}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {editingGameTypeId === gameType.id ? (
+                      <>
+                        <button
+                          onClick={() => handleSaveGameType(gameType.id)}
+                          className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={handleCancelEditGameType}
+                          className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
+                        >
+                          取消
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleStartEditGameType(gameType)}
+                          className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGameType(gameType.id)}
+                          className="text-accent-red hover:text-red-600 text-sm"
+                        >
+                          删除
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
       {/* 玩家管理 */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
@@ -840,10 +957,10 @@ export default function SettingsPage() {
                       ) : (
                         <>
                           <button
-                            onClick={() => handleToggleGameTypes(location.id)}
+                            onClick={() => handleToggleLocationGameTypes(location.id)}
                             className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
                           >
-                            {expandedLocationId === location.id ? '收起' : '🎮 玩法'}
+                            {expandedLocationId === location.id ? '收起' : '🎮 启用玩法'}
                           </button>
                           <button
                             onClick={() => handleStartEditLocation(location)}
@@ -870,124 +987,57 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   
-                  {/* 玩法管理 */}
+                  {/* 启用的玩法管理 */}
                   {expandedLocationId === location.id && (
                     <div className="mt-3 pt-3 border-t border-gray-200">
-                      {/* 添加玩法 */}
-                      {newGameType?.locationId === location.id ? (
-                        <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                          <input
-                            type="text"
-                            value={newGameType.name}
-                            onChange={(e) => setNewGameType({ ...newGameType, name: e.target.value })}
-                            placeholder="玩法名称"
-                            className="input flex-1 text-sm"
-                          />
-                          <div className="flex gap-2 sm:flex-shrink-0">
-                            <button
-                              onClick={() => handleAddGameType(location.id)}
-                              className="btn-primary text-sm px-3 py-1 flex-1 sm:flex-none"
-                            >
-                              添加
-                            </button>
-                            <button
-                              onClick={() => setNewGameType(null)}
-                              className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded flex-1 sm:flex-none"
-                            >
-                              取消
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setNewGameType({ locationId: location.id, name: '' })}
-                          className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded mb-3"
-                        >
-                          + 添加玩法
-                        </button>
-                      )}
+                      {/* 启用玩法按钮 */}
+                      <button
+                        onClick={() => setShowEnableGameTypeModal(location.id)}
+                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded mb-3"
+                      >
+                        + 启用玩法
+                      </button>
 
-                      {/* 玩法列表 */}
+                      {/* 启用玩法列表 */}
                       <div className="space-y-2">
-                        {locationGameTypes[location.id]?.map(gameType => (
-                          <div key={gameType.id} className="bg-white rounded p-3">
+                        {locationGameTypes[location.id]?.map(locationGameType => (
+                          <div key={locationGameType.id} className="bg-white rounded p-3">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center space-x-3 flex-1">
-                                {editingGameTypeId === gameType.id ? (
-                                  <input
-                                    type="text"
-                                    value={editingGameTypeName}
-                                    onChange={(e) => setEditingGameTypeName(e.target.value)}
-                                    className="input flex-1 text-sm"
-                                    onKeyPress={(e) => {
-                                      if (e.key === 'Enter') handleSaveGameType(gameType.id, location.id)
-                                      if (e.key === 'Escape') handleCancelEditGameType()
-                                    }}
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <>
-                                    <span className="text-text font-semibold">{gameType.name}</span>
-                                    {gameType.isDefault && (
-                                      <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
-                                    )}
-                                  </>
+                                <span className="text-text font-semibold">{locationGameType.gameTypeName}</span>
+                                {locationGameType.isDefault && (
+                                  <span className="text-xs bg-accent-yellow text-white px-2 py-1 rounded">默认</span>
                                 )}
                               </div>
                               <div className="flex items-center space-x-2">
-                                {editingGameTypeId === gameType.id ? (
-                                  <>
-                                    <button
-                                      onClick={() => handleSaveGameType(gameType.id, location.id)}
-                                      className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
-                                    >
-                                      保存
-                                    </button>
-                                    <button
-                                      onClick={handleCancelEditGameType}
-                                      className="text-text-secondary hover:text-text text-xs px-2 py-1 border border-gray-300 rounded"
-                                    >
-                                      取消
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button
-                                      onClick={() => handleToggleChipRates(gameType)}
-                                      className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
-                                    >
-                                      {expandedGameTypeId === gameType.id ? '收起' : '💰 倍率'}
-                                    </button>
-                                    <button
-                                      onClick={() => handleStartEditGameType(gameType)}
-                                      className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
-                                    >
-                                      编辑
-                                    </button>
-                                    {!gameType.isDefault && (
-                                      <button
-                                        onClick={() => handleSetDefaultGameType(gameType.id, location.id)}
-                                        className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
-                                      >
-                                        设为默认
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => handleDeleteGameType(gameType.id, location.id)}
-                                      className="text-accent-red hover:text-red-600 text-xs"
-                                    >
-                                      删除
-                                    </button>
-                                  </>
+                                <button
+                                  onClick={() => handleToggleChipRates(locationGameType, location.id)}
+                                  className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
+                                >
+                                  {expandedLocationGameTypeId === `${location.id}-${locationGameType.gameTypeId}` ? '收起' : '💰 倍率'}
+                                </button>
+                                {!locationGameType.isDefault && (
+                                  <button
+                                    onClick={() => handleSetDefaultLocationGameType(location.id, locationGameType.gameTypeId)}
+                                    className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
+                                  >
+                                    设为默认
+                                  </button>
                                 )}
+                                <button
+                                  onClick={() => handleDisableGameType(location.id, locationGameType.gameTypeId)}
+                                  className="text-accent-red hover:text-red-600 text-xs"
+                                >
+                                  禁用
+                                </button>
                               </div>
                             </div>
                             
                             {/* 倍率管理 */}
-                            {expandedGameTypeId === gameType.id && (
+                            {expandedLocationGameTypeId === `${location.id}-${locationGameType.gameTypeId}` && (
                               <div className="mt-2 pt-2 border-t border-gray-200">
                                 {/* 添加倍率 */}
-                                {newChipRate?.gameTypeId === gameType.id ? (
+                                {newChipRate?.locationId === location.id && newChipRate?.gameTypeId === locationGameType.gameTypeId ? (
                                   <div className="flex flex-col sm:flex-row gap-2 mb-2">
                                     <input
                                       type="number"
@@ -1006,7 +1056,7 @@ export default function SettingsPage() {
                                     />
                                     <div className="flex gap-2 sm:flex-shrink-0">
                                       <button
-                                        onClick={() => handleAddChipRate(gameType.id, location.id)}
+                                        onClick={() => handleAddChipRate(location.id, locationGameType.gameTypeId)}
                                         className="btn-primary text-xs px-2 py-1 flex-1 sm:flex-none"
                                       >
                                         添加
@@ -1021,7 +1071,7 @@ export default function SettingsPage() {
                                   </div>
                                 ) : (
                                   <button
-                                    onClick={() => setNewChipRate({ gameTypeId: gameType.id, chipRate: 0, note: '' })}
+                                    onClick={() => setNewChipRate({ locationId: location.id, gameTypeId: locationGameType.gameTypeId, chipRate: 0, note: '' })}
                                     className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded mb-2"
                                   >
                                     + 添加倍率
@@ -1030,7 +1080,7 @@ export default function SettingsPage() {
 
                                 {/* 倍率列表 */}
                                 <div className="space-y-1">
-                                  {gameTypeChipRates[gameType.id]?.map(chipRate => (
+                                  {gameTypeChipRates[`${location.id}-${locationGameType.gameTypeId}`]?.map(chipRate => (
                                     <div key={chipRate.id} className="flex items-center justify-between bg-gray-50 rounded p-2">
                                       {editingChipRateId === chipRate.id ? (
                                         <div className="flex items-center space-x-2 flex-1">
@@ -1049,7 +1099,7 @@ export default function SettingsPage() {
                                             className="input text-sm flex-1"
                                           />
                                           <button
-                                            onClick={() => handleSaveChipRate(chipRate.id, gameType.id, location.id)}
+                                            onClick={() => handleSaveChipRate(chipRate.id, locationGameType.gameTypeId, location.id)}
                                             className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
                                           >
                                             保存
@@ -1081,14 +1131,14 @@ export default function SettingsPage() {
                                             </button>
                                             {!chipRate.isDefault && (
                                               <button
-                                                onClick={() => handleSetDefaultChipRate(chipRate.id, gameType.id, location.id)}
+                                                onClick={() => handleSetDefaultChipRate(chipRate.id, locationGameType.gameTypeId, location.id)}
                                                 className="text-primary hover:text-primary-light text-xs px-2 py-1 border border-primary/30 rounded"
                                               >
                                                 设为默认
                                               </button>
                                             )}
                                             <button
-                                              onClick={() => handleDeleteChipRate(chipRate.id, gameType.id, location.id)}
+                                              onClick={() => handleDeleteChipRate(chipRate.id, locationGameType.gameTypeId, location.id)}
                                               className="text-accent-red hover:text-red-600 text-xs"
                                             >
                                               删除
@@ -1098,7 +1148,7 @@ export default function SettingsPage() {
                                       )}
                                     </div>
                                   ))}
-                                  {(!gameTypeChipRates[gameType.id] || gameTypeChipRates[gameType.id].length === 0) && (
+                                  {(!gameTypeChipRates[`${location.id}-${locationGameType.gameTypeId}`] || gameTypeChipRates[`${location.id}-${locationGameType.gameTypeId}`].length === 0) && (
                                     <div className="text-text-secondary text-xs text-center py-2">
                                       暂无倍率规则，请添加
                                     </div>
@@ -1110,7 +1160,7 @@ export default function SettingsPage() {
                         ))}
                         {(!locationGameTypes[location.id] || locationGameTypes[location.id].length === 0) && (
                           <div className="text-text-secondary text-sm text-center py-2">
-                            暂无玩法，请添加
+                            暂无启用的玩法，请启用
                           </div>
                         )}
                       </div>
@@ -1122,6 +1172,42 @@ export default function SettingsPage() {
           </>
         )}
       </div>
+
+      {/* 启用玩法模态框 */}
+      {showEnableGameTypeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-text">启用玩法</h3>
+              <button
+                onClick={() => setShowEnableGameTypeModal(null)}
+                className="text-text-secondary hover:text-text text-xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {gameTypes
+                .filter(gt => !locationGameTypes[showEnableGameTypeModal]?.some(lgt => lgt.gameTypeId === gt.id))
+                .map(gameType => (
+                  <button
+                    key={gameType.id}
+                    onClick={() => handleEnableGameType(showEnableGameTypeModal, gameType.id)}
+                    className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    {gameType.name}
+                  </button>
+                ))}
+              {gameTypes.filter(gt => !locationGameTypes[showEnableGameTypeModal]?.some(lgt => lgt.gameTypeId === gt.id)).length === 0 && (
+                <div className="text-text-secondary text-center py-4">
+                  所有玩法都已启用
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 关于 */}
       <div className="card">
