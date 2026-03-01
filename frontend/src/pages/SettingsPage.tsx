@@ -84,7 +84,7 @@ export default function SettingsPage() {
   const loadChipRates = async (gameTypeId: string, locationId: string) => {
     try {
       const res = await chipRatesApi.getByLocationAndGameType(locationId, gameTypeId)
-      setGameTypeChipRates(prev => ({ ...prev, `${locationId}-${gameTypeId}`: res.data }))
+      setGameTypeChipRates(prev => ({ ...prev, [`${locationId}-${gameTypeId}`]: res.data }))
     } catch (error) {
       console.error('Failed to load chip rates:', error)
     }
