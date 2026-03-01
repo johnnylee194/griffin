@@ -4,6 +4,17 @@ import { gamesApi, apiClient, Game } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { FilterListModal } from '../components/FilterListModal'
 
+interface GameTypeStats {
+  name: string
+  totalGames: number
+  winGames: number
+  loseGames: number
+  winRate: number
+  totalIncome: number
+  totalExpense: number
+  profit: number
+}
+
 interface MonthlyStats {
   month: string
   availableLocations?: Array<{ id: string; name: string }>
@@ -35,6 +46,7 @@ interface MonthlyStats {
     totalExpense: number
     profit: number
   }
+  byGameType: Record<string, GameTypeStats>
 }
 
 export default function HomePage() {
@@ -384,73 +396,84 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 时段统计 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {/* 玩法和时段统计网格 */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* 玩法统计 */}
+            {Object.values(monthlyStats.byGameType || {}).map((gt, index) => (
+              <div key={`gt-${index}`} className="card">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-text-secondary">🎲</span>
+                    <span className="text-sm font-semibold text-text truncate">{gt.name}</span>
+                  </div>
+                  <div className="text-lg font-bold text-primary">{gt.winRate}%</div>
+                  <div className="text-xs text-text-secondary">
+                    {gt.totalGames} 场 · 
+                    <span className="text-accent-red">{gt.winGames}胜</span>
+                    <span className="text-accent-green">{gt.loseGames}负</span>
+                  </div>
+                  <div className="border-t border-gray-200 pt-1.5 space-y-0.5">
+                    <div className="flex justify-between text-[10px] text-text-light">
+                      <span className="text-accent-red">+{gt.totalIncome.toLocaleString()}</span>
+                      <span className="text-accent-green">-{gt.totalExpense.toLocaleString()}</span>
+                    </div>
+                    <div className="text-center text-[10px] font-semibold">
+                      <span className={gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}>
+                        {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
             {/* 下午场 */}
             <div className="card">
-              <h4 className="text-sm font-semibold text-text-secondary mb-3">🌆 下午场</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-text-light">胜率</span>
-                  <span className="text-base sm:text-lg font-bold text-primary">{monthlyStats.afternoon.winRate}%</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-text-secondary">🌆</span>
+                  <span className="text-sm font-semibold text-text">下午场</span>
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-text-light">场次</span>
-                  <span className="text-text-secondary">
-                    {monthlyStats.afternoon.totalGames} 场 · 
-                    <span className="text-accent-red ml-1">{monthlyStats.afternoon.winGames}胜</span>
-                    <span className="text-accent-green ml-1">{monthlyStats.afternoon.loseGames}负</span>
-                  </span>
+                <div className="text-lg font-bold text-primary">{monthlyStats.afternoon.winRate}%</div>
+                <div className="text-xs text-text-secondary">
+                  {monthlyStats.afternoon.totalGames} 场 · 
+                  <span className="text-accent-red">{monthlyStats.afternoon.winGames}胜</span>
+                  <span className="text-accent-green">{monthlyStats.afternoon.loseGames}负</span>
                 </div>
-                <div className="border-t border-gray-200 pt-2 grid grid-cols-3 gap-1 text-xs text-center">
-                  <div>
-                    <div className="text-accent-red font-semibold">+{monthlyStats.afternoon.totalIncome.toLocaleString()}</div>
-                    <div className="text-text-light">赢</div>
+                <div className="border-t border-gray-200 pt-1.5 space-y-0.5">
+                  <div className="flex justify-between text-[10px] text-text-light">
+                    <span className="text-accent-red">+{monthlyStats.afternoon.totalIncome.toLocaleString()}</span>
+                    <span className="text-accent-green">-{monthlyStats.afternoon.totalExpense.toLocaleString()}</span>
                   </div>
-                  <div>
-                    <div className="text-accent-green font-semibold">-{monthlyStats.afternoon.totalExpense.toLocaleString()}</div>
-                    <div className="text-text-light">输</div>
-                  </div>
-                  <div>
-                    <div className={`font-semibold ${monthlyStats.afternoon.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                  <div className="text-center text-[10px] font-semibold">
+                    <span className={monthlyStats.afternoon.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}>
                       {monthlyStats.afternoon.profit >= 0 ? '+' : ''}{monthlyStats.afternoon.profit.toLocaleString()}
-                    </div>
-                    <div className="text-text-light">利润</div>
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
-
             {/* 晚上场 */}
             <div className="card">
-              <h4 className="text-sm font-semibold text-text-secondary mb-3">🌙 晚上场</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-text-light">胜率</span>
-                  <span className="text-base sm:text-lg font-bold text-primary">{monthlyStats.evening.winRate}%</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-text-secondary">🌙</span>
+                  <span className="text-sm font-semibold text-text">晚上场</span>
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-text-light">场次</span>
-                  <span className="text-text-secondary">
-                    {monthlyStats.evening.totalGames} 场 · 
-                    <span className="text-accent-red ml-1">{monthlyStats.evening.winGames}胜</span>
-                    <span className="text-accent-green ml-1">{monthlyStats.evening.loseGames}负</span>
-                  </span>
+                <div className="text-lg font-bold text-primary">{monthlyStats.evening.winRate}%</div>
+                <div className="text-xs text-text-secondary">
+                  {monthlyStats.evening.totalGames} 场 · 
+                  <span className="text-accent-red">{monthlyStats.evening.winGames}胜</span>
+                  <span className="text-accent-green">{monthlyStats.evening.loseGames}负</span>
                 </div>
-                <div className="border-t border-gray-200 pt-2 grid grid-cols-3 gap-1 text-xs text-center">
-                  <div>
-                    <div className="text-accent-red font-semibold">+{monthlyStats.evening.totalIncome.toLocaleString()}</div>
-                    <div className="text-text-light">赢</div>
+                <div className="border-t border-gray-200 pt-1.5 space-y-0.5">
+                  <div className="flex justify-between text-[10px] text-text-light">
+                    <span className="text-accent-red">+{monthlyStats.evening.totalIncome.toLocaleString()}</span>
+                    <span className="text-accent-green">-{monthlyStats.evening.totalExpense.toLocaleString()}</span>
                   </div>
-                  <div>
-                    <div className="text-accent-green font-semibold">-{monthlyStats.evening.totalExpense.toLocaleString()}</div>
-                    <div className="text-text-light">输</div>
-                  </div>
-                  <div>
-                    <div className={`font-semibold ${monthlyStats.evening.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                  <div className="text-center text-[10px] font-semibold">
+                    <span className={monthlyStats.evening.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}>
                       {monthlyStats.evening.profit >= 0 ? '+' : ''}{monthlyStats.evening.profit.toLocaleString()}
-                    </div>
-                    <div className="text-text-light">利润</div>
+                    </span>
                   </div>
                 </div>
               </div>

@@ -427,9 +427,12 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     let query = `
       SELECT 
         pr.chips,
-        g.created_at as createdAt
+        g.created_at as createdAt,
+        g.game_type_id as gameTypeId,
+        gt.name as gameTypeName
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
+      LEFT JOIN game_types gt ON g.game_type_id = gt.id
       WHERE pr.player_id = ?
         AND g.user_id = ?
         AND g.created_at >= ?
@@ -498,6 +501,17 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     let eveningIncome = 0;
     let eveningExpense = 0;
     
+    const gameTypeStats: Record<string, {
+      name: string;
+      totalGames: number;
+      winGames: number;
+      loseGames: number;
+      winRate: number;
+      totalIncome: number;
+      totalExpense: number;
+      profit: number;
+    }> = {};
+    
     records.forEach(record => {
       const chips = record.chips;
       
@@ -529,6 +543,38 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
           eveningExpense += Math.abs(chips);
         }
       }
+      
+      const gameTypeId = record.gameTypeId || 'unknown';
+      const gameTypeName = record.gameTypeName || '未知玩法';
+      
+      if (!gameTypeStats[gameTypeId]) {
+        gameTypeStats[gameTypeId] = {
+          name: gameTypeName,
+          totalGames: 0,
+          winGames: 0,
+          loseGames: 0,
+          winRate: 0,
+          totalIncome: 0,
+          totalExpense: 0,
+          profit: 0
+        };
+      }
+      
+      const gt = gameTypeStats[gameTypeId];
+      gt.totalGames++;
+      
+      if (chips > 0) {
+        gt.winGames++;
+        gt.totalIncome += chips;
+      } else if (chips < 0) {
+        gt.loseGames++;
+        gt.totalExpense += Math.abs(chips);
+      }
+    });
+    
+    Object.values(gameTypeStats).forEach(gt => {
+      gt.profit = gt.totalIncome - gt.totalExpense;
+      gt.winRate = gt.totalGames > 0 ? Math.round((gt.winGames / gt.totalGames) * 100) : 0;
     });
     
     const totalGames = winGames + loseGames;
@@ -579,7 +625,8 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
         totalIncome: eveningIncome,
         totalExpense: eveningExpense,
         profit: eveningProfit
-      }
+      },
+      byGameType: gameTypeStats
     });
   } catch (error) {
     console.error('Failed to get monthly stats:', error);
