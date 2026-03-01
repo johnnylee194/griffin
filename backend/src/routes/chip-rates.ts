@@ -59,7 +59,7 @@ router.get('/location/:locationId', (req: AuthRequest, res) => {
     }
 
     const defaultGameType = db.prepare(`
-      SELECT id FROM game_types WHERE location_id = ? AND is_default = 1
+      SELECT game_type_id FROM location_game_types WHERE location_id = ? AND is_default = 1
     `).get(locationId) as any;
 
     if (!defaultGameType) {
@@ -78,7 +78,7 @@ router.get('/location/:locationId', (req: AuthRequest, res) => {
       FROM location_chip_rates
       WHERE location_id = ? AND game_type_id = ?
       ORDER BY is_default DESC, created_at DESC
-    `).all(locationId, defaultGameType.id) as any[];
+    `).all(locationId, defaultGameType.game_type_id) as any[];
 
     res.json(chipRates.map((cr: any) => ({
       ...cr,
@@ -108,12 +108,14 @@ router.post('/', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Location not found' });
     }
 
-    const gameType = db.prepare(`
-      SELECT id FROM game_types WHERE id = ? AND location_id = ?
-    `).get(gameTypeId, locationId) as any;
+    const locationGameType = db.prepare(`
+      SELECT lgt.id FROM location_game_types lgt
+      JOIN locations l ON lgt.location_id = l.id
+      WHERE lgt.location_id = ? AND lgt.game_type_id = ? AND l.user_id = ?
+    `).get(locationId, gameTypeId, userId) as any;
 
-    if (!gameType) {
-      return res.status(404).json({ error: 'Game type not found' });
+    if (!locationGameType) {
+      return res.status(404).json({ error: 'Game type not enabled for this location' });
     }
 
     const existing = db.prepare(`

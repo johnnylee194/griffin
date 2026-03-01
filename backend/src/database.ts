@@ -117,38 +117,31 @@ export const initDatabase = () => {
     }
   }
 
-  // 创建游戏玩法表（一个地点可以有多个玩法）
+  // 创建游戏玩法表（用户级全局玩法）
   db.exec(`
     CREATE TABLE IF NOT EXISTS game_types (
       id TEXT PRIMARY KEY,
-      location_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
       name TEXT NOT NULL,
-      is_default INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE,
-      UNIQUE(location_id, name)
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(user_id, name)
     )
   `);
 
-  // 迁移现有数据：添加game_types表
-  try {
-    // 为每个现有地点创建默认"麻将"玩法
-    const locations = db.prepare(`SELECT id FROM locations`).all() as any[];
-    for (const loc of locations) {
-      // 检查是否已有玩法
-      const existing = db.prepare(`SELECT id FROM game_types WHERE location_id = ?`).get(loc.id);
-      if (!existing) {
-        const gameTypeId = generateId();
-        db.prepare(`
-          INSERT INTO game_types (id, location_id, name, is_default, created_at)
-          VALUES (?, ?, '麻将', 1, datetime('now'))
-        `).run(gameTypeId, loc.id);
-        console.log(`✅ Created default game type '麻将' for location ${loc.id}`);
-      }
-    }
-  } catch (error: any) {
-    console.warn('⚠️ Could not create default game types:', error.message);
-  }
+  // 创建地点玩法关联表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS location_game_types (
+      id TEXT PRIMARY KEY,
+      location_id TEXT NOT NULL,
+      game_type_id TEXT NOT NULL,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE,
+      FOREIGN KEY (game_type_id) REFERENCES game_types(id) ON DELETE CASCADE,
+      UNIQUE(location_id, game_type_id)
+    )
+  `);
 
   // 创建地点玩法倍率规则表（一个玩法可以有多个倍率）
   db.exec(`
@@ -166,36 +159,7 @@ export const initDatabase = () => {
     )
   `);
 
-  // 迁移现有数据：添加game_type_id到location_chip_rates表
-  try {
-    // 检查是否已有game_type_id字段
-    const tableInfo = db.prepare("PRAGMA table_info(location_chip_rates)").all() as any[];
-    const hasGameTypeId = tableInfo.some((col: any) => col.name === 'game_type_id');
-    
-    if (!hasGameTypeId) {
-      db.exec(`ALTER TABLE location_chip_rates ADD COLUMN game_type_id TEXT`);
-      console.log('✅ Added game_type_id column to location_chip_rates table');
-      
-      // 为现有记录设置game_type_id（使用每个地点的默认玩法）
-      const chipRates = db.prepare(`SELECT id, location_id FROM location_chip_rates WHERE game_type_id IS NULL`).all() as any[];
-      for (const cr of chipRates) {
-        const defaultGameType = db.prepare(`
-          SELECT id FROM game_types WHERE location_id = ? AND is_default = 1
-        `).get(cr.location_id) as any;
-        
-        if (defaultGameType) {
-          db.prepare(`
-            UPDATE location_chip_rates SET game_type_id = ? WHERE id = ?
-          `).run(defaultGameType.id, cr.id);
-        }
-      }
-      console.log('✅ Migrated existing chip rates to use game_type_id');
-    }
-  } catch (error: any) {
-    if (!error.message.includes('duplicate column name')) {
-      console.warn('⚠️ Could not add game_type_id column:', error.message);
-    }
-  }
+
 
   // 创建对局表（添加user_id、game_type_id，移除chip_rate字段）
   db.exec(`
@@ -216,117 +180,7 @@ export const initDatabase = () => {
     )
   `);
 
-  // 迁移现有数据：添加game_type_id到games表
-  try {
-    // 检查是否已有game_type_id字段
-    const tableInfo = db.prepare("PRAGMA table_info(games)").all() as any[];
-    const hasGameTypeId = tableInfo.some((col: any) => col.name === 'game_type_id');
-    
-    if (!hasGameTypeId) {
-      db.exec(`ALTER TABLE games ADD COLUMN game_type_id TEXT`);
-      console.log('✅ Added game_type_id column to games table');
-      
-      // 为现有记录设置game_type_id（使用每个地点的默认玩法）
-      const games = db.prepare(`SELECT id, location_id FROM games WHERE game_type_id IS NULL`).all() as any[];
-      for (const game of games) {
-        const defaultGameType = db.prepare(`
-          SELECT id FROM game_types WHERE location_id = ? AND is_default = 1
-        `).get(game.location_id) as any;
-        
-        if (defaultGameType) {
-          db.prepare(`
-            UPDATE games SET game_type_id = ? WHERE id = ?
-          `).run(defaultGameType.id, game.id);
-        }
-      }
-      console.log('✅ Migrated existing games to use game_type_id');
-    }
-  } catch (error: any) {
-    if (!error.message.includes('duplicate column name')) {
-      console.warn('⚠️ Could not add game_type_id column to games:', error.message);
-    }
-  }
 
-  // 迁移现有数据：添加user_id字段到games表
-  try {
-    db.exec(`ALTER TABLE games ADD COLUMN user_id TEXT`);
-    console.log('✅ Added user_id column to games table');
-    // 注意：现有数据需要手动分配user_id，这里不自动分配
-  } catch (error: any) {
-    if (!error.message.includes('duplicate column name')) {
-      console.warn('⚠️ Could not add user_id column to games table:', error.message);
-    }
-  }
-
-  // 迁移现有数据：添加chip_rate_id字段到games表
-  try {
-    db.exec(`ALTER TABLE games ADD COLUMN chip_rate_id TEXT`);
-    console.log('✅ Added chip_rate_id column to games table');
-  } catch (error: any) {
-    if (!error.message.includes('duplicate column name')) {
-      console.warn('⚠️ Could not add chip_rate_id column to games table:', error.message);
-    }
-  }
-
-  // 迁移现有数据：从games表移除chip_rate字段（需要重建表）
-  try {
-    // 检查games表是否还有chip_rate字段
-    const tableInfo = db.prepare("PRAGMA table_info(games)").all() as any[];
-    const hasChipRate = tableInfo.some((col: any) => col.name === 'chip_rate');
-    
-    if (hasChipRate) {
-      // 有chip_rate字段，需要迁移数据到location_chip_rates表
-      console.log('🔄 Migrating chip_rate from games to location_chip_rates...');
-      
-      // 获取所有唯一的location_id和chip_rate组合
-      const gameChipRates = db.prepare(`
-        SELECT DISTINCT location_id, chip_rate 
-        FROM games 
-        WHERE chip_rate IS NOT NULL
-      `).all() as any[];
-      
-      // 为每个组合创建location_chip_rate记录
-      for (const { location_id, chip_rate } of gameChipRates) {
-        // 检查是否已存在
-        const existing = db.prepare(`
-          SELECT id FROM location_chip_rates 
-          WHERE location_id = ? AND chip_rate = ?
-        `).get(location_id, chip_rate);
-        
-        if (!existing) {
-          const chipRateId = generateId();
-          db.prepare(`
-            INSERT INTO location_chip_rates (id, location_id, chip_rate, is_default, created_at)
-            VALUES (?, ?, ?, 1, datetime('now'))
-          `).run(chipRateId, location_id, chip_rate);
-        }
-      }
-      
-      // 更新games表的chip_rate_id
-      const gamesWithChipRate = db.prepare(`
-        SELECT id, location_id, chip_rate 
-        FROM games 
-        WHERE chip_rate IS NOT NULL
-      `).all() as any[];
-      
-      for (const game of gamesWithChipRate) {
-        const chipRate = db.prepare(`
-          SELECT id FROM location_chip_rates 
-          WHERE location_id = ? AND chip_rate = ?
-        `).get(game.location_id, game.chip_rate) as any;
-        
-        if (chipRate) {
-          db.prepare(`
-            UPDATE games SET chip_rate_id = ? WHERE id = ?
-          `).run(chipRate.id, game.id);
-        }
-      }
-      
-      console.log('✅ Migrated chip_rate data to location_chip_rates table');
-    }
-  } catch (error: any) {
-    console.warn('⚠️ Could not migrate chip_rate:', error.message);
-  }
 
   // 创建玩家记录表（score和chips可为NULL，用于不计分的玩家）
   db.exec(`
@@ -363,7 +217,9 @@ export const initDatabase = () => {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_players_user ON players(user_id);
     CREATE INDEX IF NOT EXISTS idx_locations_user ON locations(user_id);
-    CREATE INDEX IF NOT EXISTS idx_game_types_location ON game_types(location_id);
+    CREATE INDEX IF NOT EXISTS idx_game_types_user ON game_types(user_id);
+    CREATE INDEX IF NOT EXISTS idx_location_game_types_location ON location_game_types(location_id);
+    CREATE INDEX IF NOT EXISTS idx_location_game_types_game_type ON location_game_types(game_type_id);
     CREATE INDEX IF NOT EXISTS idx_games_user ON games(user_id);
     CREATE INDEX IF NOT EXISTS idx_games_location ON games(location_id);
     CREATE INDEX IF NOT EXISTS idx_games_game_type ON games(game_type_id);

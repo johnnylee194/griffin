@@ -183,11 +183,13 @@ router.post('/', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Location not found' });
     }
 
-    const gameType = db.prepare(`
-      SELECT id FROM game_types WHERE id = ? AND location_id = ?
-    `).get(gameTypeId, locationId) as any;
-    if (!gameType) {
-      return res.status(404).json({ error: 'Game type not found for this location' });
+    const locationGameType = db.prepare(`
+      SELECT lgt.id FROM location_game_types lgt
+      JOIN locations l ON lgt.location_id = l.id
+      WHERE lgt.location_id = ? AND lgt.game_type_id = ? AND l.user_id = ?
+    `).get(locationId, gameTypeId, userId) as any;
+    if (!locationGameType) {
+      return res.status(404).json({ error: 'Game type not enabled for this location' });
     }
 
     const chipRate = db.prepare(`
@@ -290,11 +292,13 @@ router.put('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Location not found' });
     }
 
-    const gameType = db.prepare(`
-      SELECT id FROM game_types WHERE id = ? AND location_id = ?
-    `).get(gameTypeId, locationId) as any;
-    if (!gameType) {
-      return res.status(404).json({ error: 'Game type not found for this location' });
+    const locationGameType = db.prepare(`
+      SELECT lgt.id FROM location_game_types lgt
+      JOIN locations l ON lgt.location_id = l.id
+      WHERE lgt.location_id = ? AND lgt.game_type_id = ? AND l.user_id = ?
+    `).get(locationId, gameTypeId, userId) as any;
+    if (!locationGameType) {
+      return res.status(404).json({ error: 'Game type not enabled for this location' });
     }
 
     const chipRate = db.prepare(`

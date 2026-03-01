@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { playersApi, locationsApi, gamesApi, chipRatesApi, gameTypesApi, Player, Location, ChipRate, GameType } from '../api/client'
+import { playersApi, locationsApi, gamesApi, chipRatesApi, gameTypesApi, Player, Location, ChipRate, LocationGameType } from '../api/client'
 import NumPad from '../components/NumPad'
 
 export default function NewGamePage() {
@@ -8,7 +8,7 @@ export default function NewGamePage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [selectedLocation, setSelectedLocation] = useState<string>('')
-  const [gameTypes, setGameTypes] = useState<GameType[]>([])
+  const [gameTypes, setGameTypes] = useState<LocationGameType[]>([])
   const [selectedGameTypeId, setSelectedGameTypeId] = useState<string>('')
   const [chipRates, setChipRates] = useState<ChipRate[]>([])
   const [selectedChipRateId, setSelectedChipRateId] = useState<string>('')
@@ -67,11 +67,11 @@ export default function NewGamePage() {
       setGameTypes(res.data)
       const defaultGameType = res.data.find(gt => gt.isDefault)
       if (defaultGameType) {
-        setSelectedGameTypeId(defaultGameType.id)
-        await loadChipRates(locationId, defaultGameType.id)
+        setSelectedGameTypeId(defaultGameType.gameTypeId)
+        await loadChipRates(locationId, defaultGameType.gameTypeId)
       } else if (res.data.length > 0) {
-        setSelectedGameTypeId(res.data[0].id)
-        await loadChipRates(locationId, res.data[0].id)
+        setSelectedGameTypeId(res.data[0].gameTypeId)
+        await loadChipRates(locationId, res.data[0].gameTypeId)
       }
     } catch (error) {
       console.error('Failed to load game types:', error)
@@ -287,7 +287,7 @@ export default function NewGamePage() {
         >
           <option value="">🎮 选择玩法</option>
           {gameTypes.map(gt => (
-            <option key={gt.id} value={gt.id}>{gt.name}</option>
+            <option key={gt.gameTypeId} value={gt.gameTypeId}>{gt.gameTypeName}</option>
           ))}
         </select>
         <select

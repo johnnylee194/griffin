@@ -55,8 +55,16 @@ export interface Location {
 
 export interface GameType {
   id: string;
-  locationId: string;
+  userId: string;
   name: string;
+  createdAt: string;
+}
+
+export interface LocationGameType {
+  id: string;
+  locationId: string;
+  gameTypeId: string;
+  gameTypeName: string;
   isDefault: boolean;
   createdAt: string;
 }
@@ -112,12 +120,17 @@ export const locationsApi = {
 };
 
 export const gameTypesApi = {
-  getByLocation: (locationId: string) => apiClient.get<GameType[]>(`/game-types/location/${locationId}`),
-  create: (data: { locationId: string; name: string; isDefault?: boolean }) => 
+  getAll: () => apiClient.get<GameType[]>('/game-types'),
+  create: (data: { name: string }) => 
     apiClient.post<GameType>('/game-types', data),
-  update: (id: string, data: { name?: string; isDefault?: boolean }) => 
+  update: (id: string, data: { name?: string }) => 
     apiClient.put<GameType>(`/game-types/${id}`, data),
   delete: (id: string) => apiClient.delete(`/game-types/${id}`),
+  getByLocation: (locationId: string) => apiClient.get<LocationGameType[]>(`/game-types/location/${locationId}`),
+  enableForLocation: (locationId: string, data: { gameTypeId: string; isDefault?: boolean }) => 
+    apiClient.post<LocationGameType>(`/game-types/location/${locationId}`, data),
+  disableForLocation: (locationId: string, gameTypeId: string) => 
+    apiClient.delete(`/game-types/location/${locationId}/${gameTypeId}`),
 };
 
 export const chipRatesApi = {
