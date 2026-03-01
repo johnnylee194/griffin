@@ -171,54 +171,48 @@ export default function HomePage() {
   }
 
   return (
-    <div className="h-full max-w-6xl mx-auto px-4 py-2 sm:py-6 space-y-2 sm:space-y-4 overflow-y-auto">
-      {/* 欢迎横幅 */}
-      <div className="card bg-gradient-to-br from-primary/10 to-accent-yellow/10 py-2 sm:py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg sm:text-2xl font-bold text-primary mb-0.5 sm:mb-1">
-              欢迎回来{user?.name ? `，${user.name}` : ''}！
-            </h2>
-            <p className="text-xs sm:text-base text-text-secondary">让我们继续追踪你的胜利</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowFilterModal(true)}
-              className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
-            >
-              👁️ 视图
-            </button>
-            <button
-              onClick={() => window.location.href = '/settings'}
-              className="text-sm text-text-secondary hover:text-primary px-3 py-1 border border-gray-300 rounded"
-            >
-              ⚙️ 设置
-            </button>
-          </div>
+    <div className="h-full max-w-6xl mx-auto px-3 py-2 space-y-3 overflow-y-auto">
+      {/* 顶部欢迎 + 日期选择 */}
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h2 className="text-base font-bold text-primary">
+            欢迎回来{user?.name ? `，${user.name}` : ''}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowFilterModal(true)}
+            className="text-xs text-text-secondary hover:text-primary px-2 py-1 border border-gray-300 rounded"
+          >
+            👁️ 视图
+          </button>
+          <button
+            onClick={() => window.location.href = '/settings'}
+            className="text-xs text-text-secondary hover:text-primary px-2 py-1 border border-gray-300 rounded"
+          >
+            ⚙️ 设置
+          </button>
         </div>
       </div>
 
       {/* 本月统计 */}
       {monthlyStats && (
-        <div className="space-y-2 sm:space-y-3">
-          {/* Refactored Header: Date Nav & Actions */}
-          <div className="flex items-center justify-between mb-4 mt-2">
-            {/* Left: Date Navigator as the Main Title */}
+        <div className="space-y-3">
+          {/* 日期导航 */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
-              {/* Prev Button */}
               <button
                 onClick={handlePrevMonth}
                 disabled={!canGoPrevMonth()}
-                className={`p-2 rounded-full transition-colors ${
+                className={`p-1.5 rounded-full transition-colors ${
                   canGoPrevMonth()
                     ? 'text-text hover:bg-gray-100 active:bg-gray-200'
                     : 'text-gray-200 cursor-not-allowed'
                 }`}
               >
-                <span className="text-xl font-bold">‹</span>
+                <span className="text-lg font-bold">‹</span>
               </button>
 
-              {/* Date Trigger */}
               <button
                 onClick={toggleCustomMonthPicker}
                 className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-50 transition-colors"
@@ -226,50 +220,46 @@ export default function HomePage() {
                 <span className="text-sm font-semibold text-text">
                   {selectedYear}年{selectedMonth}月
                 </span>
-                <span className="text-xs text-text-secondary mt-1">▼</span>
+                <span className="text-xs text-text-secondary mt-0.5">▼</span>
               </button>
 
-              {/* Next Button */}
               <button
                 onClick={handleNextMonth}
                 disabled={!canGoNextMonth()}
-                className={`p-2 rounded-full transition-colors ${
+                className={`p-1.5 rounded-full transition-colors ${
                   canGoNextMonth()
                     ? 'text-text hover:bg-gray-100 active:bg-gray-200'
                     : 'text-gray-200 cursor-not-allowed'
                 }`}
               >
-                <span className="text-xl font-bold">›</span>
+                <span className="text-lg font-bold">›</span>
               </button>
             </div>
 
-            {/* Right: Actions (Reset & Filter) */}
             <div className="flex items-center gap-2">
-              {/* Back to Current (Conditional) */}
               {!isCurrentMonth() && (
                 <button
                   onClick={handleCurrentMonth}
-                  className="text-xs font-medium text-primary bg-primary/10 px-3 py-1.5 rounded-full hover:bg-primary/20 transition-colors whitespace-nowrap"
+                  className="text-xs font-medium text-primary bg-primary/10 px-2.5 py-1 rounded-full hover:bg-primary/20 transition-colors whitespace-nowrap"
                 >
                   回本月
                 </button>
               )}
 
-              {/* Location Selector (Simplified visual) */}
               {monthlyStats.availableLocations && monthlyStats.availableLocations.length > 0 && (
                 <div className="relative">
                   <select
                     value={selectedLocationId}
                     onChange={(e) => setSelectedLocationId(e.target.value)}
-                    className="appearance-none text-xs sm:text-sm font-medium bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 pr-6 text-text focus:outline-none focus:border-primary"
+                    className="appearance-none text-xs font-medium bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 pr-5 text-text focus:outline-none focus:border-primary"
                   >
                     <option value="">全部地点</option>
                     {monthlyStats.availableLocations.map(location => (
                       <option key={location.id} value={location.id}>{location.name}</option>
                     ))}
                   </select>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <span className="text-[10px] text-gray-400">▼</span>
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <span className="text-[8px] text-gray-400">▼</span>
                   </div>
                 </div>
               )}
@@ -287,7 +277,7 @@ export default function HomePage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg sm:text-xl font-semibold text-text">选择年月</h3>
+                  <h3 className="text-lg font-semibold text-text">选择年月</h3>
                   <button
                     onClick={() => setShowCustomMonthPicker(false)}
                     className="text-text-secondary hover:text-text text-xl"
@@ -346,150 +336,128 @@ export default function HomePage() {
             </div>
           )}
           
-          {/* 收支情况 */}
-          <div className="card">
-            <h4 className="text-sm font-semibold text-text-secondary mb-1">💰 收支情况</h4>
-            <div className="grid grid-cols-3 gap-1 text-center">
-              <div>
-                <div className="text-base sm:text-xl font-bold text-accent-red">
+          {/* 品字形头部总览区 */}
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="text-center mb-3">
+              <div className={`text-4xl font-bold ${
+                monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
+              }`}>
+                {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
+              </div>
+              <div className="text-xs text-text-secondary mt-1">总利润</div>
+            </div>
+            <div className="flex justify-between">
+              <div className="text-center">
+                <div className="text-base font-semibold text-accent-red">
                   +{monthlyStats.overall.totalIncome.toLocaleString()}
                 </div>
-                <div className="text-[10px] text-text-light mt-0.5">赢</div>
+                <div className="text-xs text-text-light">总赢</div>
               </div>
-              <div>
-                <div className="text-base sm:text-xl font-bold text-accent-green">
+              <div className="text-center">
+                <div className="text-base font-semibold text-accent-green">
                   -{monthlyStats.overall.totalExpense.toLocaleString()}
                 </div>
-                <div className="text-[10px] text-text-light mt-0.5">输</div>
-              </div>
-              <div>
-                <div className={`text-base sm:text-xl font-bold ${
-                  monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
-                </div>
-                <div className="text-[10px] text-text-light mt-0.5">利润</div>
+                <div className="text-xs text-text-light">总输</div>
               </div>
             </div>
           </div>
 
-          {/* 3列统计网格 */}
-          <div className="grid grid-cols-3 gap-1.5">
-            {/* 整体胜率 */}
-            <div className="card">
-              <div className="space-y-0.5">
+          {/* 双列统计卡片网格 */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* 整体卡片 */}
+            <div className="bg-white rounded-xl shadow-sm p-3">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-text-secondary">🎲</span>
+                  <span className="text-sm">🎲</span>
                   <span className="text-xs font-semibold text-text">整体</span>
                 </div>
-                <div className="text-base font-bold text-primary">{monthlyStats.overall.winRate}%</div>
-                <div className="text-[10px] text-text-secondary">
-                  {monthlyStats.overall.totalGames}场 · 
-                  <span className="text-accent-red">{monthlyStats.overall.winGames}胜</span>
-                  <span className="text-accent-green">{monthlyStats.overall.loseGames}负</span>
-                </div>
+                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">
+                  {monthlyStats.overall.winRate}%
+                </span>
               </div>
+              <div className={`text-xl font-bold mb-2 ${
+                monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
+              }`}>
+                {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
+              </div>
+              <div className="text-xs text-text-light">共{monthlyStats.overall.totalGames}场</div>
             </div>
 
-            {/* 玩法统计 */}
-            {Object.values(monthlyStats.byGameType || {}).map((gt, index) => (
-              <div key={`gt-${index}`} className="card">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-text-secondary">🀄️</span>
-                    <span className="text-xs font-semibold text-text truncate">{gt.name}</span>
-                  </div>
-                  <div className="text-base font-bold text-primary">{gt.winRate}%</div>
-                  <div className="text-[10px] text-text-secondary">
-                    {gt.totalGames}场 · 
-                    <span className="text-accent-red">{gt.winGames}胜</span>
-                    <span className="text-accent-green">{gt.loseGames}负</span>
-                  </div>
-                  <div className="border-t border-gray-200 pt-0.5 mt-0.5 space-y-0.5">
-                    <div className="flex justify-between text-[9px] text-text-light">
-                      <span className="text-accent-red">+{gt.totalIncome.toLocaleString()}</span>
-                      <span className="text-accent-green">-{gt.totalExpense.toLocaleString()}</span>
-                    </div>
-                    <div className="text-center text-[9px] font-semibold">
-                      <span className={gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}>
-                        {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {/* 下午场 */}
-            <div className="card">
-              <div className="space-y-0.5">
+            {/* 下午场卡片 */}
+            <div className="bg-white rounded-xl shadow-sm p-3">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-text-secondary">🌆</span>
+                  <span className="text-sm">🌆</span>
                   <span className="text-xs font-semibold text-text">下午场</span>
                 </div>
-                <div className="text-base font-bold text-primary">{monthlyStats.afternoon.winRate}%</div>
-                <div className="text-[10px] text-text-secondary">
-                  {monthlyStats.afternoon.totalGames}场 · 
-                  <span className="text-accent-red">{monthlyStats.afternoon.winGames}胜</span>
-                  <span className="text-accent-green">{monthlyStats.afternoon.loseGames}负</span>
-                </div>
-                <div className="border-t border-gray-200 pt-0.5 mt-0.5 space-y-0.5">
-                  <div className="flex justify-between text-[9px] text-text-light">
-                    <span className="text-accent-red">+{monthlyStats.afternoon.totalIncome.toLocaleString()}</span>
-                    <span className="text-accent-green">-{monthlyStats.afternoon.totalExpense.toLocaleString()}</span>
-                  </div>
-                  <div className="text-center text-[9px] font-semibold">
-                    <span className={monthlyStats.afternoon.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}>
-                      {monthlyStats.afternoon.profit >= 0 ? '+' : ''}{monthlyStats.afternoon.profit.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
+                <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                  {monthlyStats.afternoon.winRate}%
+                </span>
               </div>
+              <div className={`text-xl font-bold mb-2 ${
+                monthlyStats.afternoon.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
+              }`}>
+                {monthlyStats.afternoon.profit >= 0 ? '+' : ''}{monthlyStats.afternoon.profit.toLocaleString()}
+              </div>
+              <div className="text-xs text-text-light">共{monthlyStats.afternoon.totalGames}场</div>
             </div>
 
-            {/* 晚上场 */}
-            <div className="card">
-              <div className="space-y-0.5">
+            {/* 晚上场卡片 */}
+            <div className="bg-white rounded-xl shadow-sm p-3">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-text-secondary">🌙</span>
+                  <span className="text-sm">🌙</span>
                   <span className="text-xs font-semibold text-text">晚上场</span>
                 </div>
-                <div className="text-base font-bold text-primary">{monthlyStats.evening.winRate}%</div>
-                <div className="text-[10px] text-text-secondary">
-                  {monthlyStats.evening.totalGames}场 · 
-                  <span className="text-accent-red">{monthlyStats.evening.winGames}胜</span>
-                  <span className="text-accent-green">{monthlyStats.evening.loseGames}负</span>
-                </div>
-                <div className="border-t border-gray-200 pt-0.5 mt-0.5 space-y-0.5">
-                  <div className="flex justify-between text-[9px] text-text-light">
-                    <span className="text-accent-red">+{monthlyStats.evening.totalIncome.toLocaleString()}</span>
-                    <span className="text-accent-green">-{monthlyStats.evening.totalExpense.toLocaleString()}</span>
-                  </div>
-                  <div className="text-center text-[9px] font-semibold">
-                    <span className={monthlyStats.evening.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}>
-                      {monthlyStats.evening.profit >= 0 ? '+' : ''}{monthlyStats.evening.profit.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
+                <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                  {monthlyStats.evening.winRate}%
+                </span>
               </div>
+              <div className={`text-xl font-bold mb-2 ${
+                monthlyStats.evening.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
+              }`}>
+                {monthlyStats.evening.profit >= 0 ? '+' : ''}{monthlyStats.evening.profit.toLocaleString()}
+              </div>
+              <div className="text-xs text-text-light">共{monthlyStats.evening.totalGames}场</div>
             </div>
+
+            {/* 玩法统计卡片 */}
+            {Object.values(monthlyStats.byGameType || {}).map((gt, index) => (
+              <div key={`gt-${index}`} className="bg-white rounded-xl shadow-sm p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm">🀄️</span>
+                    <span className="text-xs font-semibold text-text truncate">{gt.name}</span>
+                  </div>
+                  <span className="bg-blue-50 text-blue-600 text-xs px-2 py-0.5 rounded-full">
+                    {gt.winRate}%
+                  </span>
+                </div>
+                <div className={`text-xl font-bold mb-2 ${
+                  gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
+                }`}>
+                  {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
+                </div>
+                <div className="text-xs text-text-light">共{gt.totalGames}场</div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* 快速操作 */}
       <div>
-        <h3 className="text-base sm:text-xl font-semibold text-text mb-1.5 sm:mb-2">快速操作</h3>
-        <Link to="/new-game" className="btn-primary w-full block text-center text-base sm:text-lg py-2.5 sm:py-4">
+        <h3 className="text-sm font-semibold text-text mb-2">快速操作</h3>
+        <Link to="/new-game" className="btn-primary w-full block text-center py-2.5">
           ➕ 记录新对局
         </Link>
       </div>
 
       {/* 最近对局 */}
       <div className="pb-2">
-        <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-          <h3 className="text-base sm:text-xl font-semibold text-text">最近对局</h3>
-          <Link to="/history" className="text-primary text-xs sm:text-sm hover:underline">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-text">最近对局</h3>
+          <Link to="/history" className="text-primary text-xs hover:underline">
             查看全部 →
           </Link>
         </div>
