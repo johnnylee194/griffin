@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { initDatabase, seedDefaultData } from './database';
+import { initDatabase } from './database';
 import authRoutes from './routes/auth';
 import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
@@ -19,7 +19,6 @@ dotenv.config();
 
 // 初始化数据库
 initDatabase();
-seedDefaultData();
 
 const app = express();
 const port = process.env.PORT || 3000;

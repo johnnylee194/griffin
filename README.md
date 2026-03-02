@@ -115,9 +115,8 @@ griffin/
 ├── backend/          # 后端服务
 │   ├── src/
 │   │   ├── routes/   # API 路由
-│   │   ├── models/   # 数据模型
 │   │   └── index.ts  # 入口文件
-│   └── prisma/       # 数据库 Schema
+│   └── data/         # SQLite 数据库文件
 ├── frontend/         # 前端应用
 │   ├── src/
 │   │   ├── components/  # React 组件
@@ -169,7 +168,7 @@ griffin/
 感谢以下开源项目：
 - [React](https://react.dev/) - UI 框架
 - [Express](https://expressjs.com/) - Web 框架
-- [Prisma](https://www.prisma.io/) - 数据库 ORM
+- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) - SQLite 数据库驱动
 - [Tailwind CSS](https://tailwindcss.com/) - CSS 框架
 - [Recharts](https://recharts.org/) - 图表库
 - [Docker](https://www.docker.com/) - 容器化平台

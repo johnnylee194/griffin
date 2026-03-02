@@ -1,29 +1,12 @@
 import { Router } from 'express';
 import db, { generateId } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { getLocalTimestamp } from '../utils/time';
 
 const router = Router();
 
 // 所有路由都需要认证
 router.use(authMiddleware);
-
-// 辅助函数：获取中国本地时间（UTC+8）的ISO字符串（不带时区标识，精确到秒）
-function getLocalTimestamp(): string {
-  const now = new Date();
-  // now.getTime() 返回 UTC 时间戳（毫秒）
-  // 直接加上 8 小时（8 * 60 * 60 * 1000 毫秒）得到中国时间
-  const chinaTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  
-  // 手动格式化为ISO字符串（不带时区标识，精确到秒）
-  const year = chinaTime.getUTCFullYear();
-  const month = String(chinaTime.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(chinaTime.getUTCDate()).padStart(2, '0');
-  const hours = String(chinaTime.getUTCHours()).padStart(2, '0');
-  const minutes = String(chinaTime.getUTCMinutes()).padStart(2, '0');
-  const seconds = String(chinaTime.getUTCSeconds()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-}
 
 // 获取所有玩家（当前用户的）
 router.get('/', (req: AuthRequest, res) => {

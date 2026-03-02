@@ -3,9 +3,7 @@
 ```
 griffin/
 ├── backend/                    # 后端服务
-│   ├── prisma/                # 数据库相关
-│   │   ├── schema.prisma      # 数据库模型定义
-│   │   └── seed.ts            # 初始数据种子
+│   ├── data/                   # SQLite 数据库文件
 │   ├── src/
 │   │   ├── routes/            # API 路由
 │   │   │   ├── players.ts     # 玩家管理 API
@@ -74,8 +72,8 @@ griffin/
 | Node.js 20 | 运行时环境 | https://nodejs.org |
 | TypeScript | 类型安全 | https://www.typescriptlang.org |
 | Express | Web 框架 | https://expressjs.com |
-| Prisma | ORM 数据库工具 | https://www.prisma.io |
-| PostgreSQL | 关系型数据库 | https://www.postgresql.org |
+| better-sqlite3 | SQLite 数据库驱动 | https://github.com/WiseLibs/better-sqlite3 |
+| SQLite | 关系型数据库 | https://www.sqlite.org |
 
 ### 前端技术栈
 
@@ -199,9 +197,6 @@ griffin/
 
 ### 1. 本地开发
 ```bash
-# 启动数据库
-docker-compose up postgres -d
-
 # 启动后端（终端 1）
 cd backend
 npm run dev
@@ -213,20 +208,10 @@ npm run dev
 
 ### 2. 添加新功能
 
-#### 添加新的 API 路由
-1. 在 `backend/src/routes/` 创建新路由文件
-2. 在 `backend/src/index.ts` 中注册路由
-3. 在 `frontend/src/api/client.ts` 中添加对应的 API 方法
-
 #### 添加新页面
 1. 在 `frontend/src/pages/` 创建新页面组件
 2. 在 `frontend/src/App.tsx` 中添加路由
 3. 在底部导航栏添加入口（如需要）
-
-#### 修改数据模型
-1. 编辑 `backend/prisma/schema.prisma`
-2. 运行 `npm run prisma:migrate` 创建迁移
-3. 运行 `npm run prisma:generate` 生成客户端
 
 ### 3. 测试
 ```bash

@@ -286,16 +286,5 @@ export const initDatabase = () => {
   console.log('✅ Database initialized successfully');
 };
 
-// 初始化默认数据（已废弃，用户登录后需要自己创建数据）
-export const seedDefaultData = () => {
-  // 注意：用户创建请使用 scripts/add-user.js 脚本
-  // 使用方法: node scripts/add-user.js <username> <password> [name]
-  // 
-  // 用户登录后需要自己创建：
-  // - 玩家（包括"我"）
-  // - 地点
-  // - 地点的chip_rate规则
-};
-
 export default db;
 
