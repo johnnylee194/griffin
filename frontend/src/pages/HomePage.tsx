@@ -160,7 +160,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="h-full max-w-6xl mx-auto px-3 pb-20">
+    <div className="h-full max-w-6xl mx-auto px-3 pb-32">
       <div className="space-y-3 pt-2">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-primary">
@@ -427,8 +427,11 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-100 px-3 py-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <Link to="/new-game" className="btn-primary w-full block text-center py-3">
+      <div className="fixed bottom-20 left-4 right-4 mx-auto max-w-lg">
+        <Link 
+          to="/new-game" 
+          className="bg-primary hover:bg-primary-light text-white font-semibold py-3 px-4 rounded-full transition-colors duration-200 shadow-lg w-full block text-center"
+        >
           ➕ 记录新对局
         </Link>
       </div>
