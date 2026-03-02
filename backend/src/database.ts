@@ -207,11 +207,22 @@ export const initDatabase = () => {
       end_date TEXT,
       location_ids TEXT,
       player_ids TEXT,
+      game_type_ids TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // 迁移现有数据：添加game_type_ids字段（如果不存在）
+  try {
+    db.exec(`ALTER TABLE custom_filters ADD COLUMN game_type_ids TEXT`);
+    console.log('✅ Added game_type_ids column to custom_filters table');
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add game_type_ids column to custom_filters table:', error.message);
+    }
+  }
 
   // 创建索引
   db.exec(`

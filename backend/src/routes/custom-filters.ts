@@ -23,6 +23,7 @@ router.get('/', authMiddleware, (req: AuthRequest, res: Response) => {
       endDate: filter.end_date,
       locationIds: filter.location_ids ? JSON.parse(filter.location_ids) : [],
       playerIds: filter.player_ids ? JSON.parse(filter.player_ids) : [],
+      gameTypeIds: filter.game_type_ids ? JSON.parse(filter.game_type_ids) : [],
       createdAt: filter.created_at,
       updatedAt: filter.updated_at,
     }));
@@ -58,6 +59,7 @@ router.get('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
       endDate: f.end_date,
       locationIds: f.location_ids ? JSON.parse(f.location_ids) : [],
       playerIds: f.player_ids ? JSON.parse(f.player_ids) : [],
+      gameTypeIds: f.game_type_ids ? JSON.parse(f.game_type_ids) : [],
       createdAt: f.created_at,
       updatedAt: f.updated_at,
     };
@@ -73,7 +75,7 @@ router.get('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
 router.post('/', authMiddleware, (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { name, startDate, endDate, locationIds, playerIds } = req.body;
+    const { name, startDate, endDate, locationIds, playerIds, gameTypeIds } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Name is required' });
@@ -81,8 +83,8 @@ router.post('/', authMiddleware, (req: AuthRequest, res: Response) => {
 
     const id = generateId();
     db.prepare(`
-      INSERT INTO custom_filters (id, user_id, name, start_date, end_date, location_ids, player_ids)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO custom_filters (id, user_id, name, start_date, end_date, location_ids, player_ids, game_type_ids)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       userId,
@@ -90,7 +92,8 @@ router.post('/', authMiddleware, (req: AuthRequest, res: Response) => {
       startDate || null,
       endDate || null,
       JSON.stringify(locationIds || []),
-      JSON.stringify(playerIds || [])
+      JSON.stringify(playerIds || []),
+      JSON.stringify(gameTypeIds || [])
     );
 
     const filter = db.prepare(`
@@ -106,6 +109,7 @@ router.post('/', authMiddleware, (req: AuthRequest, res: Response) => {
       endDate: f.end_date,
       locationIds: f.location_ids ? JSON.parse(f.location_ids) : [],
       playerIds: f.player_ids ? JSON.parse(f.player_ids) : [],
+      gameTypeIds: f.game_type_ids ? JSON.parse(f.game_type_ids) : [],
       createdAt: f.created_at,
       updatedAt: f.updated_at,
     };
@@ -122,7 +126,7 @@ router.put('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { name, startDate, endDate, locationIds, playerIds } = req.body;
+    const { name, startDate, endDate, locationIds, playerIds, gameTypeIds } = req.body;
 
     // 检查筛选器是否存在且属于该用户
     const existing = db.prepare(`
@@ -135,7 +139,7 @@ router.put('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
 
     db.prepare(`
       UPDATE custom_filters 
-      SET name = ?, start_date = ?, end_date = ?, location_ids = ?, player_ids = ?, updated_at = datetime('now')
+      SET name = ?, start_date = ?, end_date = ?, location_ids = ?, player_ids = ?, game_type_ids = ?, updated_at = datetime('now')
       WHERE id = ? AND user_id = ?
     `).run(
       name,
@@ -143,6 +147,7 @@ router.put('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
       endDate || null,
       JSON.stringify(locationIds || []),
       JSON.stringify(playerIds || []),
+      JSON.stringify(gameTypeIds || []),
       id,
       userId
     );
@@ -160,6 +165,7 @@ router.put('/:id', authMiddleware, (req: AuthRequest, res: Response) => {
       endDate: f.end_date,
       locationIds: f.location_ids ? JSON.parse(f.location_ids) : [],
       playerIds: f.player_ids ? JSON.parse(f.player_ids) : [],
+      gameTypeIds: f.game_type_ids ? JSON.parse(f.game_type_ids) : [],
       createdAt: f.created_at,
       updatedAt: f.updated_at,
     };
@@ -209,6 +215,7 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
 
     const locationIds = filter.location_ids ? JSON.parse(filter.location_ids) : [];
     const playerIds = filter.player_ids ? JSON.parse(filter.player_ids) : [];
+    const gameTypeIds = filter.game_type_ids ? JSON.parse(filter.game_type_ids) : [];
     const startDate = filter.start_date;
     const endDate = filter.end_date === 'TODAY' ? new Date().toISOString().split('T')[0] : filter.end_date;
 
@@ -230,6 +237,12 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
     if (locationIds.length > 0) {
       whereConditions.push(`g.location_id IN (${locationIds.map(() => '?').join(',')})`);
       params.push(...locationIds);
+    }
+
+    // 玩法条件
+    if (gameTypeIds.length > 0) {
+      whereConditions.push(`g.game_type_id IN (${gameTypeIds.map(() => '?').join(',')})`);
+      params.push(...gameTypeIds);
     }
 
     // 获取"我"的ID

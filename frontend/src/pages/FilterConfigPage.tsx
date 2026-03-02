@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { customFiltersApi, locationsApi, playersApi, Location, Player } from '../api/client';
+import { customFiltersApi, locationsApi, playersApi, gameTypesApi, Location, Player, GameType } from '../api/client';
 
 export const FilterConfigPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,9 +14,11 @@ export const FilterConfigPage: React.FC = () => {
   const [useToday, setUseToday] = useState(false);
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  const [selectedGameTypeIds, setSelectedGameTypeIds] = useState<string[]>([]);
 
   const [locations, setLocations] = useState<Location[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [gameTypes, setGameTypes] = useState<GameType[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -28,14 +30,16 @@ export const FilterConfigPage: React.FC = () => {
     try {
       setLoading(true);
       
-      // 加载地点和玩家
-      const [locationsRes, playersRes] = await Promise.all([
+      // 加载地点、玩家和游戏类型
+      const [locationsRes, playersRes, gameTypesRes] = await Promise.all([
         locationsApi.getAll(),
         playersApi.getAll(),
+        gameTypesApi.getAll(),
       ]);
       
       setLocations(locationsRes.data);
       setPlayers(playersRes.data.filter(p => !p.isMe)); // 排除"我"
+      setGameTypes(gameTypesRes.data);
 
       // 如果是编辑模式，加载筛选器数据
       if (isEditMode && id) {
@@ -45,6 +49,7 @@ export const FilterConfigPage: React.FC = () => {
         setName(filter.name);
         setSelectedLocationIds(filter.locationIds || []);
         setSelectedPlayerIds(filter.playerIds || []);
+        setSelectedGameTypeIds(filter.gameTypeIds || []);
         
         if (filter.startDate || filter.endDate) {
           setTimePreset('custom');
@@ -136,6 +141,14 @@ export const FilterConfigPage: React.FC = () => {
     );
   };
 
+  const toggleGameType = (gameTypeId: string) => {
+    setSelectedGameTypeIds(prev =>
+      prev.includes(gameTypeId)
+        ? prev.filter(id => id !== gameTypeId)
+        : [...prev, gameTypeId]
+    );
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
       alert('请输入视图名称');
@@ -151,6 +164,7 @@ export const FilterConfigPage: React.FC = () => {
         endDate: useToday ? 'TODAY' : (endDate || undefined),
         locationIds: selectedLocationIds,
         playerIds: selectedPlayerIds,
+        gameTypeIds: selectedGameTypeIds,
       };
 
       let filterId: string;
@@ -344,6 +358,32 @@ export const FilterConfigPage: React.FC = () => {
           {selectedPlayerIds.length > 0 && (
             <div className="mt-2 text-xs text-gray-500">
               已选择 {selectedPlayerIds.length}/3 个对手
+            </div>
+          )}
+        </div>
+
+        {/* 玩法选择 */}
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <label className="block text-sm font-medium text-text mb-3">
+            玩法（不选则为全部玩法）
+          </label>
+          {gameTypes.length === 0 ? (
+            <div className="text-sm text-gray-500">暂无玩法</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {gameTypes.map(gameType => (
+                <button
+                  key={gameType.id}
+                  onClick={() => toggleGameType(gameType.id)}
+                  className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                    selectedGameTypeIds.includes(gameType.id)
+                      ? 'bg-primary text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {gameType.name}
+                </button>
+              ))}
             </div>
           )}
         </div>

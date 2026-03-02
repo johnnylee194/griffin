@@ -219,6 +219,7 @@ export interface CustomFilter {
   endDate?: string; // 可以是日期字符串或 "TODAY"
   locationIds: string[];
   playerIds: string[];
+  gameTypeIds: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -307,6 +308,7 @@ export const customFiltersApi = {
     endDate?: string;
     locationIds?: string[];
     playerIds?: string[];
+    gameTypeIds?: string[];
   }) => apiClient.post<CustomFilter>('/custom-filters', data),
   update: (id: string, data: {
     name: string;
@@ -314,6 +316,7 @@ export const customFiltersApi = {
     endDate?: string;
     locationIds?: string[];
     playerIds?: string[];
+    gameTypeIds?: string[];
   }) => apiClient.put<CustomFilter>(`/custom-filters/${id}`, data),
   delete: (id: string) => apiClient.delete(`/custom-filters/${id}`),
   getStats: (id: string) => apiClient.post<FilterStats>(`/custom-filters/${id}/stats`),
