@@ -1,9 +1,7 @@
 services:
   app:
     container_name: griffin
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     restart: always
     ports:
       - "10020:3000"
