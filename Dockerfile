@@ -31,7 +31,6 @@ RUN npm install
 
 COPY backend/ ./
 RUN npm run build
-
 # --- Stage 3: Runtime ---
 FROM node:18-alpine
 WORKDIR /app

@@ -1,203 +1,110 @@
 # Griffin 部署指南
 
+## 架构概览
+
+Griffin 使用**单 Docker 容器**部署，后端+前端+SQLite 数据库打包在一个镜像里。
+
+```
+Internet → Nginx → Griffin 容器 (:3000)
+                      ├── Express API
+                      ├── React 静态文件
+                      └── SQLite (文件存储)
+```
+
 ## 服务器准备
 
-### 1. 安装 Docker 和 Docker Compose
+### 1. 安装 Docker
 
 ```bash
-# 更新系统
 sudo apt update && sudo apt upgrade -y
-
-# 安装 Docker
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
-
-# 启动 Docker
 sudo systemctl enable docker
 sudo systemctl start docker
-
-# 安装 Docker Compose
-sudo apt install docker-compose-plugin -y
 ```
 
-### 2. 配置 Git
+### 2. 克隆项目
 
 ```bash
-# 安装 Git
-sudo apt install git -y
-
-# 配置 Git（如果需要）
-git config --global user.name "Your Name"
-git config --global user.email "your@email.com"
-```
-
-### 3. 克隆项目
-
-```bash
-# 进入用户目录
-cd ~
-
-# 克隆项目
-git clone https://github.com/YOUR_USERNAME/griffin.git
+cd /opt
+sudo git clone https://github.com/YOUR_USERNAME/griffin.git
+sudo chown -R $(whoami):$(whoami) griffin
 cd griffin
 ```
 
-## 本地配置
+### 3. 配置环境变量
 
-### 1. 修改环境变量
-
-编辑 `docker-compose.yml`，修改数据库密码和其他敏感信息：
+编辑 `docker-compose.yml` 中的环境变量（或直接使用默认值用于测试）：
 
 ```yaml
 environment:
-  POSTGRES_PASSWORD: your_secure_password_here
+  - NODE_ENV=production
+  - APP_ENV=production
+  - PORT=3000
+  - DATABASE_URL=file:./data/griffin.db
 ```
 
-### 2. 首次部署
+## 部署
+
+### 首次部署
 
 ```bash
-# 构建并启动所有服务
 docker-compose up -d --build
+
+# 查看日志确认启动成功
+docker-compose logs -f
+# 看到 "Griffin API server is running" 后按 Ctrl+C
+
+# 创建管理员账户
+cd scripts && node add-user.js
+```
+
+### 访问应用
+
+- 本地端口映射： http://localhost:10020
+- 服务器：根据 Nginx 配置访问域名
+
+### 常用命令
+
+```bash
+# 查看状态
+docker-compose ps
 
 # 查看日志
 docker-compose logs -f
 
-# 查看服务状态
-docker-compose ps
-```
-
-### 3. 初始化数据
-
-首次启动时，系统会自动：
-- 运行数据库迁移
-- 创建默认地点"紫竹郡"
-- 创建默认玩家"我"
-
-## GitHub Actions 自动部署配置
-
-### 1. 在 GitHub 仓库中设置 Secrets
-
-进入 GitHub 仓库 → Settings → Secrets and variables → Actions，添加以下 secrets：
-
-- `SERVER_HOST`: 服务器域名或 IP 地址（如：januslab.cn）
-- `SERVER_USER`: SSH 用户名（如：jlee）
-- `SSH_PRIVATE_KEY`: SSH 私钥（已配置在 GitHub）
-- `SERVER_PORT`: SSH 端口（可选，默认 22）
-
-### 2. 服务器端配置
-
-确保服务器上的项目目录有正确的权限：
-
-```bash
-# 项目在用户主目录下，通常已有正确权限
-cd ~/griffin
-ls -la
-```
-
-### 3. 推送代码自动部署
-
-当你推送代码到 `main` 分支时，GitHub Actions 会自动：
-1. 连接到服务器
-2. 拉取最新代码
-3. 停止旧容器
-4. 构建并启动新容器
-5. 清理旧镜像
-
-```bash
-git add .
-git commit -m "Update feature"
-git push origin main
-```
-
-## 常用命令
-
-### 查看服务状态
-
-```bash
-docker-compose ps
-```
-
-### 查看日志
-
-```bash
-# 所有服务
-docker-compose logs -f
-
-# 特定服务
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f postgres
-```
-
-### 重启服务
-
-```bash
-# 重启所有服务
+# 重启
 docker-compose restart
 
-# 重启特定服务
-docker-compose restart backend
-```
-
-### 停止服务
-
-```bash
+# 停止
 docker-compose down
-```
 
-### 停止服务并删除数据
-
-```bash
-docker-compose down -v
-```
-
-### 重新构建
-
-```bash
+# 重新构建
 docker-compose up -d --build
-```
-
-### 进入容器
-
-```bash
-# 进入后端容器
-docker-compose exec backend sh
-
-# 进入数据库容器
-docker-compose exec postgres psql -U griffin -d griffin
-```
-
-### 数据库操作
-
-```bash
-# 备份数据库
-docker-compose exec postgres pg_dump -U griffin griffin > backup.sql
-
-# 恢复数据库
-docker-compose exec -T postgres psql -U griffin griffin < backup.sql
 ```
 
 ## 域名配置
 
-如果你有域名，可以配置 Nginx 反向代理：
+### 1. 修改 docker-compose.yml
 
-### 1. 修改 `docker-compose.yml`
-
-将前端服务的端口改为内部端口：
+将容器端口改为仅本地监听：
 
 ```yaml
-frontend:
-  ports:
-    - "127.0.0.1:8080:80"  # 只监听本地
+services:
+  app:
+    ports:
+      - "127.0.0.1:10020:3000"  # 只监听本地
 ```
 
-### 2. 配置 Nginx（主机上）
+### 2. 配置 Nginx
+
+在服务器上安装并配置 Nginx：
 
 ```bash
 sudo apt install nginx -y
 ```
 
-创建配置文件 `/etc/nginx/sites-available/griffin`：
+创建 `/etc/nginx/sites-available/griffin`：
 
 ```nginx
 server {
@@ -205,7 +112,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:10020;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -223,63 +130,76 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### 3. 配置 SSL（使用 Let's Encrypt）
+### 3. 配置 SSL
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
 sudo certbot --nginx -d your-domain.com
 ```
 
-## 监控和维护
+## 数据管理
 
-### 1. 设置定期备份
+### 备份
 
-创建备份脚本 `~/griffin/backup.sh`：
+数据库文件在 `/opt/griffin/backend/data/griffin.db`，直接复制文件即可：
 
 ```bash
+# 手动备份
+cp /opt/griffin/backend/data/griffin.db ./backup-$(date +%Y%m%d).db
+
+# 定期自动备份
+# 创建备份脚本
+cat > ~/griffin/backup.sh << 'EOF'
 #!/bin/bash
 BACKUP_DIR="$HOME/griffin/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
-
 mkdir -p $BACKUP_DIR
+cp $HOME/griffin/backend/data/griffin.db $BACKUP_DIR/griffin_$DATE.db
+find $BACKUP_DIR -name "griffin_*.db" -mtime +7 -delete
+EOF
 
-cd $HOME/griffin
-docker-compose exec -T postgres pg_dump -U griffin griffin | gzip > $BACKUP_DIR/griffin_$DATE.sql.gz
-
-# 保留最近 7 天的备份
-find $BACKUP_DIR -name "griffin_*.sql.gz" -mtime +7 -delete
-```
-
-添加到 crontab：
-
-```bash
 chmod +x ~/griffin/backup.sh
+
+# 添加到 crontab（每天凌晨 2 点）
 crontab -e
-# 添加：每天凌晨 2 点备份
-0 2 * * * $HOME/griffin/backup.sh
+# 添加行：0 2 * * * $HOME/griffin/backup.sh
 ```
 
-### 2. 监控磁盘空间
+### 恢复
 
 ```bash
-df -h
-docker system df
+docker-compose down
+cp backup-YYYYMMDD.db /opt/griffin/backend/data/griffin.db
+docker-compose up -d
 ```
 
-### 3. 清理 Docker
+### 清空数据
 
 ```bash
-# 清理未使用的镜像
-docker image prune -a
+docker-compose down
+rm -f backend/data/griffin.db
+docker-compose up -d --build
+cd scripts && node add-user.js
+```
 
-# 清理未使用的容器
-docker container prune
+## GitHub Actions 自动部署
 
-# 清理未使用的网络
-docker network prune
+### 1. 在 GitHub 设置 Secrets
 
-# 清理所有未使用的资源
-docker system prune -a
+仓库 → Settings → Secrets and variables → Actions，添加：
+
+- `SERVER_HOST`：服务器域名或 IP
+- `SERVER_USER`：SSH 用户名
+- `SSH_PRIVATE_KEY`：SSH 私钥
+- `SERVER_PORT`：SSH 端口（可选，默认 22）
+
+### 2. 推送代码自动部署
+
+```bash
+git add .
+git commit -m "Update"
+git push origin main
+# GitHub Actions 自动完成部署
 ```
 
 ## 故障排查
@@ -287,83 +207,44 @@ docker system prune -a
 ### 服务无法启动
 
 ```bash
-# 查看详细日志
 docker-compose logs
-
-# 检查端口占用
-sudo netstat -tulpn | grep :80
-sudo netstat -tulpn | grep :3000
+sudo netstat -tulpn | grep :10020
 ```
 
-### 数据库连接失败
+### 后端连接失败
+
+进入容器检查：
 
 ```bash
-# 检查数据库是否运行
-docker-compose ps postgres
-
-# 检查数据库日志
-docker-compose logs postgres
-
-# 测试连接
-docker-compose exec backend sh
-# 在容器内
-npx prisma db push
+docker-compose exec app sh
+curl http://localhost:3000/api/health
 ```
 
-### 前端无法访问后端
+### 前端无法访问
 
-检查 `frontend/nginx.conf` 中的代理配置是否正确。
+检查 Nginx 配置和容器是否正常运行：
 
-## 性能优化
-
-### 1. 增加数据库连接池
-
-编辑后端代码中的 Prisma Client 配置：
-
-```typescript
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-  // 增加连接池大小
-  // connectionLimit: 10,
-});
+```bash
+docker-compose ps
+curl http://127.0.0.1:10020/api/health
 ```
 
-### 2. 启用 Docker 日志轮转
+## 维护
 
-编辑 `docker-compose.yml`，为每个服务添加：
+### 清理 Docker
 
-```yaml
-logging:
-  driver: "json-file"
-  options:
-    max-size: "10m"
-    max-file: "3"
+```bash
+# 清理未使用资源
+docker system prune -a
+
+# 清理日志（如果配置了日志轮转）
+echo "" > $(docker inspect --format='{{.LogPath}}' griffin)
 ```
 
-## 安全建议
-
-1. **修改默认密码**：更改 `docker-compose.yml` 中的数据库密码
-2. **使用防火墙**：只开放必要的端口（80, 443, 22）
-3. **定期更新**：定期更新系统和 Docker 镜像
-4. **备份数据**：设置自动备份脚本
-5. **监控日志**：定期检查应用和系统日志
-
-## 更新应用
-
-### 手动更新
+### 更新应用
 
 ```bash
 cd /opt/griffin
 git pull origin main
-docker-compose down
 docker-compose up -d --build
 ```
-
-### 自动更新
-
-推送代码到 GitHub 的 `main` 分支，GitHub Actions 会自动部署。
-

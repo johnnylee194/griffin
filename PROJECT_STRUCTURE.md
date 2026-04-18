@@ -2,363 +2,235 @@
 
 ```
 griffin/
-├── backend/                    # 后端服务
-│   ├── data/                   # SQLite 数据库文件
+├── backend/                        # 后端服务（Node.js + Express + SQLite）
+│   ├── data/                       # SQLite 数据库文件目录
 │   ├── src/
-│   │   ├── routes/            # API 路由
-│   │   │   ├── players.ts     # 玩家管理 API
-│   │   │   ├── locations.ts   # 地点管理 API
-│   │   │   ├── games.ts       # 对局管理 API
-│   │   │   └── stats.ts       # 统计分析 API
-│   │   └── index.ts           # 后端入口文件
-│   ├── Dockerfile             # 后端 Docker 配置
-│   ├── docker-entrypoint.sh   # Docker 启动脚本
-│   ├── package.json           # 后端依赖
-│   ├── tsconfig.json          # TypeScript 配置
-│   └── env-template           # 环境变量模板
+│   │   ├── index.ts               # 后端入口，路由挂载和中间件配置
+│   │   ├── database.ts            # 数据库初始化，better-sqlite3 建表
+│   │   ├── middleware/
+│   │   │   └── auth.ts            # JWT 认证中间件
+│   │   ├── routes/
+│   │   │   ├── auth.ts            # 登录认证（POST /api/auth/login）
+│   │   │   ├── players.ts         # 玩家管理 CRUD
+│   │   │   ├── locations.ts       # 地点管理 CRUD
+│   │   │   ├── games.ts           # 对局记录 CRUD
+│   │   │   ├── stats.ts           # 统计分析（玩家/地点/全局）
+│   │   │   ├── chip-rates.ts      # 地点-玩法-筹码倍率规则管理
+│   │   │   ├── game-types.ts      # 游戏玩法（血战到底等）管理
+│   │   │   ├── custom-filters.ts  # 自定义筛选器（用于统计分析）
+│   │   │   └── horoscope.ts       # 运势查询（无需认证）
+│   │   ├── utils/
+│   │   │   ├── horoscope.ts       # 运势计算工具
+│   │   │   ├── lunar.ts           # 农历转换工具
+│   │   │   └── time.ts            # 时间处理工具
+│   │   └── types/
+│   │       └── lunar-javascript.d.ts # 农历库类型声明
+│   ├── Dockerfile
+│   ├── docker-entrypoint.sh
+│   └── package.json
 │
-├── frontend/                   # 前端应用
-│   ├── public/                # 静态资源
-│   │   └── griffin-icon.svg   # 应用图标
+├── frontend/                       # 前端应用（React 18 + TypeScript + Vite）
+│   ├── public/
+│   │   ├── griffin-icon.svg       # 应用图标
+│   │   ├── manifest.json          # PWA manifest
+│   │   ├── sw.js                 # Service Worker（离线支持）
+│   │   └── ICONS_README.md       # 图标说明
 │   ├── src/
 │   │   ├── api/
-│   │   │   └── client.ts      # API 客户端
-│   │   ├── components/        # React 组件
-│   │   │   └── NumPad.tsx     # 数字键盘组件
-│   │   ├── pages/             # 页面组件
-│   │   │   ├── HomePage.tsx   # 首页
-│   │   │   ├── NewGamePage.tsx # 记分页面
-│   │   │   ├── HistoryPage.tsx # 历史记录页面
-│   │   │   ├── StatsPage.tsx   # 统计分析页面
-│   │   │   └── SettingsPage.tsx # 设置页面
-│   │   ├── App.tsx            # 主应用组件
-│   │   ├── main.tsx           # 前端入口
-│   │   └── index.css          # 全局样式
-│   ├── Dockerfile             # 前端 Docker 配置
-│   ├── nginx.conf             # Nginx 配置
-│   ├── index.html             # HTML 模板
-│   ├── package.json           # 前端依赖
-│   ├── tsconfig.json          # TypeScript 配置
-│   ├── vite.config.ts         # Vite 配置
-│   ├── tailwind.config.js     # Tailwind CSS 配置
-│   ├── postcss.config.js      # PostCSS 配置
-│   └── env-template           # 环境变量模板
+│   │   │   └── client.ts         # Axios API 客户端（JWT 注入）
+│   │   ├── components/
+│   │   │   ├── NumPad.tsx         # 数字键盘组件（输入分数）
+│   │   │   └── FilterListModal.tsx # 筛选列表弹窗组件
+│   │   ├── contexts/
+│   │   │   └── AuthContext.tsx    # 认证上下文（登录状态管理）
+│   │   ├── pages/
+│   │   │   ├── HomePage.tsx       # 首页（最近对局概览）
+│   │   │   ├── NewGamePage.tsx    # 记分页面（创建对局）
+│   │   │   ├── EditGamePage.tsx   # 编辑对局页面
+│   │   │   ├── HistoryPage.tsx    # 历史记录页面
+│   │   │   ├── StatsPage.tsx      # 统计分析页面
+│   │   │   ├── SettingsPage.tsx   # 设置页面（玩家/地点/玩法管理）
+│   │   │   ├── HoroscopePage.tsx  # 运势页面
+│   │   │   ├── LoginPage.tsx      # 登录页面
+│   │   │   ├── FilterConfigPage.tsx # 自定义筛选器配置（新建/编辑）
+│   │   │   └── FilterStatsPage.tsx  # 自定义筛选统计分析
+│   │   ├── App.tsx                # 主应用（含路由和底部导航）
+│   │   ├── main.tsx               # 前端入口
+│   │   └── index.css              # Tailwind CSS 全局样式
+│   ├── Dockerfile
+│   ├── nginx.conf                  # Nginx 配置（生产环境）
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   └── package.json
 │
-├── .github/                    # GitHub 配置
-│   └── workflows/
-│       └── deploy.yml         # 自动部署配置
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
+│   └── PULL_REQUEST_TEMPLATE.md
 │
-├── scripts/                    # 辅助脚本
-│   ├── init-server.sh         # 服务器初始化脚本
-│   └── dev-setup.sh           # 开发环境设置脚本
+├── scripts/                        # 辅助脚本
+│   ├── add-user.js                # 创建管理员用户
+│   ├── init-server.sh             # 服务器初始化脚本
+│   ├── dev-setup.sh               # 本地开发环境安装脚本
+│   ├── fix-multiple-defaults.py   # 修复多个默认地点脚本
+│   ├── import-mymoney.py          # 数据导入脚本
+│   ├── losing_streak_analysis.py  # 连输统计脚本
+│   ├── test-import.py             # 导入测试脚本
+│   └── 连输统计使用说明.md          # 连输统计使用说明
 │
-├── docker-compose.yml          # Docker Compose 配置
-├── .dockerignore              # Docker 忽略文件
-├── .gitignore                 # Git 忽略文件
-├── package.json               # 根项目配置
-├── README.md                  # 项目说明
-├── QUICKSTART.md              # 快速开始指南
-├── DEPLOYMENT.md              # 部署指南
-├── PROJECT_STRUCTURE.md       # 项目结构说明（本文件）
-└── codename.md                # 项目设计理念
+├── .context/                       # 产品上下文文档
+│   ├── active_context.md
+│   ├── product_context.md
+│   ├── system_context.md
+│   └── tech_context.md
+│
+├── docs/
+│   └── IRIS-INTEGRATION.md        # IRIS 集成文档
+│
+├── docker-compose.yml              # Docker Compose 配置（单服务部署）
+├── docker-compose.dev.yml          # 开发环境 Docker Compose
+├── docker-compose.test.yml         # 测试环境 Docker Compose
+├── Dockerfile                      # 单镜像构建（前后端合一）
+├── manual-deploy.sh               # 手动部署脚本
+├── start.sh                       # 启动脚本
+│
+├── INDEX.md                        # 文档索引
+├── README.md                       # 项目概览
+├── GETTING_STARTED.md              # 5 分钟快速上手
+├── QUICKSTART.md                   # 开发者详细指南
+├── DEPLOYMENT.md                   # 部署指南
+├── DEPLOY_NOTES.md                 # 部署笔记
+├── INSTALLATION.md                 # 安装指南
+├── ENVIRONMENTS.md                 # 环境配置说明
+├── GIT_SETUP.md                    # Git 和 GitHub 配置
+├── USER_GUIDE.md                   # 用户使用指南
+├── PROJECT_STRUCTURE.md            # 项目结构（本文件）
+├── CONTRIBUTING.md                 # 贡献指南
+├── codename.md                     # 设计理念与品牌故事
+├── nginx-setup.md                  # Nginx 配置说明
+├── npm-mirror-config.md           # npm 镜像配置
+└── package.json                    # 根项目配置
 ```
 
-## 技术栈详解
+## 技术栈
 
-### 后端技术栈
+### 后端
 
-| 技术 | 用途 | 文档 |
-|------|------|------|
-| Node.js 20 | 运行时环境 | https://nodejs.org |
-| TypeScript | 类型安全 | https://www.typescriptlang.org |
-| Express | Web 框架 | https://expressjs.com |
-| better-sqlite3 | SQLite 数据库驱动 | https://github.com/WiseLibs/better-sqlite3 |
-| SQLite | 关系型数据库 | https://www.sqlite.org |
+| 技术 | 用途 |
+|------|------|
+| Node.js 20 | 运行时环境 |
+| Express | Web 框架 |
+| TypeScript | 类型安全 |
+| better-sqlite3 | SQLite 数据库驱动（同步 API） |
+| SQLite | 关系型数据库（文件存储） |
+| jsonwebtoken | JWT 认证 |
+| bcrypt | 密码哈希 |
 
-### 前端技术栈
+### 前端
 
-| 技术 | 用途 | 文档 |
-|------|------|------|
-| React 18 | UI 框架 | https://react.dev |
-| TypeScript | 类型安全 | https://www.typescriptlang.org |
-| Vite | 构建工具 | https://vitejs.dev |
-| Tailwind CSS | CSS 框架 | https://tailwindcss.com |
-| React Router | 路由管理 | https://reactrouter.com |
-| Axios | HTTP 客户端 | https://axios-http.com |
-| Recharts | 图表库 | https://recharts.org |
-| date-fns | 日期处理 | https://date-fns.org |
+| 技术 | 用途 |
+|------|------|
+| React 18 | UI 框架 |
+| TypeScript | 类型安全 |
+| Vite | 构建工具 |
+| Tailwind CSS | CSS 框架（移动端优先） |
+| React Router | 路由管理 |
+| Axios | HTTP 客户端 |
+| Recharts | 图表库 |
+| date-fns | 日期处理 |
 
-### 部署技术栈
+### 部署
 
-| 技术 | 用途 | 文档 |
-|------|------|------|
-| Docker | 容器化 | https://www.docker.com |
-| Docker Compose | 容器编排 | https://docs.docker.com/compose |
-| Nginx | Web 服务器 | https://nginx.org |
-| GitHub Actions | CI/CD | https://github.com/features/actions |
+| 技术 | 用途 |
+|------|------|
+| Docker | 容器化 |
+| Docker Compose | 单容器部署编排 |
+| Nginx | 反向代理 + 静态文件服务 |
+| GitHub Actions | CI/CD |
 
-## 数据模型
+## 数据库模型（SQLite）
 
-### Player (玩家)
-- `id`: 唯一标识
-- `name`: 玩家名称
-- `avatar`: 头像 URL（可选）
-- `isMe`: 是否为本人
-- `createdAt`: 创建时间
-- `updatedAt`: 更新时间
+```
+users ────────────── player ────────────── player_records
+  │                   │                      │
+  │                   │                      │
+  │               location ──── games ───────┘
+  │                   │           │
+  │                   │           ├── game_types（玩法）
+  │                   │           └── location_chip_rates（玩法-倍率规则）
+  │                   │
+  └── custom_filters（自定义筛选器）
+```
 
-### Location (地点)
-- `id`: 唯一标识
-- `name`: 地点名称
-- `isDefault`: 是否为默认地点
-- `createdAt`: 创建时间
+### 核心表
 
-### Game (对局)
-- `id`: 唯一标识
-- `locationId`: 地点 ID
-- `chipRate`: 筹码比率（100 或 200）
-- `isComplete`: 是否完整记录（4人）
-- `isBalanced`: 是否平账
-- `note`: 备注
-- `createdAt`: 创建时间
-- `updatedAt`: 更新时间
-
-### PlayerRecord (玩家记录)
-- `id`: 唯一标识
-- `gameId`: 对局 ID
-- `playerId`: 玩家 ID
-- `score`: 原始分数
-- `chips`: 筹码金额（score × chipRate）
-- `createdAt`: 创建时间
+| 表名 | 说明 |
+|------|------|
+| `users` | 用户账户（JWT 认证） |
+| `players` | 玩家（user_id 隔离） |
+| `locations` | 地点（user_id 隔离，含 is_default） |
+| `game_types` | 游戏玩法（血战到底、自摸加倍等） |
+| `location_game_types` | 地点支持的玩法关联 |
+| `location_chip_rates` | 地点+玩法的筹码倍率规则（一对多） |
+| `games` | 对局记录 |
+| `player_records` | 对局中每个玩家的分数和筹码 |
+| `custom_filters` | 自定义筛选条件（统计分析用） |
+| `horoscope_cache` | 运势缓存 |
 
 ## API 接口
 
-### 玩家管理
-- `GET /api/players` - 获取所有玩家
-- `GET /api/players/:id` - 获取单个玩家
-- `POST /api/players` - 创建玩家
-- `PUT /api/players/:id` - 更新玩家
-- `DELETE /api/players/:id` - 删除玩家
+### 公开接口（无需认证）
 
-### 地点管理
-- `GET /api/locations` - 获取所有地点
-- `POST /api/locations` - 创建地点
-- `PUT /api/locations/:id` - 更新地点
-- `DELETE /api/locations/:id` - 删除地点
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/auth/login` | 用户登录 |
+| GET | `/api/health` | 健康检查 |
+| GET | `/api/horoscope` | 运势查询 |
 
-### 对局管理
-- `GET /api/games` - 获取所有对局（支持分页）
-- `GET /api/games/:id` - 获取单个对局
-- `POST /api/games` - 创建对局
-- `PUT /api/games/:id` - 更新对局
-- `DELETE /api/games/:id` - 删除对局
+### 受保护接口（需 JWT）
 
-### 统计分析
-- `GET /api/stats/player/:playerId` - 获取玩家统计（支持日期过滤）
-- `GET /api/stats/overview` - 获取总体统计
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET/POST | `/api/players` | 玩家列表/创建 |
+| GET/PUT/DELETE | `/api/players/:id` | 单个玩家操作 |
+| GET/POST | `/api/locations` | 地点列表/创建 |
+| GET/PUT/DELETE | `/api/locations/:id` | 单个地点操作 |
+| GET/POST | `/api/games` | 对局列表/创建 |
+| GET/PUT/DELETE | `/api/games/:id` | 单个对局操作 |
+| GET | `/api/stats/overview` | 全局统计 |
+| GET | `/api/stats/player/:id` | 玩家统计 |
+| GET/POST | `/api/chip-rates` | 筹码倍率规则 |
+| GET/POST | `/api/game-types` | 玩法管理 |
+| GET/POST | `/api/custom-filters` | 自定义筛选器 |
 
-## 核心功能实现
+## 路由结构（前端）
 
-### 1. 分数记录与筹码换算
-用户输入原始分数（如 +30, -50），系统根据筹码比率（100 或 200）自动计算筹码金额。
+| 路径 | 页面 |
+|------|------|
+| `/` | 首页 |
+| `/login` | 登录页 |
+| `/new-game` | 记分页 |
+| `/edit-game/:id` | 编辑对局 |
+| `/history` | 历史记录 |
+| `/stats` | 统计分析 |
+| `/horoscope` | 运势 |
+| `/settings` | 设置 |
+| `/filter/new` | 新建筛选器 |
+| `/filter/edit/:id` | 编辑筛选器 |
+| `/filter/:id` | 筛选统计分析 |
 
-**实现位置：**
-- 前端：`frontend/src/pages/NewGamePage.tsx`
-- 后端：`backend/src/routes/games.ts`
+## 添加新功能
 
-### 2. 平账检查
-当记录完整对局（4人）时，自动检查总分是否为 0。
+### 添加新页面
 
-**实现位置：**
-- 后端：`backend/src/routes/games.ts` 中的 `POST /api/games`
-
-### 3. 数字键盘
-自定义数字键盘组件，支持正负数切换。
-
-**实现位置：**
-- `frontend/src/components/NumPad.tsx`
-
-### 4. 统计分析
-多维度数据统计：总体、按地点、按日期。
-
-**实现位置：**
-- 后端：`backend/src/routes/stats.ts`
-- 前端：`frontend/src/pages/StatsPage.tsx`
-
-### 5. 响应式设计
-使用 Tailwind CSS 实现移动端优先的响应式设计。
-
-**关键类名：**
-- `sm:` - 小屏幕（640px+）
-- `md:` - 中等屏幕（768px+）
-- `lg:` - 大屏幕（1024px+）
-
-## 开发流程
-
-### 1. 本地开发
-```bash
-# 启动后端（终端 1）
-cd backend
-npm run dev
-
-# 启动前端（终端 2）
-cd frontend
-npm run dev
-```
-
-### 2. 添加新功能
-
-#### 添加新页面
-1. 在 `frontend/src/pages/` 创建新页面组件
+1. 在 `frontend/src/pages/` 创建 `.tsx` 组件
 2. 在 `frontend/src/App.tsx` 中添加路由
-3. 在底部导航栏添加入口（如需要）
+3. 在底部导航栏 `NavButton` 添加入口（如需要）
 
-### 3. 测试
-```bash
-# 后端健康检查
-curl http://localhost:3000/health
+### 添加 API 路由
 
-# 测试 API
-curl http://localhost:3000/api/players
-```
-
-### 4. 构建部署
-```bash
-# 本地测试构建
-docker-compose up --build
-
-# 推送到 GitHub（自动部署）
-git push origin main
-```
-
-## 配置说明
-
-### 环境变量
-
-**后端 (`backend/.env`)**
-- `DATABASE_URL`: 数据库连接字符串
-- `PORT`: 服务器端口
-- `NODE_ENV`: 运行环境
-- `CORS_ORIGIN`: CORS 允许的源
-
-**前端 (`frontend/.env`)**
-- `VITE_API_BASE_URL`: API 基础 URL
-
-### Docker 配置
-
-**`docker-compose.yml`**
-- 定义三个服务：postgres、backend、frontend
-- 配置网络和数据卷
-- 设置服务依赖关系
-
-**Dockerfile**
-- 多阶段构建，减小镜像体积
-- 生产环境只安装必要依赖
-
-### Nginx 配置
-
-**`frontend/nginx.conf`**
-- 配置静态文件服务
-- 配置 API 反向代理
-- 配置 Gzip 压缩
-- 配置缓存策略
-
-## 设计模式与最佳实践
-
-### 1. 关注点分离
-- 前端：UI 展示和用户交互
-- 后端：业务逻辑和数据处理
-- 数据库：数据持久化
-
-### 2. RESTful API
-遵循 REST 设计原则，使用标准 HTTP 方法。
-
-### 3. 类型安全
-前后端都使用 TypeScript，确保类型安全。
-
-### 4. 响应式设计
-移动端优先，支持多设备访问。
-
-### 5. 容器化部署
-使用 Docker 确保环境一致性。
-
-### 6. 自动化部署
-使用 GitHub Actions 实现 CI/CD。
-
-## 扩展建议
-
-### 功能扩展
-- [ ] 用户认证和授权
-- [ ] 多用户支持
-- [ ] 导出数据（Excel/CSV）
-- [ ] 数据可视化增强
-- [ ] 推送通知
-- [ ] 社交分享
-
-### 技术优化
-- [ ] 添加单元测试
-- [ ] 添加 E2E 测试
-- [ ] 性能监控
-- [ ] 错误追踪（Sentry）
-- [ ] CDN 加速
-- [ ] 数据库读写分离
-
-### 用户体验
-- [ ] PWA 支持（离线使用）
-- [ ] 深色模式切换
-- [ ] 多语言支持
-- [ ] 语音输入
-- [ ] 手势操作
-
-## 维护指南
-
-### 定期任务
-- 每周：检查服务器日志
-- 每月：备份数据库
-- 每季度：更新依赖包
-- 每年：更新 SSL 证书
-
-### 监控指标
-- 服务器 CPU/内存使用率
-- 数据库连接数
-- API 响应时间
-- 错误日志数量
-
-### 备份策略
-- 每天自动备份数据库
-- 保留最近 7 天的备份
-- 重要更新前手动备份
-
-## 相关文档
-
-- [README.md](./README.md) - 项目概览
-- [QUICKSTART.md](./QUICKSTART.md) - 快速开始指南
-- [DEPLOYMENT.md](./DEPLOYMENT.md) - 部署指南
-- [codename.md](./codename.md) - 设计理念
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-### 提交代码前
-1. 确保代码通过 TypeScript 检查
-2. 测试所有功能正常
-3. 遵循现有代码风格
-4. 更新相关文档
-
-### Commit 规范
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 代码重构
-- `test`: 测试相关
-- `chore`: 构建/工具相关
-
-示例：
-```
-feat: 添加导出Excel功能
-fix: 修复平账检查的计算错误
-docs: 更新部署文档
-```
-
+1. 在 `backend/src/routes/` 创建新路由文件
+2. 在 `backend/src/index.ts` 中 `import` 并挂载
+3. 选择是否需要 `authMiddleware` 保护

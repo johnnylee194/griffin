@@ -90,12 +90,13 @@ docker-compose up -d --build
 ### 备份数据
 
 ```bash
-# 备份数据库
+# 备份数据库文件
 cd ~/griffin
-docker-compose exec postgres pg_dump -U griffin griffin > backup_$(date +%Y%m%d).sql
+cp backend/data/griffin.db backup_$(date +%Y%m%d).db
 
 # 恢复数据库
-docker-compose exec -T postgres psql -U griffin griffin < backup_20240101.sql
+cp backup_YYYYMMDD.db backend/data/griffin.db
+docker-compose restart
 ```
 
 ## 访问地址

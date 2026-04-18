@@ -6,7 +6,7 @@ echo "=== Griffin 本地开发环境设置 ==="
 
 # 检查 Node.js
 if ! command -v node &> /dev/null; then
-  echo "❌ 未检测到 Node.js，请先安装 Node.js 20+"
+  echo "❌ 未检测到 Node.js，请先安装 Node.js 18+"
   exit 1
 fi
 
@@ -32,11 +32,6 @@ echo "安装后端依赖..."
 cd backend
 npm install
 
-# 生成 Prisma Client
-echo ""
-echo "生成 Prisma Client..."
-npx prisma generate
-
 cd ..
 
 # 安装前端依赖
@@ -51,9 +46,8 @@ cd ..
 echo ""
 echo "创建环境变量文件..."
 if [ ! -f backend/.env ]; then
-  cp backend/.env.example backend/.env
+  cp backend/.env.example backend/.env 2>/dev/null || echo "backend/.env.example 不存在，跳过"
   echo "✓ 已创建 backend/.env"
-  echo "  请根据需要修改数据库连接等配置"
 else
   echo "backend/.env 已存在"
 fi
@@ -63,17 +57,18 @@ echo "=== 设置完成 ==="
 echo ""
 echo "开发环境启动方式："
 echo ""
-echo "方式 1：使用 Docker Compose（推荐）"
-echo "  docker-compose up -d postgres  # 启动数据库"
-echo "  cd backend && npm run prisma:push && npm run dev  # 启动后端"
-echo "  cd frontend && npm run dev  # 启动前端"
+echo "方式 1：Docker Compose（推荐新手）"
+echo "  docker-compose -f docker-compose.dev.yml up --build"
 echo ""
-echo "方式 2：完全使用 Docker"
-echo "  docker-compose up --build"
+echo "方式 2：分别启动（开发调试）"
+echo "  cd backend && npm run dev  # 终端 1"
+echo "  cd frontend && npm run dev  # 终端 2"
 echo ""
 echo "访问地址："
 echo "  前端：http://localhost:5173"
 echo "  后端：http://localhost:3000"
-echo "  数据库：localhost:5432"
+echo "  健康检查：http://localhost:3000/api/health"
 echo ""
-
+echo "创建管理员账户："
+echo "  cd scripts && node add-user.js"
+echo ""

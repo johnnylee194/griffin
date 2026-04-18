@@ -87,12 +87,8 @@ docker-compose up -d --build
 chmod +x scripts/dev-setup.sh
 ./scripts/dev-setup.sh
 
-# 2. 启动数据库
-docker-compose up postgres -d
-
-# 3. 启动后端（新终端）
+# 2. 启动后端
 cd backend
-npm run prisma:push
 npm run dev
 
 # 4. 启动前端（新终端）
@@ -115,8 +111,9 @@ griffin/
 ├── backend/          # 后端服务
 │   ├── src/
 │   │   ├── routes/   # API 路由
+│   │   ├── models/   # 数据模型
 │   │   └── index.ts  # 入口文件
-│   └── data/         # SQLite 数据库文件
+│   └── database.ts   # SQLite 数据库初始化
 ├── frontend/         # 前端应用
 │   ├── src/
 │   │   ├── components/  # React 组件
@@ -146,7 +143,6 @@ griffin/
 | [DEPLOYMENT.md](DEPLOYMENT.md) | 完整部署指南 |
 | [QUICKSTART.md](QUICKSTART.md) | 详细开发指南 |
 | [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | 项目结构详解 |
-| [SUMMARY.md](SUMMARY.md) | 项目完成总结 |
 | [codename.md](codename.md) | 设计理念与品牌故事 |
 
 ## 🤝 贡献指南

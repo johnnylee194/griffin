@@ -11,7 +11,6 @@ RUN apk add --no-cache openssl libc6-compat python3 make g++
 
 # 复制依赖文件
 COPY package*.json ./
-COPY prisma ./prisma/
 
 # 配置淘宝 NPM 镜像
 RUN npm config set registry https://registry.npmmirror.com
@@ -21,9 +20,6 @@ RUN npm install
 
 # 复制源代码
 COPY . .
-
-# 生成 Prisma Client
-RUN npx prisma generate
 
 # 编译 TypeScript
 RUN npm run build
@@ -41,7 +37,6 @@ RUN apk add --no-cache openssl libc6-compat libstdc++
 
 # 复制依赖文件
 COPY package*.json ./
-COPY prisma ./prisma/
 
 # 配置淘宝 NPM 镜像
 RUN npm config set registry https://registry.npmmirror.com
@@ -54,9 +49,8 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ && \
     npm rebuild better-sqlite3 && \
     apk del .build-deps
 
-# 从构建阶段复制编译后的代码和 Prisma Client
+# 从构建阶段复制编译后的代码
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # 暴露端口
 EXPOSE 3000
@@ -67,4 +61,3 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/index.js"]
-

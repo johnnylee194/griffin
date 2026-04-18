@@ -21,7 +21,6 @@
 
 1. **部署指南** → [DEPLOYMENT.md](DEPLOYMENT.md)
 2. **Git 配置** → [GIT_SETUP.md](GIT_SETUP.md)
-3. **项目总结** → [SUMMARY.md](SUMMARY.md)
 
 ## 📚 完整文档列表
 
@@ -31,8 +30,6 @@
 |------|------|---------|
 | [README.md](README.md) | 项目概览和介绍 | 所有人 ⭐ |
 | [GETTING_STARTED.md](GETTING_STARTED.md) | 5分钟快速上手指南 | 新用户 ⭐ |
-| [SUMMARY.md](SUMMARY.md) | 项目完成总结 | 所有人 |
-| [CHECKLIST.md](CHECKLIST.md) | 项目完成检查清单 | 开发者/运维 |
 | [LICENSE](LICENSE) | MIT 开源协议 | 所有人 |
 
 ### 开发文档
@@ -131,12 +128,12 @@
 
 - [README.md](README.md) - 功能概览
 - [GETTING_STARTED.md](GETTING_STARTED.md) - 使用说明
-- [SUMMARY.md](SUMMARY.md) - 功能演示
+- [codename.md](codename.md) - 设计理念
 
 ### 关于代码结构
 
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - 完整结构
-- [backend/prisma/schema.prisma](backend/prisma/schema.prisma) - 数据模型
+- [backend/src/database.ts](backend/src/database.ts) - SQLite 数据库初始化
 - [frontend/src/](frontend/src/) - 前端代码
 
 ### 关于开发
@@ -184,7 +181,6 @@
 1. [README.md](README.md) - 了解 Griffin 是什么
 2. [codename.md](codename.md) - 了解设计理念（可选）
 3. [GETTING_STARTED.md](GETTING_STARTED.md) - 开始使用
-4. [SUMMARY.md](SUMMARY.md) - 查看功能演示
 
 ### 对于开发者
 
@@ -199,7 +195,7 @@
 1. [README.md](README.md) - 项目概览
 2. [DEPLOYMENT.md](DEPLOYMENT.md) - 部署指南
 3. [GIT_SETUP.md](GIT_SETUP.md) - Git 和 CI/CD 配置
-4. [SUMMARY.md](SUMMARY.md) - 了解完整功能
+3. [codename.md](codename.md) - 设计理念
 
 ## 🎯 快速命令参考
 
@@ -210,7 +206,6 @@ docker-compose up -d --build
 
 # 本地开发
 ./scripts/dev-setup.sh
-docker-compose up postgres -d
 cd backend && npm run dev
 cd frontend && npm run dev
 ```
@@ -245,7 +240,7 @@ git log --oneline
 - [React 官方文档](https://react.dev/)
 - [TypeScript 文档](https://www.typescriptlang.org/docs/)
 - [Tailwind CSS 文档](https://tailwindcss.com/docs)
-- [Prisma 文档](https://www.prisma.io/docs)
+- [SQLite 文档](https://www.sqlite.org/docs.html)
 - [Docker 文档](https://docs.docker.com/)
 
 ### 学习资源
