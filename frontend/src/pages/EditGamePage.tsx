@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { playersApi, locationsApi, gamesApi, chipRatesApi, gameTypesApi, Player, Location, ChipRate, LocationGameType } from '../api/client'
 import NumPad from '../components/NumPad'
+import LocationSelect from '../components/LocationSelect'
 
 export default function EditGamePage() {
   const navigate = useNavigate()
@@ -314,16 +315,11 @@ export default function EditGamePage() {
       <h2 className="text-xl sm:text-2xl font-bold text-text">编辑对局</h2>
 
       <div className="flex flex-col sm:flex-row gap-2">
-        <select
+        <LocationSelect
+          locations={locations}
           value={selectedLocation}
-          onChange={(e) => handleLocationChange(e.target.value)}
-          className="flex-1 text-sm py-2 px-3 rounded-lg border border-gray-300 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <option value="">📍 选择地点</option>
-          {locations.map(loc => (
-            <option key={loc.id} value={loc.id}>{loc.name}</option>
-          ))}
-        </select>
+          onChange={handleLocationChange}
+        />
         <select
           value={selectedGameTypeId}
           onChange={(e) => handleGameTypeChange(e.target.value)}

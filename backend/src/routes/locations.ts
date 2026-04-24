@@ -8,24 +8,43 @@ const router = Router();
 // 所有路由都需要认证
 router.use(authMiddleware);
 
-// 获取所有地点（当前用户的）
+// 获取所有地点（当前用户的），附带最近30天访问次数
 router.get('/', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 19).replace('T', ' ');
+
     const locations = db.prepare(`
       SELECT 
-        id,
-        name,
-        is_default as isDefault,
-        created_at as createdAt
-      FROM locations
-      WHERE user_id = ?
-      ORDER BY is_default DESC, created_at DESC
-    `).all(userId) as any[];
-    
+        l.id,
+        l.name,
+        l.is_default as isDefault,
+        l.created_at as createdAt,
+        (
+          SELECT COUNT(*) 
+          FROM games g 
+          WHERE g.location_id = l.id 
+            AND g.created_at >= ?
+        ) as recentVisitCount,
+        (
+          SELECT MAX(g.created_at) 
+          FROM games g 
+          WHERE g.location_id = l.id
+        ) as lastVisitAt
+      FROM locations l
+      WHERE l.user_id = ?
+      ORDER BY l.is_default DESC, recentVisitCount DESC, lastVisitAt DESC
+    `).all(thirtyDaysAgoStr, userId) as any[];
+
     res.json(locations.map((l: any) => ({
-      ...l,
-      isDefault: Boolean(l.isDefault)
+      id: l.id,
+      name: l.name,
+      isDefault: Boolean(l.isDefault),
+      createdAt: l.createdAt,
+      recentVisitCount: l.recentVisitCount || 0,
+      lastVisitAt: l.lastVisitAt || null
     })));
   } catch (error) {
     console.error('Failed to fetch locations:', error);

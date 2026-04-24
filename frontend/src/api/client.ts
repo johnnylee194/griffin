@@ -53,6 +53,8 @@ export interface Location {
   name: string;
   isDefault: boolean;
   createdAt: string;
+  recentVisitCount: number;    // 最近30天该地点的对局数
+  lastVisitAt: string | null; // 最近一次对局时间
 }
 
 export interface GameType {
