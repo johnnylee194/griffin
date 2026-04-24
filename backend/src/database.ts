@@ -232,6 +232,7 @@ export const initDatabase = () => {
     CREATE INDEX IF NOT EXISTS idx_location_game_types_location ON location_game_types(location_id);
     CREATE INDEX IF NOT EXISTS idx_location_game_types_game_type ON location_game_types(game_type_id);
     CREATE INDEX IF NOT EXISTS idx_games_user ON games(user_id);
+    CREATE INDEX IF NOT EXISTS idx_games_user_location ON games(user_id, location_id);
     CREATE INDEX IF NOT EXISTS idx_games_location ON games(location_id);
     CREATE INDEX IF NOT EXISTS idx_games_game_type ON games(game_type_id);
     CREATE INDEX IF NOT EXISTS idx_games_created ON games(created_at);

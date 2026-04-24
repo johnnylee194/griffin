@@ -8,27 +8,69 @@ const router = Router();
 // 所有路由都需要认证
 router.use(authMiddleware);
 
-// 获取所有玩家（当前用户的）
+// GET /api/players
 router.get('/', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const players = db.prepare(`
-      SELECT 
-        id,
-        name,
-        avatar,
-        is_me as isMe,
-        created_at as createdAt,
-        updated_at as updatedAt
-      FROM players
-      WHERE user_id = ?
-      ORDER BY is_me DESC, updated_at DESC
-    `).all(userId) as any[];
-    
-    res.json(players.map((p: any) => ({
-      ...p,
-      isMe: Boolean(p.isMe)
-    })));
+    const locationId = req.query.location_id as string | undefined;
+    const hasLocationId = Boolean(locationId);
+
+    let result: any[];
+
+    if (hasLocationId) {
+      result = db.prepare(`
+        SELECT
+          p.id,
+          p.name,
+          p.avatar,
+          p.is_me as isMe,
+          p.created_at as createdAt,
+          p.updated_at as updatedAt,
+          COUNT(pr.id) as appearanceCount
+        FROM players p
+        LEFT JOIN player_records pr ON pr.player_id = p.id
+          AND pr.game_id IN (
+            SELECT id FROM games WHERE user_id = ? AND location_id = ?
+          )
+        WHERE p.user_id = ?
+        GROUP BY p.id
+        ORDER BY
+          CASE WHEN p.is_me = 1 THEN 0 ELSE 1 END,
+          CASE WHEN COUNT(pr.id) = 0 THEN 1 ELSE 0 END,
+          appearanceCount DESC,
+          p.updated_at DESC
+      `).all(userId, locationId, userId) as any[];
+    } else {
+      result = db.prepare(`
+        SELECT
+          id,
+          name,
+          avatar,
+          is_me as isMe,
+          created_at as createdAt,
+          updated_at as updatedAt
+        FROM players
+        WHERE user_id = ?
+        ORDER BY is_me DESC, updated_at DESC
+      `).all(userId) as any[];
+    }
+
+    const response = result.map((p: any) => {
+      const player: any = {
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        isMe: Boolean(p.isMe),
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      };
+      if (hasLocationId) {
+        player.appearanceCount = p.appearanceCount || 0;
+      }
+      return player;
+    });
+
+    res.json(response);
   } catch (error) {
     console.error('Failed to fetch players:', error);
     res.status(500).json({ error: 'Failed to fetch players' });

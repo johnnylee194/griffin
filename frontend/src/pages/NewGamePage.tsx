@@ -20,6 +20,7 @@ export default function NewGamePage() {
   const [showNumPad, setShowNumPad] = useState(false)
   const [showNewPlayerModal, setShowNewPlayerModal] = useState(false)
   const [showNoteModal, setShowNoteModal] = useState(false)
+  const [showAllPlayers, setShowAllPlayers] = useState(false)
   const [newPlayerName, setNewPlayerName] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
@@ -33,26 +34,36 @@ export default function NewGamePage() {
     setGameTime(`${year}-${month}-${day}T18:00`)
   }, [])
 
+  const loadPlayers = async (locationId?: string) => {
+    const res = await playersApi.getAll(locationId)
+    setPlayers(res.data)
+    // 当切换地点或初次加载时，重置"显示全部"状态
+    setShowAllPlayers(false)
+    return res.data
+  }
+
   const loadData = async () => {
     try {
-      const [playersRes, locationsRes] = await Promise.all([
-        playersApi.getAll(),
+      const [locationsRes] = await Promise.all([
         locationsApi.getAll()
       ])
-      setPlayers(playersRes.data)
       setLocations(locationsRes.data)
       
       const defaultLoc = locationsRes.data.find(l => l.isDefault)
       if (defaultLoc) {
         setSelectedLocation(defaultLoc.id)
         await loadGameTypes(defaultLoc.id)
-      }
-      
-      const me = playersRes.data.find(p => p.isMe)
-      if (me) {
-        setSelectedPlayerIds([me.id, ...selectedPlayerIds.filter(id => id !== me.id)])
+        const playersRes = await loadPlayers(defaultLoc.id)
+        const me = playersRes.find(p => p.isMe)
+        if (me) {
+          setSelectedPlayerIds(prev => [me.id, ...prev.filter(id => id !== me.id)])
+        }
       } else {
-        setSelectedPlayerIds([])
+        const playersRes = await loadPlayers()
+        const me = playersRes.find(p => p.isMe)
+        if (me) {
+          setSelectedPlayerIds(prev => [me.id, ...prev.filter(id => id !== me.id)])
+        }
       }
     } catch (error) {
       console.error('Failed to load data:', error)
@@ -105,9 +116,11 @@ export default function NewGamePage() {
     setSelectedChipRateId('')
     if (locationId) {
       await loadGameTypes(locationId)
+      await loadPlayers(locationId)
     } else {
       setGameTypes([])
       setChipRates([])
+      await loadPlayers()
     }
   }
 
@@ -146,8 +159,11 @@ export default function NewGamePage() {
     try {
       const res = await playersApi.create({ name: newPlayerName.trim() })
       const newPlayer = res.data
-      setPlayers([...players, newPlayer])
-      setSelectedPlayerIds([...selectedPlayerIds, newPlayer.id])
+      // 重新加载玩家列表，保持当前地点的排序逻辑
+      await loadPlayers(selectedLocation || undefined)
+      if (!newPlayer.isMe) {
+        setSelectedPlayerIds(prev => [...prev, newPlayer.id])
+      }
       setNewPlayerName('')
       setShowNewPlayerModal(false)
     } catch (error: any) {
@@ -309,25 +325,94 @@ export default function NewGamePage() {
         <label className="block text-text font-semibold mb-3">
           👥 玩家 ({selectedPlayerIds.length}/4)
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-          {players.map(player => {
-            const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
-            return (
-              <button
-                key={player.id}
-                onClick={() => togglePlayer(player)}
-                disabled={player.isMe}
-                className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
-                  isSelected
-                    ? 'bg-primary text-white'
-                    : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-                } ${player.isMe ? 'opacity-100 cursor-not-allowed' : ''}`}
-              >
-                {player.name} {player.isMe && '(我)'}
-              </button>
-            )
-          })}
-        </div>
+
+        {selectedLocation ? (
+          // 有地点：分组显示，有记录的排前，无记录的放"显示全部"后面
+          <>
+            {/* 有记录的玩家（该地点历史出现次数 > 0 或 isMe） */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+              {players
+                .filter(p => p.isMe || (p.appearanceCount !== undefined && p.appearanceCount > 0))
+                .map(player => {
+                  const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
+                  return (
+                    <button
+                      key={player.id}
+                      onClick={() => togglePlayer(player)}
+                      disabled={player.isMe}
+                      className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
+                        isSelected
+                          ? 'bg-primary text-white'
+                          : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+                      } ${player.isMe ? 'opacity-100 cursor-not-allowed' : ''}`}
+                    >
+                      {player.name} {player.isMe && '(我)'}
+                    </button>
+                  )
+                })}
+            </div>
+
+            {/* 无记录的玩家（该地点历史出现次数 = 0） */}
+            {players.some(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0)) && (
+              <>
+                {!showAllPlayers ? (
+                  <button
+                    onClick={() => setShowAllPlayers(true)}
+                    className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors mb-3"
+                  >
+                    显示全部 ({players.filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0)).length})
+                  </button>
+                ) : (
+                  <>
+                    <div className="text-xs text-text-secondary mb-2 px-1">以下玩家在该地点暂无记录</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                      {players
+                        .filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0))
+                        .map(player => {
+                          const isSelected = selectedPlayerIds.includes(player.id)
+                          return (
+                            <button
+                              key={player.id}
+                              onClick={() => togglePlayer(player)}
+                              className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
+                                isSelected
+                                  ? 'bg-primary text-white'
+                                  : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {player.name}
+                            </button>
+                          )
+                        })}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          // 无地点：平铺显示全部玩家
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+            {players.map(player => {
+              const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
+              return (
+                <button
+                  key={player.id}
+                  onClick={() => togglePlayer(player)}
+                  disabled={player.isMe}
+                  className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
+                    isSelected
+                      ? 'bg-primary text-white'
+                      : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+                  } ${player.isMe ? 'opacity-100 cursor-not-allowed' : ''}`}
+                >
+                  {player.name} {player.isMe && '(我)'}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         <button
           onClick={() => setShowNewPlayerModal(true)}
           className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors"

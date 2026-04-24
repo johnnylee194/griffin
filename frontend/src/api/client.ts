@@ -44,6 +44,8 @@ export interface Player {
   isMe: boolean;
   createdAt: string;
   updatedAt: string;
+  // 由 GET /api/players?location_id=xxx 返回，表示该玩家在该地点出现的次数
+  appearanceCount?: number;
 }
 
 export interface Location {
@@ -105,7 +107,7 @@ export interface Game {
 
 // API 方法
 export const playersApi = {
-  getAll: () => apiClient.get<Player[]>('/players'),
+  getAll: (locationId?: string) => apiClient.get<Player[]>('/players', locationId ? { params: { location_id: locationId } } : undefined),
   getOne: (id: string) => apiClient.get<Player>(`/players/${id}`),
   create: (data: Partial<Player>) => apiClient.post<Player>('/players', data),
   update: (id: string, data: Partial<Player>) => apiClient.put<Player>(`/players/${id}`, data),
