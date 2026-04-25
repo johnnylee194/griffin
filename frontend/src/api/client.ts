@@ -197,9 +197,15 @@ export interface User {
 
 export interface Horoscope {
   date: string;
-  chineseHoroscope: string;
-  westernHoroscope: string;
-  combinedAdvice: string;
+  score: number;
+  summary: string;
+  recommendations: {
+    timeSlot?: { preferred: string; reason: string };
+    location?: { preferred: string; reason: string };
+    gameType?: { preferred: string; reason: string };
+  };
+  warnings: string[];
+  advice: string;
   cached: boolean;
 }
 

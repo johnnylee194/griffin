@@ -8,842 +8,574 @@ import { getLunarDate, formatLunarDate } from '../utils/lunar';
 const router = Router();
 
 // 获取环境变量的函数（延迟读取，确保dotenv已加载）
-function getIrisUrl(): string {
-  return process.env.IRIS_URL || 'http://us-proxy.januslab.cn:8080';
+function getMiniMaxApiKey(): string {
+  return process.env.MINIMAX_API_KEY || '';
 }
 
-function getIrisClientId(): string {
-  return process.env.IRIS_CLIENT_ID || '';
+function getMiniMaxUrl(): string {
+  return process.env.MINIMAX_API_URL || 'https://api.minimaxi.com/anthropic/v1/messages';
 }
 
-function getIrisClientSecret(): string {
-  return process.env.IRIS_CLIENT_SECRET || '';
+// ─────────────────────────────────────────────────────────────
+// 统计计算
+// ─────────────────────────────────────────────────────────────
+
+interface WindowStats {
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  chips: number;
+  avgChips: number;
+  trend: '上升' | '下降' | '平稳';
+  lastGames?: { wins: number; losses: number; chips: number };
+  prevGames?: { wins: number; losses: number; chips: number };
 }
 
-// 延迟初始化：在第一次使用时检查配置
-let configChecked = false;
-function checkConfig() {
-  if (configChecked) return;
-  configChecked = true;
-  
-  const IRIS_URL = getIrisUrl();
-  const IRIS_CLIENT_ID = getIrisClientId();
-  const IRIS_CLIENT_SECRET = getIrisClientSecret();
-  
-  // 验证配置
-  if (!IRIS_URL.includes(':8080') && !IRIS_URL.includes(':3000')) {
-    console.warn('⚠️  IRIS_URL 可能缺少端口号，建议使用 :8080 或 :3000');
-  }
-  
-  if (!IRIS_CLIENT_ID) {
-    console.warn('⚠️  IRIS_CLIENT_ID 未配置，Iris 服务可能拒绝请求');
-  }
-  
-  if (!IRIS_CLIENT_SECRET) {
-    console.warn('⚠️  IRIS_CLIENT_SECRET 未配置，Iris 服务可能拒绝请求');
-  }
+interface LocationStats {
+  name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalChips: number;
+  avgChips: number;
+  lastVisitDaysAgo: number;
 }
 
-/**
- * 计算单个时间段的统计信息
- */
-function calculateTimeSlotStats(records: any[], endDate: Date, timeSlotName: string) {
-  console.log(`\n📊 计算${timeSlotName}统计数据:`);
-  console.log(`   - 记录总数: ${records.length}`);
-  
-  if (records.length === 0) {
-    console.log(`   - 无记录，返回空统计`);
-    return {
-      totalGames: 0,
-      wins: 0,
-      losses: 0,
-      winRate: 0,
-      totalChips: 0,
-      trend: '平稳' as const,
-      recentWinRate: 0,
-      previousWinRate: 0
-    };
-  }
+interface GameTypeStats {
+  name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgChips: number;
+}
 
-  // 输出前几条记录的详细信息用于调试
-  console.log(`   - 前5条记录详情:`);
-  records.slice(0, 5).forEach((r, idx) => {
-    const recordDate = new Date(r.created_at);
-    const hour = recordDate.getHours();
-    const dateStr = recordDate.toISOString().split('T')[0];
-    const timeStr = recordDate.toTimeString().split(' ')[0];
-    console.log(`     [${idx + 1}] ${dateStr} ${timeStr} (${hour}时) - chips: ${r.chips}`);
-  });
+interface DayOfWeekStats {
+  games: number;
+  wins: number;
+  winRate: number;
+}
 
+interface TimeSlotStats {
+  games: number;
+  winRate: number;
+  chips: number;
+  avgChips: number;
+}
+
+interface GameStats {
+  allTime: {
+    totalGames: number;
+    winRate: number;
+    totalChips: number;
+    avgChips: number;
+    maxWin: number;
+    maxLoss: number;
+  };
+  window7Days: WindowStats;
+  window14Days: WindowStats;
+  window30Days: WindowStats;
+  byTimeSlot: {
+    afternoon: TimeSlotStats;
+    evening: TimeSlotStats;
+  };
+  byLocation: LocationStats[];
+  byGameType: GameTypeStats[];
+  dayOfWeek: Record<string, DayOfWeekStats>;
+  lastGameDaysAgo: number;
+}
+
+function calcWindowStats(records: any[], splitIdx: number): WindowStats {
   const wins = records.filter(r => r.chips > 0).length;
   const losses = records.filter(r => r.chips < 0).length;
   const winRate = records.length > 0 ? Math.round((wins / records.length) * 100) : 0;
-  const totalChips = records.reduce((sum, r) => sum + (r.chips || 0), 0);
+  const chips = records.reduce((s, r) => s + (r.chips || 0), 0);
+  const avgChips = records.length > 0 ? Math.round(chips / records.length) : 0;
 
-  console.log(`   - 基础统计: 胜${wins}场, 负${losses}场, 胜率${winRate}%, 总盈亏${totalChips >= 0 ? '+' : ''}${totalChips}`);
+  let trend: '上升' | '下降' | '平稳' = '平稳';
+  if (splitIdx > 0 && records.length >= 2) {
+    const last = records.slice(0, Math.min(splitIdx, records.length));
+    const prev = records.slice(splitIdx, splitIdx * 2);
+    if (last.length > 0 && prev.length > 0) {
+      const lastWins = last.filter(r => r.chips > 0).length;
+      const prevWins = prev.filter(r => r.chips > 0).length;
+      const lastRate = Math.round((lastWins / last.length) * 100);
+      const prevRate = Math.round((prevWins / prev.length) * 100);
+      trend = lastRate > prevRate ? '上升' : lastRate < prevRate ? '下降' : '平稳';
+    }
+  }
 
-  // 计算趋势（最近3场 vs 前3场，即第4-6场）
-  // 记录已经按时间倒序排列，所以前3个是最近的，第4-6个是前3场
-  const recent3Games = records.slice(0, 3);
-  const previous3Games = records.slice(3, 6);
+  const lastGames = splitIdx > 0 ? {
+    wins: records.slice(0, Math.min(splitIdx, records.length)).filter(r => r.chips > 0).length,
+    losses: records.slice(0, Math.min(splitIdx, records.length)).filter(r => r.chips < 0).length,
+    chips: records.slice(0, Math.min(splitIdx, records.length)).reduce((s, r) => s + (r.chips || 0), 0)
+  } : undefined;
 
-  console.log(`   - 趋势计算: 最近3场${recent3Games.length}场, 前3场(第4-6场)${previous3Games.length}场`);
+  const prevGames = splitIdx > 0 && records.length > splitIdx ? {
+    wins: records.slice(splitIdx, Math.min(splitIdx * 2, records.length)).filter(r => r.chips > 0).length,
+    losses: records.slice(splitIdx, Math.min(splitIdx * 2, records.length)).filter(r => r.chips < 0).length,
+    chips: records.slice(splitIdx, Math.min(splitIdx * 2, records.length)).reduce((s, r) => s + (r.chips || 0), 0)
+  } : undefined;
 
-  const recentWinRate = recent3Games.length > 0 
-    ? Math.round((recent3Games.filter(r => r.chips > 0).length / recent3Games.length) * 100)
-    : 0;
-  const previousWinRate = previous3Games.length > 0
-    ? Math.round((previous3Games.filter(r => r.chips > 0).length / previous3Games.length) * 100)
-    : 0;
+  return { games: records.length, wins, losses, winRate, chips, avgChips, trend, lastGames, prevGames };
+}
 
-  const trend = recentWinRate > previousWinRate ? '上升' : recentWinRate < previousWinRate ? '下降' : '平稳';
+function getDayOfWeek(date: Date): string {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return days[date.getDay()];
+}
 
-  console.log(`   - 趋势结果: 最近3场胜率${recentWinRate}%, 前3场胜率${previousWinRate}%, 趋势${trend}`);
-
-  const result = {
-    totalGames: records.length,
-    wins,
-    losses,
-    winRate,
-    totalChips,
-    trend,
-    recentWinRate,
-    previousWinRate
-  };
-
-  console.log(`   - 最终统计结果:`, JSON.stringify(result, null, 2));
-
-  return result;
+function getTimeSlot(createdAt: Date): 'afternoon' | 'evening' | 'other' {
+  const h = createdAt.getHours();
+  if (h >= 12 && h < 19) return 'afternoon';
+  if (h >= 19 && h < 24) return 'evening';
+  return 'other';
 }
 
 /**
- * 获取用户对局统计数据（按下午和晚上分别统计）
- * 
- * 计算逻辑：
- * 1. 查询基准日期之前的所有对局记录（chips不为NULL的记录）
- * 2. 根据时间分为下午（12:00-19:00）和晚上（19:00-24:00）两组
- * 3. 分别取最近7场下午场和最近7场晚场
- * 4. 分别计算每组的：总场次、胜场、负场、胜率、总盈亏、趋势
- * 5. 趋势计算：比较最近3场 vs 前3场（第4-6场）的胜率
- * 
- * @param userId 用户ID
- * @param baseDate 基准日期（查询此日期之前的数据）
- * @param count 每个时间段取多少场，默认7场
+ * 计算完整对局统计数据（多窗口版本）
  */
-function getUserGameStats(userId: string, baseDate: Date, count: number = 7) {
+function calculateGameStats(userId: string, targetDate: Date): GameStats | null {
   try {
-    console.log('\n🎮 开始计算对局统计数据...');
-    console.log(`📅 基准日期: ${baseDate.toISOString().split('T')[0]}`);
-    console.log(`📊 每个时间段取最近: ${count}场`);
-
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
-    if (!mePlayer) {
-      console.log('❌ 未找到"我"的玩家记录');
-      return null;
-    }
-    console.log(`👤 玩家ID: ${mePlayer.id}`);
+    if (!mePlayer) return null;
 
-    // 查询基准日期之前的所有记录
-    const endDate = new Date(baseDate);
-    endDate.setHours(23, 59, 59, 999); // 设置为基准日期的结束时间
+    const endDate = new Date(targetDate);
+    endDate.setHours(23, 59, 59, 999);
 
-    console.log(`📊 查询截止日期: ${endDate.toISOString()}`);
-
+    // 查询所有对局记录（带地点、游戏类型信息）
     const allRecords = db.prepare(`
-      SELECT pr.chips, g.created_at
+      SELECT pr.chips, g.created_at, g.location_id, g.game_type_id,
+             l.name as location_name, gt.name as game_type_name
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ? 
+      LEFT JOIN locations l ON g.location_id = l.id
+      LEFT JOIN game_types gt ON g.game_type_id = gt.id
+      WHERE pr.player_id = ?
         AND g.user_id = ?
-        AND g.created_at < ?
         AND pr.chips IS NOT NULL
       ORDER BY g.created_at DESC
-    `).all(mePlayer.id, userId, endDate.toISOString()) as any[];
+    `).all(mePlayer.id, userId) as any[];
 
-    console.log(`📋 查询到的总记录数: ${allRecords.length}`);
+    if (allRecords.length === 0) return null;
 
-    if (allRecords.length === 0) {
-      console.log('⚠️ 没有找到对局记录');
-      return null;
+    const now = new Date();
+    const lastGameDate = new Date(allRecords[0].created_at);
+    const lastGameDaysAgo = Math.floor((now.getTime() - lastGameDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // ─── 全量统计 ───
+    const allWins = allRecords.filter(r => r.chips > 0).length;
+    const allChips = allRecords.reduce((s, r) => s + (r.chips || 0), 0);
+    const maxWin = Math.max(...allRecords.map(r => r.chips));
+    const maxLoss = Math.min(...allRecords.map(r => r.chips));
+
+    // ─── 窗口统计 ───
+    function filterByDays(records: any[], days: number): any[] {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - days);
+      return records.filter(r => new Date(r.created_at) >= cutoff);
     }
 
-    // 按时间段分组：下午（12:00-19:00）和晚上（19:00-24:00）
-    const afternoonRecords: any[] = [];
-    const eveningRecords: any[] = [];
-    const otherRecords: any[] = []; // 0:00-12:00 的记录
+    const rec7 = filterByDays(allRecords, 7);
+    const rec14 = filterByDays(allRecords, 14);
+    const rec30 = filterByDays(allRecords, 30);
 
+    const window7Days = calcWindowStats(rec7, 3);
+    const window14Days = calcWindowStats(rec14, 7);
+    const window30Days = calcWindowStats(rec30, 14);
+
+    // ─── 时段统计 ───
+    const afternoonRecs = allRecords.filter(r => getTimeSlot(new Date(r.created_at)) === 'afternoon');
+    const eveningRecs = allRecords.filter(r => getTimeSlot(new Date(r.created_at)) === 'evening');
+
+    const afternoonChips = afternoonRecs.reduce((s, r) => s + (r.chips || 0), 0);
+    const eveningChips = eveningRecs.reduce((s, r) => s + (r.chips || 0), 0);
+
+    const byTimeSlot = {
+      afternoon: {
+        games: afternoonRecs.length,
+        winRate: afternoonRecs.length > 0 ? Math.round((afternoonRecs.filter(r => r.chips > 0).length / afternoonRecs.length) * 100) : 0,
+        chips: afternoonChips,
+        avgChips: afternoonRecs.length > 0 ? Math.round(afternoonChips / afternoonRecs.length) : 0
+      },
+      evening: {
+        games: eveningRecs.length,
+        winRate: eveningRecs.length > 0 ? Math.round((eveningRecs.filter(r => r.chips > 0).length / eveningRecs.length) * 100) : 0,
+        chips: eveningChips,
+        avgChips: eveningRecs.length > 0 ? Math.round(eveningChips / eveningRecs.length) : 0
+      }
+    };
+
+    // ─── 地点统计 ───
+    const locationMap = new Map<string, { records: any[]; lastDate: Date }>();
     allRecords.forEach(r => {
-      const recordDate = new Date(r.created_at);
-      const hour = recordDate.getHours();
-      
-      if (hour >= 12 && hour < 19) {
-        afternoonRecords.push(r);
-      } else if (hour >= 19 && hour < 24) {
-        eveningRecords.push(r);
-      } else {
-        otherRecords.push(r);
+      if (!r.location_id) return;
+      if (!locationMap.has(r.location_id)) {
+        locationMap.set(r.location_id, { records: [], lastDate: new Date(r.created_at) });
+      }
+      const entry = locationMap.get(r.location_id)!;
+      entry.records.push(r);
+      if (new Date(r.created_at) > entry.lastDate) {
+        entry.lastDate = new Date(r.created_at);
       }
     });
 
-    console.log(`\n⏰ 按时间段分组结果:`);
-    console.log(`   - 下午(12:00-19:00): ${afternoonRecords.length}场`);
-    console.log(`   - 晚上(19:00-24:00): ${eveningRecords.length}场`);
-    console.log(`   - 其他时间(0:00-12:00): ${otherRecords.length}场（不统计）`);
+    const byLocation: LocationStats[] = [];
+    locationMap.forEach((entry, locId) => {
+      const locRecords = entry.records;
+      const wins = locRecords.filter(r => r.chips > 0).length;
+      const totalChips = locRecords.reduce((s, r) => s + (r.chips || 0), 0);
+      const daysAgo = Math.floor((now.getTime() - entry.lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      byLocation.push({
+        name: locRecords[0].location_name || '未知地点',
+        games: locRecords.length,
+        wins,
+        losses: locRecords.length - wins,
+        winRate: Math.round((wins / locRecords.length) * 100),
+        totalChips,
+        avgChips: Math.round(totalChips / locRecords.length),
+        lastVisitDaysAgo: daysAgo
+      });
+    });
+    byLocation.sort((a, b) => a.lastVisitDaysAgo - b.lastVisitDaysAgo);
 
-    // 分别取最近N场（已经按时间倒序排列，所以直接取前N个）
-    const recentAfternoon = afternoonRecords.slice(0, count);
-    const recentEvening = eveningRecords.slice(0, count);
+    // ─── 游戏类型统计 ───
+    const gameTypeMap = new Map<string, any[]>();
+    allRecords.forEach(r => {
+      if (!r.game_type_id) return;
+      if (!gameTypeMap.has(r.game_type_id)) gameTypeMap.set(r.game_type_id, []);
+      gameTypeMap.get(r.game_type_id)!.push(r);
+    });
 
-    console.log(`\n📈 取最近场次:`);
-    console.log(`   - 下午场: 取最近${count}场，实际${recentAfternoon.length}场`);
-    console.log(`   - 晚场: 取最近${count}场，实际${recentEvening.length}场`);
+    const byGameType: GameTypeStats[] = [];
+    gameTypeMap.forEach((records, typeId) => {
+      const wins = records.filter(r => r.chips > 0).length;
+      const totalChips = records.reduce((s, r) => s + (r.chips || 0), 0);
+      byGameType.push({
+        name: records[0].game_type_name || '未知',
+        games: records.length,
+        wins,
+        losses: records.length - wins,
+        winRate: Math.round((wins / records.length) * 100),
+        avgChips: Math.round(totalChips / records.length)
+      });
+    });
+    byGameType.sort((a, b) => b.games - a.games);
 
-    // 分别计算下午和晚上的统计
-    const afternoon = calculateTimeSlotStats(recentAfternoon, endDate, '下午');
-    const evening = calculateTimeSlotStats(recentEvening, endDate, '晚上');
+    // ─── 星期统计 ───
+    const dowMap: Record<string, { games: number; wins: number }> = {};
+    allRecords.forEach(r => {
+      const dow = getDayOfWeek(new Date(r.created_at));
+      if (!dowMap[dow]) dowMap[dow] = { games: 0, wins: 0 };
+      dowMap[dow].games++;
+      if (r.chips > 0) dowMap[dow].wins++;
+    });
 
-    const result = {
-      afternoon,
-      evening
+    const dayOfWeek: Record<string, DayOfWeekStats> = {};
+    Object.keys(dowMap).forEach(dow => {
+      dayOfWeek[dow] = {
+        games: dowMap[dow].games,
+        wins: dowMap[dow].wins,
+        winRate: Math.round((dowMap[dow].wins / dowMap[dow].games) * 100)
+      };
+    });
+
+    return {
+      allTime: {
+        totalGames: allRecords.length,
+        winRate: Math.round((allWins / allRecords.length) * 100),
+        totalChips: allChips,
+        avgChips: Math.round(allChips / allRecords.length),
+        maxWin,
+        maxLoss
+      },
+      window7Days,
+      window14Days,
+      window30Days,
+      byTimeSlot,
+      byLocation,
+      byGameType,
+      dayOfWeek,
+      lastGameDaysAgo
     };
-
-    console.log(`\n✅ 对局统计计算完成:`);
-    console.log(JSON.stringify(result, null, 2));
-
-    return result;
   } catch (error) {
-    console.error('❌ Failed to get user game stats:', error);
+    console.error('calculateGameStats error:', error);
     return null;
   }
 }
 
-/**
- * 构建中式运势Prompt
- */
-function buildChineseHoroscopePrompt(
-  birthDate: string,
+// ─────────────────────────────────────────────────────────────
+// Prompt 构建
+// ─────────────────────────────────────────────────────────────
+
+function buildHoroscopePrompt(
+  user: { birthDate: string; name?: string },
   todayDate: Date,
-  gameStats: any
+  gameStats: GameStats
 ): string {
-  const zodiacAnimal = getZodiacAnimal(birthDate);
+  const zodiacAnimal = getZodiacAnimal(user.birthDate);
+  const zodiacSign = getZodiacSign(user.birthDate);
   const lunarDate = getLunarDate(todayDate);
   const dateStr = formatDate(todayDate);
   const lunarDateStr = `${lunarDate.yearName}年${lunarDate.month}月${lunarDate.day}日`;
+  const dayName: Record<string, string> = {
+    sunday: '周日', monday: '周一', tuesday: '周二', wednesday: '周三',
+    thursday: '周四', friday: '周五', saturday: '周六'
+  };
+  const dayOfWeek = dayName[getDayOfWeek(todayDate)];
 
-  let gameInfo = '';
-  if (gameStats) {
-    const { afternoon, evening } = gameStats;
-    gameInfo = `
-对局信息（最近7场）：
-【下午（12:00-19:00）】
-- 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
-- 胜率：${afternoon.winRate}%
-- 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
-- 胜率趋势：${afternoon.trend}
+  const s = gameStats;
 
-【晚上（19:00-24:00）】
-- 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
-- 胜率：${evening.winRate}%
-- 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
-- 胜率趋势：${evening.trend}
-`;
-  }
+  const locTop3 = s.byLocation.slice(0, 3).map(l =>
+    `${l.name}(${l.games}场/${l.winRate}%胜/均${l.avgChips > 0 ? '+' : ''}${l.avgChips}/近${l.lastVisitDaysAgo}天)`
+  ).join(' > ');
 
-  // 获取出生日期的农历
-  const birthLunarDate = formatLunarDate(new Date(birthDate));
-  
-  const prompt = `你是一位精通中国传统命理学的运势大师。请根据以下信息为用户生成今日运势：
+  const typeTop3 = s.byGameType.slice(0, 3).map(t =>
+    `${t.name}(${t.games}场/${t.winRate}%胜)`
+  ).join(' > ');
 
-用户信息：
-- 出生日期：${birthDate}（农历：${birthLunarDate}）
-- 生肖：${zodiacAnimal}
-- 今日日期：${dateStr}（农历：${lunarDateStr}）
-${gameInfo}
+  const dowLines = Object.entries(s.dayOfWeek)
+    .sort((a, b) => b[1].games - a[1].games)
+    .slice(0, 3)
+    .map(([d, v]) => `${dayName[d]}: ${v.games}场/${v.winRate}%`);
 
-请根据传统命理学推算今日运势，并以JSON格式返回，格式如下：
+  const prompt = `你是一位数据分析+运势顾问。请根据以下用户数据，为用户生成今日打牌运势分析。
+
+【用户信息】
+- 出生日期：${user.birthDate}
+- 生肖：${zodiacAnimal} | 星座：${zodiacSign}
+
+【今日信息】
+- 日期：${dateStr}（农历${lunarDateStr}，${dayOfWeek}）
+
+【对局统计数据】
+【历史总览】
+- 总场次：${s.allTime.totalGames}场 | 胜率：${s.allTime.winRate}% | 总盈亏：${s.allTime.totalChips >= 0 ? '+' : ''}${s.allTime.totalChips} | 场均：${s.allTime.avgChips > 0 ? '+' : ''}${s.allTime.avgChips}
+- 单场最大胜：+${s.allTime.maxWin} | 单场最大负：${s.allTime.maxLoss}
+
+【近7天窗口】
+- 场次：${s.window7Days.games} | 胜率：${s.window7Days.winRate}% | 盈亏：${s.window7Days.chips >= 0 ? '+' : ''}${s.window7Days.chips}
+- 趋势：${s.window7Days.trend}
+${s.window7Days.lastGames ? `- 近半段：${s.window7Days.lastGames.wins}胜${s.window7Days.lastGames.losses}负/${s.window7Days.lastGames.chips >= 0 ? '+' : ''}${s.window7Days.lastGames.chips}` : ''}
+${s.window7Days.prevGames ? `- 前半段：${s.window7Days.prevGames.wins}胜${s.window7Days.prevGames.losses}负/${s.window7Days.prevGames.chips >= 0 ? '+' : ''}${s.window7Days.prevGames.chips}` : ''}
+
+【近14天窗口】
+- 场次：${s.window14Days.games} | 胜率：${s.window14Days.winRate}% | 盈亏：${s.window14Days.chips >= 0 ? '+' : ''}${s.window14Days.chips}
+- 趋势：${s.window14Days.trend}
+
+【近30天窗口】
+- 场次：${s.window30Days.games} | 胜率：${s.window30Days.winRate}% | 盈亏：${s.window30Days.chips >= 0 ? '+' : ''}${s.window30Days.chips}
+- 趋势：${s.window30Days.trend}
+
+【时段分析】
+- 下午(12-19时)：${s.byTimeSlot.afternoon.games}场/胜率${s.byTimeSlot.afternoon.winRate}%/场均${s.byTimeSlot.afternoon.avgChips > 0 ? '+' : ''}${s.byTimeSlot.afternoon.avgChips}
+- 晚场(19-24时)：${s.byTimeSlot.evening.games}场/胜率${s.byTimeSlot.evening.winRate}%/场均${s.byTimeSlot.evening.avgChips > 0 ? '+' : ''}${s.byTimeSlot.evening.avgChips}
+
+【地点排名】${locTop3 || '暂无数据'}
+【游戏类型】${typeTop3 || '暂无数据'}
+【星期规律】${dowLines.join(' | ') || '暂无数据'}
+【上次对局】${s.lastGameDaysAgo}天前
+
+请生成JSON格式运势分析，结构如下（只返回JSON，不要其他文字）：
 {
-  "intro": "一段50-80字的开场白，介绍用户命理和今日整体情况",
-  "dosAndDonts": {
-    "suitable": ["例如：打牌", "例如：聚会", "例如：出行"],
-    "bestGamingTime": "例如：未时(13:00-15:00)",
-    "luckyDirection": "例如：正南方位(背靠南方而坐)",
-    "avoid": ["例如：大额投资", "例如：重要决策"]
+  "score": 0-10的评分（数字，基于近期手风和当日运势综合判断）,
+  "summary": "一段话总结今日运势核心（20-40字）",
+  "recommendations": {
+    "timeSlot": { "preferred": "下午/晚场/均可", "reason": "原因说明" },
+    "location": { "preferred": "地点名或'无特定推荐'", "reason": "原因说明" },
+    "gameType": { "preferred": "类型名或'无特定推荐'", "reason": "原因说明" }
   },
-  "wealthAnalysis": {
-    "wealthPosition": "例如：东南",
-    "wealthGodPosition": "例如：正北",
-    "wealthIndex": "需推算1-5之间的整数（返回数字类型，不要使用示例值）",
-    "gamingAdvice": "结合对局表现，今日是否适合打牌的建议（50-80字）"
-  },
-  "fiveElements": {
-    "todayElements": "例如：天干甲木,地支辰土",
-    "userElements": "例如：炉中火(丙寅)",
-    "analysis": "相生相克分析（50-80字）"
-  },
-  "timeFortune": {
-    "luckyHours": ["例如：未时(13:00-15:00)", "例如：戌时(19:00-21:00)"],
-    "unluckyHours": ["例如：申时(15:00-17:00,虎猴相冲)"],
-    "bestGamingHours": "例如：未时(13:00-15:00)、戌时(19:00-21:00)"
-  },
-  "zodiacFortune": {
-    "dailyOverview": "今日整体运势（50-80字）",
-    "specialReminder": "特别提醒（30-50字）"
-  }
-}
+  "warnings": ["警告1（如近期手风差、晚场胜率低等）", "警告2"],
+  "advice": "综合建议（30-60字，简洁有力）"
+}`;
 
-要求：
-- 必须返回有效的JSON格式，不要包含任何其他文字
-- 根据用户信息和今日日期，运用传统命理学知识推算运势
-- 结合生肖特点和五行相生相克原理
-${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
-- 语言要专业但易懂
-- wealthIndex必须是数字类型，范围1-5，需根据实际情况推算，不要直接使用示例值，表示财运指数
-- 所有示例值都需要根据实际情况推算替换`;
-
-  console.log('📝 中式运势Prompt构建完成:');
-  console.log('='.repeat(80));
-  console.log(prompt);
-  console.log('='.repeat(80));
-  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
-  
   return prompt;
 }
 
-/**
- * 构建西式运势Prompt
- */
-function buildWesternHoroscopePrompt(
-  birthDate: string,
-  zodiacSign: string,
-  todayDate: Date,
-  gameStats: any
-): string {
-  const dateStr = formatDate(todayDate);
+// ─────────────────────────────────────────────────────────────
+// AI 调用
+// ─────────────────────────────────────────────────────────────
 
-  let gameInfo = '';
-  if (gameStats) {
-    const { afternoon, evening } = gameStats;
-    gameInfo = `
-对局信息（最近7场）：
-【下午（12:00-19:00）】
-- 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
-- 胜率：${afternoon.winRate}%
-- 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
-- 胜率趋势：${afternoon.trend}
-
-【晚上（19:00-24:00）】
-- 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
-- 胜率：${evening.winRate}%
-- 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
-- 胜率趋势：${evening.trend}
-`;
-  }
-
-  const prompt = `你是一位专业的西方占星师。请根据以下信息为用户生成今日运势：
-
-用户信息：
-- 出生日期：${birthDate}
-- 星座：${zodiacSign}
-- 今日日期：${dateStr}
-${gameInfo}
-
-请根据占星学原理推算今日运势，并以JSON格式返回，格式如下：
-{
-  "overall": {
-    "index": "需推算1-5之间的整数（返回数字类型，不要使用示例值）",
-    "theme": "今日主题（10-20字）"
-  },
-  "career": {
-    "advice": "工作/学习方面的建议（50-80字）",
-    "suitableForDecisions": true
-  },
-  "wealth": {
-    "advice": "财务方面的建议（50-80字）",
-    "gamingAdvice": "结合对局表现，今日是否适合打牌（50-80字）",
-    "bestGamingTime": "例如：下午2-4点"
-  },
-  "love": {
-    "advice": "人际关系和感情方面的建议（50-80字）"
-  },
-  "health": {
-    "advice": "健康方面的提醒（30-50字）"
-  },
-  "luckyElements": {
-    "number": "例如：7",
-    "color": "例如：蓝色",
-    "direction": "例如：东方"
-  },
-  "dailyAdvice": {
-    "tips": ["例如：建议1（20-30字）", "例如：建议2（20-30字）"],
-    "gamingTips": "特别针对打牌的建议（30-50字）"
-  }
-}
-
-要求：
-- 必须返回有效的JSON格式，不要包含任何其他文字
-- 根据用户出生日期和今日日期，运用占星学知识推算运势
-- 结合星座特点给出个性化建议
-${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
-- 语言要亲切自然
-- index必须是数字类型，范围1-5，需根据实际情况推算，不要直接使用示例值，表示综合指数
-- suitableForDecisions是布尔值
-- 所有示例值都需要根据实际情况推算替换`;
-
-  console.log('📝 西式运势Prompt构建完成:');
-  console.log('='.repeat(80));
-  console.log(prompt);
-  console.log('='.repeat(80));
-  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
-  
-  return prompt;
-}
-
-/**
- * 构建综合建议Prompt
- */
-function buildCombinedAdvicePrompt(
-  chineseHoroscope: string,
-  westernHoroscope: string,
-  gameStats: any
-): string {
-  const prompt = `请根据以下中式和西式运势，生成一份综合建议：
-
-【中式运势】
-${chineseHoroscope}
-
-【西式运势】
-${westernHoroscope}
-
-${gameStats ? `
-【对局数据（最近7场）】
-- 下午（12:00-19:00）：${gameStats.afternoon.totalGames}场，胜率${gameStats.afternoon.winRate}%，趋势${gameStats.afternoon.trend}
-- 晚上（19:00-24:00）：${gameStats.evening.totalGames}场，胜率${gameStats.evening.winRate}%，趋势${gameStats.evening.trend}
-` : ''}
-
-请综合两种运势的观点，生成一份综合建议，并以JSON格式返回，格式如下：
-{
-  "suitableForGaming": "例如：适合",
-  "bestGamingTime": "例如：未时(13:00-15:00)、戌时(19:00-21:00)",
-  "recommendedDirection": "例如：正南方位",
-  "advice": [
-    "例如：建议1（20-30字）",
-    "例如：建议2（20-30字）",
-    "例如：建议3（20-30字）"
-  ]
-}
-
-要求：
-- 必须返回有效的JSON格式，不要包含任何其他文字
-- 综合两种运势的观点，给出明确的建议
-- 语言简洁有力
-- suitableForGaming的值必须是：适合、不适合、谨慎 之一
-- 所有示例值都需要根据实际情况推算替换`;
-
-  console.log('📝 综合建议Prompt构建完成:');
-  console.log('='.repeat(80));
-  console.log(prompt);
-  console.log('='.repeat(80));
-  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
-  
-  return prompt;
-}
-
-/**
- * 通过 Iris Gateway 调用 AI API
- */
 async function callGeminiAPI(prompt: string): Promise<string> {
-  checkConfig(); // 确保配置已检查
-  const IRIS_URL = getIrisUrl();
-  const IRIS_CLIENT_ID = getIrisClientId();
-  const IRIS_CLIENT_SECRET = getIrisClientSecret();
-  
+  const apiKey = getMiniMaxApiKey();
+  const apiUrl = getMiniMaxUrl();
+
+  if (!apiKey) {
+    throw new Error('MINIMAX_API_KEY 未配置');
+  }
+
   try {
-    const response = await axios.post(`${IRIS_URL}/api/gemini/generate`, {
-      prompt,
-      clientId: IRIS_CLIENT_ID,
-      clientSecret: IRIS_CLIENT_SECRET
+    const response = await axios.post(apiUrl, {
+      model: 'minimax-text',
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
     }, {
-      timeout: 120000 // 120秒超时（2分钟）
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01'
+      },
+      timeout: 120000
     });
 
-    if (response.data.success && response.data.text) {
-      return response.data.text;
-    } else {
-      throw new Error(response.data.error || 'Failed to generate content');
+    const content = response.data.content || [];
+    const textBlock = content.find((b: any) => b.type === 'text');
+    if (textBlock && textBlock.text) {
+      return textBlock.text;
     }
+    // Fallback: try first block with text property
+    for (const block of content) {
+      if (block.text) return block.text;
+    }
+    throw new Error(response.data.error || 'Failed to generate content');
   } catch (error: any) {
-    console.error('Iris API Error:', error);
-    throw new Error(error.response?.data?.error || error.message || 'Failed to call Iris API');
+    console.error('MiniMax API Error:', error.message);
+    throw new Error(error.response?.data?.error || error.message || 'Failed to call MiniMax API');
   }
 }
 
-/**
- * 批量调用 Iris API（用于同时生成中式和西式运势）
- */
-async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
-  checkConfig(); // 确保配置已检查
-  const IRIS_URL = getIrisUrl();
-  const IRIS_CLIENT_ID = getIrisClientId();
-  const IRIS_CLIENT_SECRET = getIrisClientSecret();
-  
-  try {
-    const url = `${IRIS_URL}/api/gemini/generate-batch`;
-    console.log(`📡 Calling Iris Gateway: ${url}`);
-    
-    const response = await axios.post(url, {
-      prompts,
-      clientId: IRIS_CLIENT_ID,
-      clientSecret: IRIS_CLIENT_SECRET
-    }, {
-      timeout: 180000, // 180秒超时（3分钟，批量请求需要更长时间）
-      maxRedirects: 0, // 禁止自动重定向，避免POST变GET
-      validateStatus: (status) => status < 500 // 允许4xx状态码，手动处理
-    });
+// ─────────────────────────────────────────────────────────────
+// 路由
+// ─────────────────────────────────────────────────────────────
 
-    if (response.data.success && response.data.results) {
-      return response.data.results.map((r: any) => {
-        if (r.success) return r.text;
-        throw new Error(r.error || 'Failed to generate content');
-      });
-    } else {
-      throw new Error(response.data.error || 'Failed to generate content');
-    }
-  } catch (error: any) {
-    console.error('Iris API Batch Error:', error);
-    if (error.response) {
-      console.error(`❌ Iris Gateway Response Status: ${error.response.status}`);
-      console.error(`❌ Iris Gateway Response Data:`, JSON.stringify(error.response.data));
-      console.error(`❌ Request URL: ${error.config?.url}`);
-      if (error.response.status === 401) {
-        console.error('❌ 401 Unauthorized - Client 验证失败');
-        console.error('   请检查：');
-        console.error('   1. 后端 .env 文件中的 IRIS_CLIENT_ID 是否配置');
-        console.error('   2. 后端 .env 文件中的 IRIS_CLIENT_SECRET 是否配置');
-        console.error('   3. Iris 服务器上该 Client 是否已配置且 enabled');
-        console.error('   4. IRIS_CLIENT_SECRET 值是否完全一致（区分大小写）');
-      }
-    }
-    throw new Error(error.response?.data?.error || error.message || 'Failed to call Iris API');
-  }
-}
-
-/**
- * 使用 Server-Sent Events 流式生成运势并推送进度
- */
 router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const dateParam = req.params.date || formatDate(new Date());
-    
-    // 验证日期格式
     const targetDate = new Date(dateParam);
+
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    // 设置 SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
+    res.setHeader('X-Accel-Buffering', 'no');
 
-    const sendProgress = (progress: number, message: string, data?: any) => {
+    const send = (progress: number, message: string, data?: any) => {
       res.write(`data: ${JSON.stringify({ progress, message, data })}\n\n`);
     };
 
     // 检查缓存
-    sendProgress(5, '正在检查缓存...');
-    const cached = db.prepare(`
-      SELECT * FROM horoscope_cache 
-      WHERE user_id = ? AND date = ?
-    `).get(userId, dateParam) as any;
+    send(5, '检查缓存...');
+    const cached = db.prepare(`SELECT * FROM horoscope_cache WHERE user_id = ? AND date = ?`).get(userId, dateParam) as any;
 
     if (cached) {
-      sendProgress(100, '使用缓存数据');
-      let chineseHoroscope: any, westernHoroscope: any, combinedAdvice: any;
-      try {
-        chineseHoroscope = JSON.parse(cached.chinese_horoscope);
-        westernHoroscope = JSON.parse(cached.western_horoscope);
-        combinedAdvice = JSON.parse(cached.combined_advice);
-      } catch {
-        chineseHoroscope = cached.chinese_horoscope;
-        westernHoroscope = cached.western_horoscope;
-        combinedAdvice = cached.combined_advice;
-      }
-      res.write(`data: ${JSON.stringify({
-        progress: 100,
-        message: '完成',
-        done: true,
-        result: {
-          date: dateParam,
-          chineseHoroscope,
-          westernHoroscope,
-          combinedAdvice,
-          cached: true
-        }
-      })}\n\n`);
+      send(100, '使用缓存');
+      let result: any;
+      try { result = JSON.parse(cached.result_json); } catch { result = cached.result_json; }
+      res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { ...result, cached: true } })}\n\n`);
       return res.end();
     }
 
-    // 获取用户信息
-    sendProgress(10, '正在获取用户信息...');
-    const user = db.prepare('SELECT birth_date FROM users WHERE id = ?').get(userId) as any;
+    // 获取用户
+    send(10, '获取用户信息...');
+    const user = db.prepare('SELECT birth_date, name FROM users WHERE id = ?').get(userId) as any;
     if (!user || !user.birth_date) {
       res.write(`data: ${JSON.stringify({ error: 'Please set your birth date in settings first' })}\n\n`);
       return res.end();
     }
 
-    // 获取对局统计
-    sendProgress(15, '正在分析对局数据...');
-    const gameStats = getUserGameStats(userId, targetDate, 7);
+    // 计算统计
+    send(20, '分析对局数据...');
+    const gameStats = calculateGameStats(userId, targetDate);
 
-    // 构建Prompt
-    sendProgress(20, '正在准备AI提示词...');
-    const zodiacSign = getZodiacSign(user.birth_date);
-    const chinesePrompt = buildChineseHoroscopePrompt(user.birth_date, targetDate, gameStats);
-    const westernPrompt = buildWesternHoroscopePrompt(user.birth_date, zodiacSign, targetDate, gameStats);
+    // 生成运势
+    send(40, '正在生成运势...');
+    const prompt = buildHoroscopePrompt({ birthDate: user.birth_date, name: user.name }, targetDate, gameStats!);
+    const rawResponse = await callGeminiAPI(prompt);
 
-    // 生成中式和西式运势
-    sendProgress(25, '正在生成中式运势...');
-    const [chineseHoroscopeRaw, westernHoroscopeRaw] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
-    sendProgress(70, '中式和西式运势生成完成');
-
-    // 解析JSON
-    sendProgress(75, '正在解析运势数据...');
-    let chineseHoroscope: any, westernHoroscope: any;
+    // 解析 JSON
+    send(80, '解析结果...');
+    let horoscopeResult: any;
     try {
-      const chineseJsonMatch = chineseHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || chineseHoroscopeRaw.match(/\{[\s\S]*\}/);
-      const westernJsonMatch = westernHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || westernHoroscopeRaw.match(/\{[\s\S]*\}/);
-      chineseHoroscope = JSON.parse(chineseJsonMatch ? chineseJsonMatch[1] || chineseJsonMatch[0] : chineseHoroscopeRaw);
-      westernHoroscope = JSON.parse(westernJsonMatch ? westernJsonMatch[1] || westernJsonMatch[0] : westernHoroscopeRaw);
+      const jsonMatch = rawResponse.match(/```json\s*([\s\S]*?)\s*```/) || rawResponse.match(/\{[\s\S]*\}/);
+      horoscopeResult = JSON.parse(jsonMatch ? jsonMatch[1] || jsonMatch[0] : rawResponse);
     } catch {
-      chineseHoroscope = chineseHoroscopeRaw;
-      westernHoroscope = westernHoroscopeRaw;
+      horoscopeResult = { score: 5, summary: rawResponse, recommendations: {}, warnings: [], advice: '' };
     }
 
-    // 生成综合建议
-    sendProgress(80, '正在生成综合建议...');
-    const combinedPrompt = buildCombinedAdvicePrompt(
-      typeof chineseHoroscope === 'string' ? chineseHoroscope : JSON.stringify(chineseHoroscope),
-      typeof westernHoroscope === 'string' ? westernHoroscope : JSON.stringify(westernHoroscope),
-      gameStats
-    );
-    const combinedAdviceRaw = await callGeminiAPI(combinedPrompt);
-    sendProgress(95, '综合建议生成完成');
-
-    // 解析综合建议
-    let combinedAdvice: any;
-    try {
-      const combinedJsonMatch = combinedAdviceRaw.match(/```json\s*([\s\S]*?)\s*```/) || combinedAdviceRaw.match(/\{[\s\S]*\}/);
-      combinedAdvice = JSON.parse(combinedJsonMatch ? combinedJsonMatch[1] || combinedJsonMatch[0] : combinedAdviceRaw);
-    } catch {
-      combinedAdvice = combinedAdviceRaw;
-    }
-
-    // 保存到缓存
-    sendProgress(98, '正在保存缓存...');
+    // 保存缓存
+    send(95, '保存缓存...');
     const cacheId = require('../database').generateId();
-    db.prepare(`
-      INSERT INTO horoscope_cache (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      cacheId,
-      userId,
-      dateParam,
-      JSON.stringify(chineseHoroscope),
-      JSON.stringify(westernHoroscope),
-      JSON.stringify(combinedAdvice),
-      new Date().toISOString()
-    );
+    db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
+      .run(cacheId, userId, dateParam, JSON.stringify(horoscopeResult), new Date().toISOString());
 
-    // 发送最终结果
-    sendProgress(100, '生成完成！');
-    res.write(`data: ${JSON.stringify({
-      progress: 100,
-      message: '完成',
-      done: true,
-      result: {
-        date: dateParam,
-        chineseHoroscope,
-        westernHoroscope,
-        combinedAdvice,
-        cached: false
-      }
-    })}\n\n`);
+    send(100, '完成');
+    res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...horoscopeResult, cached: false } })}\n\n`);
     res.end();
   } catch (error: any) {
-    console.error('Failed to generate horoscope:', error);
-    res.write(`data: ${JSON.stringify({ error: error.message || 'Failed to generate horoscope' })}\n\n`);
+    console.error('Stream error:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message || 'Failed' })}\n\n`);
     res.end();
   }
 });
 
-/**
- * 获取运势（带缓存）
- */
 router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const dateParam = req.params.date || formatDate(new Date());
-    
-    // 验证日期格式
     const targetDate = new Date(dateParam);
+
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
     // 检查缓存
-    const cached = db.prepare(`
-      SELECT * FROM horoscope_cache 
-      WHERE user_id = ? AND date = ?
-    `).get(userId, dateParam) as any;
+    const cached = db.prepare(`SELECT * FROM horoscope_cache WHERE user_id = ? AND date = ?`).get(userId, dateParam) as any;
 
     if (cached) {
-      // 解析缓存的JSON
-      let chineseHoroscope: any;
-      let westernHoroscope: any;
-      let combinedAdvice: any;
-      
-      try {
-        chineseHoroscope = JSON.parse(cached.chinese_horoscope);
-      } catch {
-        chineseHoroscope = cached.chinese_horoscope; // 向后兼容
-      }
-      
-      try {
-        westernHoroscope = JSON.parse(cached.western_horoscope);
-      } catch {
-        westernHoroscope = cached.western_horoscope; // 向后兼容
-      }
-      
-      try {
-        combinedAdvice = JSON.parse(cached.combined_advice);
-      } catch {
-        combinedAdvice = cached.combined_advice; // 向后兼容
-      }
-
-      return res.json({
-        date: dateParam,
-        chineseHoroscope,
-        westernHoroscope,
-        combinedAdvice,
-        cached: true
-      });
+      let result: any;
+      try { result = JSON.parse(cached.result_json); } catch { result = cached.result_json; }
+      return res.json({ date: dateParam, ...result, cached: true });
     }
 
-    // 获取用户信息
-    const user = db.prepare('SELECT birth_date FROM users WHERE id = ?').get(userId) as any;
+    const user = db.prepare('SELECT birth_date, name FROM users WHERE id = ?').get(userId) as any;
     if (!user || !user.birth_date) {
       return res.status(400).json({ error: 'Please set your birth date in settings first' });
     }
 
-    // 获取对局统计（基于选定日期前7天）
-    const gameStats = getUserGameStats(userId, targetDate, 7);
+    const gameStats = calculateGameStats(userId, targetDate);
+    const prompt = buildHoroscopePrompt({ birthDate: user.birth_date, name: user.name }, targetDate, gameStats!);
+    const rawResponse = await callGeminiAPI(prompt);
 
-    // 构建Prompt
-    console.log('🔨 开始构建运势Prompt...');
-    console.log(`📅 目标日期: ${dateParam}`);
-    console.log(`👤 用户出生日期: ${user.birth_date}`);
-    console.log(`🎮 对局统计:`, gameStats ? JSON.stringify(gameStats, null, 2) : '无');
-    
-    const zodiacSign = getZodiacSign(user.birth_date);
-    const chinesePrompt = buildChineseHoroscopePrompt(user.birth_date, targetDate, gameStats);
-    const westernPrompt = buildWesternHoroscopePrompt(user.birth_date, zodiacSign, targetDate, gameStats);
-
-    console.log('✅ Prompt构建完成，准备调用API');
-    console.log(`📊 中式Prompt长度: ${chinesePrompt.length} 字符`);
-    console.log(`📊 西式Prompt长度: ${westernPrompt.length} 字符`);
-
-    // 调用API生成运势
-    const [chineseHoroscopeRaw, westernHoroscopeRaw] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
-
-    // 解析JSON响应
-    let chineseHoroscope: any;
-    let westernHoroscope: any;
+    let horoscopeResult: any;
     try {
-      // 尝试提取JSON（可能包含markdown代码块）
-      const chineseJsonMatch = chineseHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || chineseHoroscopeRaw.match(/\{[\s\S]*\}/);
-      const westernJsonMatch = westernHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || westernHoroscopeRaw.match(/\{[\s\S]*\}/);
-      
-      chineseHoroscope = JSON.parse(chineseJsonMatch ? chineseJsonMatch[1] || chineseJsonMatch[0] : chineseHoroscopeRaw);
-      westernHoroscope = JSON.parse(westernJsonMatch ? westernJsonMatch[1] || westernJsonMatch[0] : westernHoroscopeRaw);
-    } catch (parseError) {
-      console.error('Failed to parse JSON:', parseError);
-      // 如果解析失败，返回原始文本（向后兼容）
-      chineseHoroscope = chineseHoroscopeRaw;
-      westernHoroscope = westernHoroscopeRaw;
+      const jsonMatch = rawResponse.match(/```json\s*([\s\S]*?)\s*```/) || rawResponse.match(/\{[\s\S]*\}/);
+      horoscopeResult = JSON.parse(jsonMatch ? jsonMatch[1] || jsonMatch[0] : rawResponse);
+    } catch {
+      horoscopeResult = { score: 5, summary: rawResponse, recommendations: {}, warnings: [], advice: '' };
     }
 
-    // 生成综合建议
-    console.log('🔨 开始构建综合建议Prompt...');
-    const combinedPrompt = buildCombinedAdvicePrompt(
-      typeof chineseHoroscope === 'string' ? chineseHoroscope : JSON.stringify(chineseHoroscope),
-      typeof westernHoroscope === 'string' ? westernHoroscope : JSON.stringify(westernHoroscope),
-      gameStats
-    );
-    console.log('✅ 综合建议Prompt构建完成，准备调用API');
-    const combinedAdviceRaw = await callGeminiAPI(combinedPrompt);
-
-    // 解析综合建议JSON
-    let combinedAdvice: any;
-    try {
-      const combinedJsonMatch = combinedAdviceRaw.match(/```json\s*([\s\S]*?)\s*```/) || combinedAdviceRaw.match(/\{[\s\S]*\}/);
-      combinedAdvice = JSON.parse(combinedJsonMatch ? combinedJsonMatch[1] || combinedJsonMatch[0] : combinedAdviceRaw);
-    } catch (parseError) {
-      console.error('Failed to parse combined advice JSON:', parseError);
-      combinedAdvice = combinedAdviceRaw;
-    }
-
-    // 保存到缓存（存储JSON字符串）
     const cacheId = require('../database').generateId();
-    db.prepare(`
-      INSERT INTO horoscope_cache (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      cacheId,
-      userId,
-      dateParam,
-      JSON.stringify(chineseHoroscope),
-      JSON.stringify(westernHoroscope),
-      JSON.stringify(combinedAdvice),
-      new Date().toISOString()
-    );
+    db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
+      .run(cacheId, userId, dateParam, JSON.stringify(horoscopeResult), new Date().toISOString());
 
-    res.json({
-      date: dateParam,
-      chineseHoroscope,
-      westernHoroscope,
-      combinedAdvice,
-      cached: false
-    });
+    res.json({ date: dateParam, ...horoscopeResult, cached: false });
   } catch (error: any) {
-    console.error('Failed to get horoscope:', error);
+    console.error('Get horoscope error:', error);
     res.status(500).json({ error: error.message || 'Failed to get horoscope' });
   }
 });
 
-/**
- * 手动刷新运势（限制频率）
- */
 router.post('/refresh/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const dateParam = req.params.date || formatDate(new Date());
-
-    // TODO: 添加频率限制（每用户每天最多3次）
-
-    // 删除旧缓存
     db.prepare('DELETE FROM horoscope_cache WHERE user_id = ? AND date = ?').run(userId, dateParam);
-
-    // 重新获取（会触发新的API调用）
-    // 这里可以复用上面的逻辑，或者直接调用上面的处理函数
-    // 为了简化，我们直接返回成功，让前端重新请求
-    res.json({ success: true, message: 'Horoscope refreshed, please reload' });
+    res.json({ success: true, message: 'Refreshed, please reload' });
   } catch (error: any) {
-    console.error('Failed to refresh horoscope:', error);
-    res.status(500).json({ error: error.message || 'Failed to refresh horoscope' });
+    console.error('Refresh error:', error);
+    res.status(500).json({ error: error.message || 'Failed to refresh' });
   }
 });
 
 export default router;
-

@@ -54,14 +54,73 @@ export const initDatabase = () => {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       date TEXT NOT NULL,
-      chinese_horoscope TEXT NOT NULL,
-      western_horoscope TEXT NOT NULL,
-      combined_advice TEXT NOT NULL,
+      chinese_horoscope TEXT,
+      western_horoscope TEXT,
+      combined_advice TEXT,
+      result_json TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id),
       UNIQUE(user_id, date)
     )
   `);
+
+  // 迁移现有数据：添加 result_json 字段（如果不存在）
+  try {
+    db.exec(`ALTER TABLE horoscope_cache ADD COLUMN result_json TEXT`);
+    console.log('✅ Added result_json column to horoscope_cache table');
+  } catch (error: any) {
+    if (!error.message.includes('duplicate column name')) {
+      console.warn('⚠️ Could not add result_json column to horoscope_cache table:', error.message);
+    }
+  }
+
+  // 迁移：移除 horoscope_cache 旧字段的 NOT NULL 约束（SQLite 不支持 ALTER COLUMN，只能重建表）
+  // 通过尝试 INSERT OR REPLACE 来检测是否需要迁移
+  try {
+    // 先确认表有 result_json 列
+    const colsBefore = db.prepare("PRAGMA table_info(horoscope_cache)").all() as any[];
+    const hasResultJsonCol = colsBefore.some((c: any) => c.name === 'result_json');
+    if (!hasResultJsonCol) {
+      db.exec(`ALTER TABLE horoscope_cache ADD COLUMN result_json TEXT`);
+      console.log('✅ Added result_json column to horoscope_cache table');
+    }
+
+    // 尝试用新的 INSERT OR REPLACE 语法写入一行测试数据
+    // 如果 chinese_horoscope 等旧字段有 NOT NULL 约束且没有 DEFAULT，这会失败
+    db.exec(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES ('__migrate_test__', '__test__', '1970-01-01', NULL, datetime('now'))`);
+    db.exec(`DELETE FROM horoscope_cache WHERE id = '__migrate_test__'`);
+    // 如果走到这里说明不需要迁移
+  } catch (error: any) {
+    // 迁移：重建表
+    console.log('🔄 Migrating horoscope_cache table to remove NOT NULL constraints...');
+    try {
+      const hasData = db.prepare('SELECT COUNT(*) as count FROM horoscope_cache').get() as { count: number };
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS horoscope_cache_new (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          chinese_horoscope TEXT,
+          western_horoscope TEXT,
+          combined_advice TEXT,
+          result_json TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (user_id) REFERENCES users(id),
+          UNIQUE(user_id, date)
+        )
+      `);
+      db.exec(`
+        INSERT INTO horoscope_cache_new (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, result_json, created_at)
+        SELECT id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, result_json, created_at FROM horoscope_cache
+      `);
+      db.exec('DROP TABLE horoscope_cache');
+      db.exec('ALTER TABLE horoscope_cache_new RENAME TO horoscope_cache');
+      db.exec('CREATE INDEX IF NOT EXISTS idx_horoscope_user_date ON horoscope_cache(user_id, date)');
+      console.log('✅ Migrated horoscope_cache table (moved ' + hasData.count + ' rows)');
+    } catch (migrateError: any) {
+      console.warn('⚠️ Failed to migrate horoscope_cache table:', migrateError.message);
+    }
+  }
 
   // 创建索引
   db.exec(`
