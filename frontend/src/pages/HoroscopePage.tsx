@@ -14,6 +14,7 @@ interface HoroscopeResult {
   }
   warnings: string[]
   advice: string
+  thinking?: string
   cached?: boolean
 }
 
@@ -370,6 +371,18 @@ export default function HoroscopePage() {
           <h3 className="text-sm font-semibold text-primary mb-2">💡 综合建议</h3>
           <p className="text-text text-sm leading-relaxed">{horoscope.advice}</p>
         </div>
+      )}
+
+      {/* AI 分析思路 */}
+      {horoscope.thinking && (
+        <details className="card border border-blue-200 bg-blue-50/50">
+          <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-700 font-medium py-1">
+            🤖 AI 分析思路（点击展开）
+          </summary>
+          <div className="mt-3 p-3 bg-white rounded border border-blue-100">
+            <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-wrap">{horoscope.thinking}</p>
+          </div>
+        </details>
       )}
 
       {/* 详细数据（可折叠） */}

@@ -206,6 +206,7 @@ export interface Horoscope {
   };
   warnings: string[];
   advice: string;
+  thinking?: string;
   cached: boolean;
 }
 

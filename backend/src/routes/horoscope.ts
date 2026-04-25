@@ -398,7 +398,7 @@ ${s.window7Days.prevGames ? `- 前半段：${s.window7Days.prevGames.wins}胜${s
 // AI 调用
 // ─────────────────────────────────────────────────────────────
 
-async function callGeminiAPI(prompt: string): Promise<string> {
+async function callMiniMax(prompt: string): Promise<{ thinking: string; text: string }> {
   const apiKey = getMiniMaxApiKey();
   const apiUrl = getMiniMaxUrl();
 
@@ -408,8 +408,8 @@ async function callGeminiAPI(prompt: string): Promise<string> {
 
   try {
     const response = await axios.post(apiUrl, {
-      model: 'minimax-text',
-      max_tokens: 2048,
+      model: 'MiniMax-M2.7',
+      max_tokens: 3000,
       messages: [
         {
           role: 'user',
@@ -425,16 +425,17 @@ async function callGeminiAPI(prompt: string): Promise<string> {
       timeout: 120000
     });
 
-    const content = response.data.content || [];
-    const textBlock = content.find((b: any) => b.type === 'text');
-    if (textBlock && textBlock.text) {
-      return textBlock.text;
+    const blocks: any[] = response.data.content || [];
+    const thinkingBlock = blocks.find((b: any) => b.type === 'thinking');
+    const textBlock = blocks.find((b: any) => b.type === 'text');
+
+    const thinking = thinkingBlock?.thinking || '';
+    const text = textBlock?.text || blocks.find((b: any) => b.text)?.text || '';
+
+    if (!text) {
+      throw new Error(response.data.error || 'No text in response');
     }
-    // Fallback: try first block with text property
-    for (const block of content) {
-      if (block.text) return block.text;
-    }
-    throw new Error(response.data.error || 'Failed to generate content');
+    return { thinking, text };
   } catch (error: any) {
     console.error('MiniMax API Error:', error.message);
     throw new Error(error.response?.data?.error || error.message || 'Failed to call MiniMax API');
@@ -491,7 +492,7 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     // 生成运势
     send(40, '正在生成运势...');
     const prompt = buildHoroscopePrompt({ birthDate: user.birth_date, name: user.name }, targetDate, gameStats!);
-    const rawResponse = await callGeminiAPI(prompt);
+    const { thinking, text: rawResponse } = await callMiniMax(prompt);
 
     // 解析 JSON
     send(80, '解析结果...');
@@ -503,14 +504,14 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
       horoscopeResult = { score: 5, summary: rawResponse, recommendations: {}, warnings: [], advice: '' };
     }
 
-    // 保存缓存
+    // 保存缓存（包含 thinking）
     send(95, '保存缓存...');
     const cacheId = require('../database').generateId();
     db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
-      .run(cacheId, userId, dateParam, JSON.stringify(horoscopeResult), new Date().toISOString());
+      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking }), new Date().toISOString());
 
     send(100, '完成');
-    res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...horoscopeResult, cached: false } })}\n\n`);
+    res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...horoscopeResult, thinking, cached: false } })}\n\n`);
     res.end();
   } catch (error: any) {
     console.error('Stream error:', error);
@@ -545,7 +546,7 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
 
     const gameStats = calculateGameStats(userId, targetDate);
     const prompt = buildHoroscopePrompt({ birthDate: user.birth_date, name: user.name }, targetDate, gameStats!);
-    const rawResponse = await callGeminiAPI(prompt);
+    const { thinking, text: rawResponse } = await callMiniMax(prompt);
 
     let horoscopeResult: any;
     try {
@@ -557,9 +558,9 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
 
     const cacheId = require('../database').generateId();
     db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
-      .run(cacheId, userId, dateParam, JSON.stringify(horoscopeResult), new Date().toISOString());
+      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking }), new Date().toISOString());
 
-    res.json({ date: dateParam, ...horoscopeResult, cached: false });
+    res.json({ date: dateParam, ...horoscopeResult, thinking, cached: false });
   } catch (error: any) {
     console.error('Get horoscope error:', error);
     res.status(500).json({ error: error.message || 'Failed to get horoscope' });
