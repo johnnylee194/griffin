@@ -303,14 +303,18 @@ export const initDatabase = () => {
   }
 
   // 迁移现有数据：将player_records的score和chips改为可空（SQLite不支持ALTER COLUMN，需要重建表）
+  // 检测逻辑：只要 score/chips 任一列的 notnull === 1 就说明是旧结构，需要迁移
   try {
-    // 检查是否已有数据
-    const hasData = db.prepare('SELECT COUNT(*) as count FROM player_records').get() as { count: number };
-    
-    if (hasData.count > 0) {
-      // 有数据时，需要重建表
+    const tableInfo = db.prepare("PRAGMA table_info(player_records)").all() as any[];
+    const scoreCol = tableInfo.find((c: any) => c.name === 'score');
+    const chipsCol = tableInfo.find((c: any) => c.name === 'chips');
+    const needsMigration = (scoreCol && scoreCol.notnull === 1) || (chipsCol && chipsCol.notnull === 1);
+
+    if (needsMigration) {
+      const hasData = db.prepare('SELECT COUNT(*) as count FROM player_records').get() as { count: number };
+      db.exec(`DROP TABLE IF EXISTS player_records_new`);
       db.exec(`
-        CREATE TABLE IF NOT EXISTS player_records_new (
+        CREATE TABLE player_records_new (
           id TEXT PRIMARY KEY,
           game_id TEXT NOT NULL,
           player_id TEXT NOT NULL,
@@ -322,22 +326,22 @@ export const initDatabase = () => {
           UNIQUE(game_id, player_id)
         )
       `);
-      
+
       db.exec(`
         INSERT INTO player_records_new (id, game_id, player_id, score, chips, created_at)
         SELECT id, game_id, player_id, score, chips, created_at FROM player_records
       `);
-      
+
       db.exec(`DROP TABLE player_records`);
       db.exec(`ALTER TABLE player_records_new RENAME TO player_records`);
-      
+
       // 重建索引
       db.exec(`
         CREATE INDEX IF NOT EXISTS idx_records_game ON player_records(game_id);
         CREATE INDEX IF NOT EXISTS idx_records_player ON player_records(player_id);
       `);
-      
-      console.log('✅ Migrated player_records table to allow NULL score/chips');
+
+      console.log('✅ Migrated player_records table to allow NULL score/chips (' + hasData.count + ' rows)');
     }
   } catch (error: any) {
     console.warn('⚠️ Could not migrate player_records table:', error.message);
