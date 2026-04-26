@@ -74,35 +74,24 @@ export const initDatabase = () => {
     }
   }
 
-  // 迁移：移除 horoscope_cache 旧字段的 NOT NULL 约束（SQLite 不支持 ALTER COLUMN，只能重建表）
-  // 通过尝试 INSERT OR REPLACE 来检测是否需要迁移
-  try {
-    // 先确认表有 result_json 列
-    const colsBefore = db.prepare("PRAGMA table_info(horoscope_cache)").all() as any[];
-    const hasResultJsonCol = colsBefore.some((c: any) => c.name === 'result_json');
-    if (!hasResultJsonCol) {
-      db.exec(`ALTER TABLE horoscope_cache ADD COLUMN result_json TEXT`);
-      console.log('✅ Added result_json column to horoscope_cache table');
-    }
+  // 迁移：移除 horoscope_cache 旧字段 chinese_horoscope/western_horoscope/combined_advice
+  // 新代码不再使用这三个字段，直接删除。SQLite 不支持 DROP COLUMN，只能重建表。
+  // 检测逻辑：只要这三个旧列存在就触发迁移（说明是旧表结构）；不存在则不触发。
+  const tableInfo = db.prepare("PRAGMA table_info(horoscope_cache)").all() as any[];
+  const hasOldColumns = tableInfo.some((c: any) =>
+    ['chinese_horoscope', 'western_horoscope', 'combined_advice'].includes(c.name)
+  );
 
-    // 尝试用新的 INSERT OR REPLACE 语法写入一行测试数据
-    // 如果 chinese_horoscope 等旧字段有 NOT NULL 约束且没有 DEFAULT，这会失败
-    db.exec(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES ('__migrate_test__', '__test__', '1970-01-01', NULL, datetime('now'))`);
-    db.exec(`DELETE FROM horoscope_cache WHERE id = '__migrate_test__'`);
-    // 如果走到这里说明不需要迁移
-  } catch (error: any) {
-    // 迁移：重建表
-    console.log('🔄 Migrating horoscope_cache table to remove NOT NULL constraints...');
+  if (hasOldColumns) {
+    console.log('🔄 Migrating horoscope_cache table: removing deprecated columns...');
     try {
       const hasData = db.prepare('SELECT COUNT(*) as count FROM horoscope_cache').get() as { count: number };
+      db.exec(`DROP TABLE IF EXISTS horoscope_cache_new`);
       db.exec(`
-        CREATE TABLE IF NOT EXISTS horoscope_cache_new (
+        CREATE TABLE horoscope_cache_new (
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
           date TEXT NOT NULL,
-          chinese_horoscope TEXT,
-          western_horoscope TEXT,
-          combined_advice TEXT,
           result_json TEXT,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           FOREIGN KEY (user_id) REFERENCES users(id),
@@ -110,13 +99,13 @@ export const initDatabase = () => {
         )
       `);
       db.exec(`
-        INSERT INTO horoscope_cache_new (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, result_json, created_at)
-        SELECT id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, result_json, created_at FROM horoscope_cache
+        INSERT INTO horoscope_cache_new (id, user_id, date, result_json, created_at)
+        SELECT id, user_id, date, result_json, created_at FROM horoscope_cache
       `);
       db.exec('DROP TABLE horoscope_cache');
       db.exec('ALTER TABLE horoscope_cache_new RENAME TO horoscope_cache');
       db.exec('CREATE INDEX IF NOT EXISTS idx_horoscope_user_date ON horoscope_cache(user_id, date)');
-      console.log('✅ Migrated horoscope_cache table (moved ' + hasData.count + ' rows)');
+      console.log('✅ Migrated horoscope_cache table: dropped old columns, preserved ' + hasData.count + ' rows');
     } catch (migrateError: any) {
       console.warn('⚠️ Failed to migrate horoscope_cache table:', migrateError.message);
     }
