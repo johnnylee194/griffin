@@ -165,6 +165,44 @@ export const initDatabase = () => {
     }
   }
 
+  // 迁移 locations 表的 UNIQUE 约束：从 name 全局唯一 → (user_id, name) 用户下唯一
+  // 检测逻辑：检查 name 列是否有独立的 UNIQUE 约束（而不是复合唯一约束）
+  // SQLite 没有直接查约束的语法，用 PRAGMA index_list + PRAGMA index_info 推断
+  try {
+    const indexes = db.prepare(`PRAGMA index_list(locations)`).all() as any[];
+    const uniqueOnName = indexes.some((idx: any) => {
+      if (idx.origin === 'u') {
+        const cols = db.prepare(`PRAGMA index_info('${idx.name}')`).all() as any[];
+        return cols.length === 1 && cols[0].name === 'name';
+      }
+      return false;
+    });
+
+    if (uniqueOnName) {
+      console.log('🔄 Migrating locations table: changing UNIQUE constraint from (name) to (user_id, name)...');
+      const hasData = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
+      db.exec(`DROP TABLE IF EXISTS locations_new`);
+      db.exec(`
+        CREATE TABLE locations_new (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          name TEXT NOT NULL,
+          is_default INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          UNIQUE(user_id, name)
+        )
+      `);
+      db.exec(`INSERT INTO locations_new (id, user_id, name, is_default, created_at) SELECT id, user_id, name, is_default, created_at FROM locations`);
+      db.exec(`DROP TABLE locations`);
+      db.exec(`ALTER TABLE locations_new RENAME TO locations`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_locations_user ON locations(user_id)`);
+      console.log('✅ Migrated locations UNIQUE constraint: preserved ' + hasData.count + ' rows');
+    }
+  } catch (error: any) {
+    console.warn('⚠️ Could not migrate locations UNIQUE constraint:', error.message);
+  }
+
   // 创建游戏玩法表（用户级全局玩法）
   db.exec(`
     CREATE TABLE IF NOT EXISTS game_types (

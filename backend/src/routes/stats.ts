@@ -744,11 +744,16 @@ router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
         gamesByDate[date] = { afternoon: [], evening: [] };
       }
       
-      if (record.hour < 20) {
-        // 下午场（20:00前）
+      let timeSlot: 'afternoon' | 'evening' = 'other';
+      if (record.hour >= 12 && record.hour < 19) {
+        timeSlot = 'afternoon';
+      } else if (record.hour >= 19 && record.hour < 24) {
+        timeSlot = 'evening';
+      }
+
+      if (timeSlot === 'afternoon') {
         gamesByDate[date].afternoon.push(record);
-      } else {
-        // 晚上场（20:00后）
+      } else if (timeSlot === 'evening') {
         gamesByDate[date].evening.push(record);
       }
     });
