@@ -15,14 +15,27 @@ interface HoroscopeResult {
   warnings: string[]
   advice: string
   thinking?: string
+  stats?: StatsData
   cached?: boolean
 }
 
 interface WindowStats {
   games: number
+  wins: number
+  losses: number
   winRate: number
   chips: number
+  avgChips: number
   trend: '上升' | '下降' | '平稳'
+}
+
+interface StatsData {
+  window7Days: WindowStats
+  window14Days: WindowStats
+  window30Days: WindowStats
+  byTimeSlot: { afternoon: TimeSlotData; evening: TimeSlotData }
+  byLocation: LocationData[]
+  byGameType: GameTypeData[]
 }
 
 interface TimeSlotData {
@@ -35,6 +48,8 @@ interface TimeSlotData {
 interface LocationData {
   name: string
   games: number
+  wins: number
+  losses: number
   winRate: number
   avgChips: number
   lastVisitDaysAgo: number
@@ -43,7 +58,10 @@ interface LocationData {
 interface GameTypeData {
   name: string
   games: number
+  wins: number
+  losses: number
   winRate: number
+  avgChips: number
 }
 
 export default function HoroscopePage() {
@@ -154,28 +172,6 @@ export default function HoroscopePage() {
     return days[date.getDay()]
   }
 
-  // 模拟数据（实际从API获取后填充）
-  // 这些数据在后端计算，前端只负责展示
-  // 为防止初次加载没数据时界面空白，使用占位数据
-  const mockTimeSlotData: { afternoon: TimeSlotData; evening: TimeSlotData } = {
-    afternoon: { games: 0, winRate: 0, chips: 0, avgChips: 0 },
-    evening: { games: 0, winRate: 0, chips: 0, avgChips: 0 }
-  }
-
-  const mockLocationData: LocationData[] = []
-  const mockGameTypeData: GameTypeData[] = []
-  const mockWindows: { win7: WindowStats; win14: WindowStats; win30: WindowStats } = {
-    win7: { games: 0, winRate: 0, chips: 0, trend: '平稳' },
-    win14: { games: 0, winRate: 0, chips: 0, trend: '平稳' },
-    win30: { games: 0, winRate: 0, chips: 0, trend: '平稳' }
-  }
-
-  // 从 horoscope 数据中提取展示用的辅助数据
-  // 这些实际上需要后端在同一次请求中返回，或者从 stats 接口额外获取
-  // 暂时从 horoscope.result_json 中获取（如果有的话）
-  // 注意：当前后端只返回 horoscope 结果，不返回原始统计
-  // 这里用 mock 数据展示 UI，后续可以扩展后端返回更多数据
-
   // loading 状态
   if (loading) {
     return (
@@ -200,6 +196,17 @@ export default function HoroscopePage() {
       </div>
     )
   }
+
+  // 从 API 获取的真实统计数据
+  const realStats = horoscope!.stats
+  const windows = {
+    win7: realStats?.window7Days ?? { games: 0, wins: 0, losses: 0, winRate: 0, chips: 0, avgChips: 0, trend: '平稳' as const },
+    win14: realStats?.window14Days ?? { games: 0, wins: 0, losses: 0, winRate: 0, chips: 0, avgChips: 0, trend: '平稳' as const },
+    win30: realStats?.window30Days ?? { games: 0, wins: 0, losses: 0, winRate: 0, chips: 0, avgChips: 0, trend: '平稳' as const },
+  }
+  const locationData = realStats?.byLocation ?? []
+  const gameTypeData = realStats?.byGameType ?? []
+  const timeSlotData = realStats?.byTimeSlot ?? { afternoon: { games: 0, winRate: 0, chips: 0, avgChips: 0 }, evening: { games: 0, winRate: 0, chips: 0, avgChips: 0 } }
 
   // error 状态
   if (error) {
@@ -257,7 +264,7 @@ export default function HoroscopePage() {
       {/* 日期 */}
       <div className="text-center">
         <p className="text-lg text-text-secondary">
-          {formatDisplayDate(horoscope.date)} {getDayOfWeek(horoscope.date)}
+          {formatDisplayDate(horoscope.date || selectedDate)} {getDayOfWeek(horoscope.date || selectedDate)}
           {horoscope.cached && <span className="ml-2 text-xs text-gray-400">(已缓存)</span>}
         </p>
       </div>
@@ -279,8 +286,8 @@ export default function HoroscopePage() {
         <div className="card text-center py-4">
           <div className="text-xs text-text-secondary mb-1">手风</div>
           <div className="text-2xl font-bold text-primary">{horoscope.score.toFixed(1)}</div>
-          <div className={`text-sm ${trendColor(horoscope.recommendations?.timeSlot ? '平稳' : '平稳')}`}>
-            {trendIcon('平稳')} 趋势
+          <div className={`text-sm ${trendColor(windows.win30.trend)}`}>
+            {trendIcon(windows.win30.trend)} 趋势
           </div>
         </div>
 
@@ -291,7 +298,7 @@ export default function HoroscopePage() {
             {horoscope.recommendations?.timeSlot?.preferred || '—'}
           </div>
           <div className="text-xs text-text-secondary mt-1">
-            {horoscope.recommendations?.timeSlot?.reason?.slice(0, 15) || ''}
+            {horoscope.recommendations?.timeSlot?.reason || ''}
           </div>
         </div>
 
@@ -302,7 +309,7 @@ export default function HoroscopePage() {
             {horoscope.recommendations?.location?.preferred || '—'}
           </div>
           <div className="text-xs text-text-secondary mt-1">
-            {horoscope.recommendations?.location?.reason?.slice(0, 12) || ''}
+            {horoscope.recommendations?.location?.reason || ''}
           </div>
         </div>
       </div>
@@ -314,9 +321,9 @@ export default function HoroscopePage() {
         {/* 简易趋势条 */}
         <div className="space-y-2">
           {[
-            { label: '7天', ...mockWindows.win7 },
-            { label: '14天', ...mockWindows.win14 },
-            { label: '30天', ...mockWindows.win30 }
+            { label: '7天', ...windows.win7 },
+            { label: '14天', ...windows.win14 },
+            { label: '30天', ...windows.win30 }
           ].map((w) => (
             <div key={w.label} className="flex items-center gap-2">
               <span className="text-xs text-text-secondary w-8">{w.label}</span>
@@ -337,15 +344,15 @@ export default function HoroscopePage() {
           <div>
             <span className="text-text-secondary">胜率：</span>
             <span className="font-medium text-text">
-              {mockWindows.win7.winRate}% / {mockWindows.win14.winRate}% / {mockWindows.win30.winRate}%
+              {windows.win7.winRate}% / {windows.win14.winRate}% / {windows.win30.winRate}%
             </span>
           </div>
           <div>
             <span className="text-text-secondary">盈亏：</span>
-            <span className={`font-medium ${mockWindows.win7.chips >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-              {mockWindows.win7.chips >= 0 ? '+' : ''}{mockWindows.win7.chips} /
-              {mockWindows.win14.chips >= 0 ? '+' : ''}{mockWindows.win14.chips} /
-              {mockWindows.win30.chips >= 0 ? '+' : ''}{mockWindows.win30.chips}
+            <span className={`font-medium ${windows.win7.chips >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              {windows.win7.chips >= 0 ? '+' : ''}{windows.win7.chips} /
+              {windows.win14.chips >= 0 ? '+' : ''}{windows.win14.chips} /
+              {windows.win30.chips >= 0 ? '+' : ''}{windows.win30.chips}
             </span>
           </div>
         </div>
@@ -399,24 +406,24 @@ export default function HoroscopePage() {
               <div className="bg-gray-50 rounded p-2">
                 <div className="text-xs text-text-secondary">下午(12-19时)</div>
                 <div className="text-lg font-bold text-primary">
-                  {mockTimeSlotData.afternoon.winRate}%
+                  {timeSlotData.afternoon.winRate}%
                 </div>
                 <div className="text-xs text-text-secondary">
-                  {mockTimeSlotData.afternoon.games}场 |{' '}
-                  <span className={mockTimeSlotData.afternoon.avgChips >= 0 ? 'text-green-600' : 'text-red-500'}>
-                    {mockTimeSlotData.afternoon.avgChips >= 0 ? '+' : ''}{mockTimeSlotData.afternoon.avgChips}/场
+                  {timeSlotData.afternoon.games}场 |{' '}
+                  <span className={timeSlotData.afternoon.avgChips >= 0 ? 'text-green-600' : 'text-red-500'}>
+                    {timeSlotData.afternoon.avgChips >= 0 ? '+' : ''}{timeSlotData.afternoon.avgChips}/场
                   </span>
                 </div>
               </div>
               <div className="bg-gray-50 rounded p-2">
                 <div className="text-xs text-text-secondary">晚场(19-24时)</div>
                 <div className="text-lg font-bold text-primary">
-                  {mockTimeSlotData.evening.winRate}%
+                  {timeSlotData.evening.winRate}%
                 </div>
                 <div className="text-xs text-text-secondary">
-                  {mockTimeSlotData.evening.games}场 |{' '}
-                  <span className={mockTimeSlotData.evening.avgChips >= 0 ? 'text-green-600' : 'text-red-500'}>
-                    {mockTimeSlotData.evening.avgChips >= 0 ? '+' : ''}{mockTimeSlotData.evening.avgChips}/场
+                  {timeSlotData.evening.games}场 |{' '}
+                  <span className={timeSlotData.evening.avgChips >= 0 ? 'text-green-600' : 'text-red-500'}>
+                    {timeSlotData.evening.avgChips >= 0 ? '+' : ''}{timeSlotData.evening.avgChips}/场
                   </span>
                 </div>
               </div>
@@ -426,11 +433,11 @@ export default function HoroscopePage() {
           {/* 地点排名 */}
           <div>
             <h4 className="font-medium text-text mb-2">地点排名</h4>
-            {mockLocationData.length === 0 ? (
+            {locationData.length === 0 ? (
               <p className="text-text-secondary text-xs">暂无数据</p>
             ) : (
               <div className="space-y-1">
-                {mockLocationData.slice(0, 5).map((loc, i) => (
+                {locationData.slice(0, 5).map((loc, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-text truncate">{loc.name}</span>
                     <span className="text-text-secondary">
@@ -448,11 +455,11 @@ export default function HoroscopePage() {
           {/* 游戏类型 */}
           <div>
             <h4 className="font-medium text-text mb-2">游戏类型</h4>
-            {mockGameTypeData.length === 0 ? (
+            {gameTypeData.length === 0 ? (
               <p className="text-text-secondary text-xs">暂无数据</p>
             ) : (
               <div className="space-y-1">
-                {mockGameTypeData.slice(0, 3).map((t, i) => (
+                {gameTypeData.slice(0, 3).map((t, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-text">{t.name}</span>
                     <span className="text-text-secondary">{t.games}场 / {t.winRate}%胜</span>

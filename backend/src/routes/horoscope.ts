@@ -433,12 +433,17 @@ async function callMiniMax(prompt: string): Promise<{ thinking: string; text: st
     const text = textBlock?.text || blocks.find((b: any) => b.text)?.text || '';
 
     if (!text) {
-      throw new Error(response.data.error || 'No text in response');
+      const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty response';
+      throw new Error(`MiniMax API error: ${response.status} - ${reason}`);
     }
     return { thinking, text };
   } catch (error: any) {
-    console.error('MiniMax API Error:', error.message);
-    throw new Error(error.response?.data?.error || error.message || 'Failed to call MiniMax API');
+    const status = error.response?.status;
+    const apiError = error.response?.data?.error;
+    const reason = apiError?.message || apiError?.type || apiError?.code || error.message;
+    console.error(`MiniMax API Error [${status}]:`, reason, apiError || '');
+    error.message = `MiniMax API error: ${status} - ${reason}`;
+    throw error;
   }
 }
 
@@ -473,7 +478,7 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
       send(100, '使用缓存');
       let result: any;
       try { result = JSON.parse(cached.result_json); } catch { result = cached.result_json; }
-      res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { ...result, cached: true } })}\n\n`);
+      res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...result, cached: true } })}\n\n`);
       return res.end();
     }
 
@@ -508,10 +513,10 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     send(95, '保存缓存...');
     const cacheId = require('../database').generateId();
     db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
-      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking }), new Date().toISOString());
+      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking, stats: gameStats }), new Date().toISOString());
 
     send(100, '完成');
-    res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...horoscopeResult, thinking, cached: false } })}\n\n`);
+    res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...horoscopeResult, thinking, stats: gameStats, cached: false } })}\n\n`);
     res.end();
   } catch (error: any) {
     console.error('Stream error:', error);
@@ -558,9 +563,9 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
 
     const cacheId = require('../database').generateId();
     db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
-      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking }), new Date().toISOString());
+      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking, stats: gameStats }), new Date().toISOString());
 
-    res.json({ date: dateParam, ...horoscopeResult, thinking, cached: false });
+    res.json({ date: dateParam, ...horoscopeResult, thinking, stats: gameStats, cached: false });
   } catch (error: any) {
     console.error('Get horoscope error:', error);
     res.status(500).json({ error: error.message || 'Failed to get horoscope' });
