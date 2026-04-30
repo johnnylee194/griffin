@@ -6,6 +6,9 @@ interface User {
   username: string;
   name?: string;
   birthDate?: string;
+  birthTime?: string;
+  birthLocation?: string;
+  gender?: number;
 }
 
 interface AuthContextType {

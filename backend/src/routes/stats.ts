@@ -744,7 +744,7 @@ router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
         gamesByDate[date] = { afternoon: [], evening: [] };
       }
       
-      let timeSlot: 'afternoon' | 'evening' = 'other';
+      let timeSlot: 'afternoon' | 'evening' | 'other' = 'other';
       if (record.hour >= 12 && record.hour < 19) {
         timeSlot = 'afternoon';
       } else if (record.hour >= 19 && record.hour < 24) {

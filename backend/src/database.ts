@@ -54,6 +54,46 @@ export const initDatabase = () => {
     console.log('✅ Added birth_date column to users table');
   }
 
+  // 迁移：users.birth_time
+  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
+  // 原因: 运势功能需要用户的出生时辰（birth_time）来计算八字
+  if (!columnExists('users', 'birth_time')) {
+    db.exec(`ALTER TABLE users ADD COLUMN birth_time TEXT`);
+    console.log('✅ Added birth_time column to users table');
+  }
+
+  // 迁移：users.birth_location
+  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
+  // 原因: 运势功能需要用户的出生地点（birth_location）来计算真太阳时
+  if (!columnExists('users', 'birth_location')) {
+    db.exec(`ALTER TABLE users ADD COLUMN birth_location TEXT`);
+    console.log('✅ Added birth_location column to users table');
+  }
+
+  // 迁移：users.birth_latitude
+  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
+  // 原因: 存储出生地纬度，用于真太阳时计算（由 geocoding 自动填充）
+  if (!columnExists('users', 'birth_latitude')) {
+    db.exec(`ALTER TABLE users ADD COLUMN birth_latitude REAL`);
+    console.log('✅ Added birth_latitude column to users table');
+  }
+
+  // 迁移：users.birth_longitude
+  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
+  // 原因: 存储出生地经度，用于真太阳时计算（由 geocoding 自动填充）
+  if (!columnExists('users', 'birth_longitude')) {
+    db.exec(`ALTER TABLE users ADD COLUMN birth_longitude REAL`);
+    console.log('✅ Added birth_longitude column to users table');
+  }
+
+  // 迁移：users.gender
+  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
+  // 原因: 运势功能需要性别（gender）来区分乾造/坤造
+  if (!columnExists('users', 'gender')) {
+    db.exec(`ALTER TABLE users ADD COLUMN gender INTEGER`);
+    console.log('✅ Added gender column to users table');
+  }
+
   // ─── 运势缓存表 ───────────────────────────────────────────
   // 原始 commit: f500e7f — 添加每日运势功能
   // 表结构经历了两次迁移：
@@ -186,6 +226,8 @@ export const initDatabase = () => {
   if (hasNameOnlyUnique) {
     console.log('🔄 Migrating locations table: changing UNIQUE constraint from (name) to (user_id, name)...');
     const hasData = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
+    // Disable FK checks for the entire migration (old data may have NULL user_id, and we drop locations which is referenced by other tables)
+    db.exec(`PRAGMA foreign_keys=OFF`);
     db.exec(`DROP TABLE IF EXISTS locations_new`);
     db.exec(`
       CREATE TABLE locations_new (
@@ -194,13 +236,13 @@ export const initDatabase = () => {
         name TEXT NOT NULL,
         is_default INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(user_id, name)
       )
     `);
     db.exec(`INSERT INTO locations_new (id, user_id, name, is_default, created_at) SELECT id, user_id, name, is_default, created_at FROM locations`);
     db.exec(`DROP TABLE locations`);
     db.exec(`ALTER TABLE locations_new RENAME TO locations`);
+    db.exec(`PRAGMA foreign_keys=ON`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_locations_user ON locations(user_id)`);
     console.log('✅ Migrated locations UNIQUE constraint: preserved ' + hasData.count + ' rows');
   }

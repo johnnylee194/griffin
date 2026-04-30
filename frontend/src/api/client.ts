@@ -193,6 +193,9 @@ export interface User {
   username: string;
   name?: string;
   birthDate?: string;
+  birthTime?: string;
+  birthLocation?: string;
+  gender?: number;
 }
 
 export interface Horoscope {
@@ -212,7 +215,15 @@ export interface Horoscope {
 
 export const authApi = {
   getProfile: () => apiClient.get<{ user: User }>('/auth/profile'),
-  updateProfile: (data: { name?: string; password?: string; oldPassword?: string; birthDate?: string }) => 
+  updateProfile: (data: {
+    name?: string;
+    password?: string;
+    oldPassword?: string;
+    birthDate?: string;
+    birthTime?: string;
+    birthLocation?: string;
+    gender?: number;
+  }) =>
     apiClient.put<{ user: User }>('/auth/profile', data),
 };
 
