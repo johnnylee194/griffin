@@ -2,12 +2,12 @@ import { Router } from 'express';
 import axios from 'axios';
 import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { getZodiacSign, getZodiacAnimal, formatDate } from '../utils/horoscope';
+import { calculateBazi, getTodayAlmanac, buildHoroscopeContext, formatDate, type BaziInfo, type AlmanacInfo } from '../utils/horoscope';
 import { getLunarDate, formatLunarDate } from '../utils/lunar';
 
 const router = Router();
 
-// 获取环境变量的函数（延迟读取，确保dotenv已加载）
+// 获取环境变量的函数
 function getMiniMaxApiKey(): string {
   return process.env.MINIMAX_API_KEY || '';
 }
@@ -17,7 +17,7 @@ function getMiniMaxUrl(): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 统计计算
+// 统计计算（保留原有逻辑）
 // ─────────────────────────────────────────────────────────────
 
 interface WindowStats {
@@ -28,8 +28,6 @@ interface WindowStats {
   chips: number;
   avgChips: number;
   trend: '上升' | '下降' | '平稳';
-  lastGames?: { wins: number; losses: number; chips: number };
-  prevGames?: { wins: number; losses: number; chips: number };
 }
 
 interface LocationStats {
@@ -52,39 +50,22 @@ interface GameTypeStats {
   avgChips: number;
 }
 
-interface DayOfWeekStats {
-  games: number;
-  wins: number;
-  winRate: number;
-}
-
-interface TimeSlotStats {
-  games: number;
-  winRate: number;
-  chips: number;
-  avgChips: number;
-}
-
 interface GameStats {
   allTime: {
     totalGames: number;
     winRate: number;
     totalChips: number;
     avgChips: number;
-    maxWin: number;
-    maxLoss: number;
   };
   window7Days: WindowStats;
   window14Days: WindowStats;
   window30Days: WindowStats;
   byTimeSlot: {
-    afternoon: TimeSlotStats;
-    evening: TimeSlotStats;
+    afternoon: { games: number; winRate: number; chips: number; avgChips: number };
+    evening: { games: number; winRate: number; chips: number; avgChips: number };
   };
   byLocation: LocationStats[];
   byGameType: GameTypeStats[];
-  dayOfWeek: Record<string, DayOfWeekStats>;
-  lastGameDaysAgo: number;
 }
 
 function calcWindowStats(records: any[], splitIdx: number): WindowStats {
@@ -107,24 +88,7 @@ function calcWindowStats(records: any[], splitIdx: number): WindowStats {
     }
   }
 
-  const lastGames = splitIdx > 0 ? {
-    wins: records.slice(0, Math.min(splitIdx, records.length)).filter(r => r.chips > 0).length,
-    losses: records.slice(0, Math.min(splitIdx, records.length)).filter(r => r.chips < 0).length,
-    chips: records.slice(0, Math.min(splitIdx, records.length)).reduce((s, r) => s + (r.chips || 0), 0)
-  } : undefined;
-
-  const prevGames = splitIdx > 0 && records.length > splitIdx ? {
-    wins: records.slice(splitIdx, Math.min(splitIdx * 2, records.length)).filter(r => r.chips > 0).length,
-    losses: records.slice(splitIdx, Math.min(splitIdx * 2, records.length)).filter(r => r.chips < 0).length,
-    chips: records.slice(splitIdx, Math.min(splitIdx * 2, records.length)).reduce((s, r) => s + (r.chips || 0), 0)
-  } : undefined;
-
-  return { games: records.length, wins, losses, winRate, chips, avgChips, trend, lastGames, prevGames };
-}
-
-function getDayOfWeek(date: Date): string {
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  return days[date.getDay()];
+  return { games: records.length, wins, losses, winRate, chips, avgChips, trend };
 }
 
 function getTimeSlot(createdAt: Date): 'afternoon' | 'evening' | 'other' {
@@ -134,18 +98,11 @@ function getTimeSlot(createdAt: Date): 'afternoon' | 'evening' | 'other' {
   return 'other';
 }
 
-/**
- * 计算完整对局统计数据（多窗口版本）
- */
 function calculateGameStats(userId: string, targetDate: Date): GameStats | null {
   try {
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) return null;
 
-    const endDate = new Date(targetDate);
-    endDate.setHours(23, 59, 59, 999);
-
-    // 查询所有对局记录（带地点、游戏类型信息）
     const allRecords = db.prepare(`
       SELECT pr.chips, g.created_at, g.location_id, g.game_type_id,
              l.name as location_name, gt.name as game_type_name
@@ -162,16 +119,7 @@ function calculateGameStats(userId: string, targetDate: Date): GameStats | null 
     if (allRecords.length === 0) return null;
 
     const now = new Date();
-    const lastGameDate = new Date(allRecords[0].created_at);
-    const lastGameDaysAgo = Math.floor((now.getTime() - lastGameDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    // ─── 全量统计 ───
-    const allWins = allRecords.filter(r => r.chips > 0).length;
-    const allChips = allRecords.reduce((s, r) => s + (r.chips || 0), 0);
-    const maxWin = Math.max(...allRecords.map(r => r.chips));
-    const maxLoss = Math.min(...allRecords.map(r => r.chips));
-
-    // ─── 窗口统计 ───
     function filterByDays(records: any[], days: number): any[] {
       const cutoff = new Date(now);
       cutoff.setDate(cutoff.getDate() - days);
@@ -186,7 +134,6 @@ function calculateGameStats(userId: string, targetDate: Date): GameStats | null 
     const window14Days = calcWindowStats(rec14, 7);
     const window30Days = calcWindowStats(rec30, 14);
 
-    // ─── 时段统计 ───
     const afternoonRecs = allRecords.filter(r => getTimeSlot(new Date(r.created_at)) === 'afternoon');
     const eveningRecs = allRecords.filter(r => getTimeSlot(new Date(r.created_at)) === 'evening');
 
@@ -208,40 +155,32 @@ function calculateGameStats(userId: string, targetDate: Date): GameStats | null 
       }
     };
 
-    // ─── 地点统计 ───
-    const locationMap = new Map<string, { records: any[]; lastDate: Date }>();
+    const locationMap = new Map<string, any[]>();
     allRecords.forEach(r => {
       if (!r.location_id) return;
-      if (!locationMap.has(r.location_id)) {
-        locationMap.set(r.location_id, { records: [], lastDate: new Date(r.created_at) });
-      }
-      const entry = locationMap.get(r.location_id)!;
-      entry.records.push(r);
-      if (new Date(r.created_at) > entry.lastDate) {
-        entry.lastDate = new Date(r.created_at);
-      }
+      if (!locationMap.has(r.location_id)) locationMap.set(r.location_id, []);
+      locationMap.get(r.location_id)!.push(r);
     });
 
     const byLocation: LocationStats[] = [];
-    locationMap.forEach((entry, locId) => {
-      const locRecords = entry.records;
-      const wins = locRecords.filter(r => r.chips > 0).length;
-      const totalChips = locRecords.reduce((s, r) => s + (r.chips || 0), 0);
-      const daysAgo = Math.floor((now.getTime() - entry.lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    locationMap.forEach((records, locId) => {
+      const wins = records.filter(r => r.chips > 0).length;
+      const totalChips = records.reduce((s, r) => s + (r.chips || 0), 0);
+      const lastDate = new Date(Math.max(...records.map((r: any) => new Date(r.created_at).getTime())));
+      const daysAgo = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
       byLocation.push({
-        name: locRecords[0].location_name || '未知地点',
-        games: locRecords.length,
+        name: records[0].location_name || '未知地点',
+        games: records.length,
         wins,
-        losses: locRecords.length - wins,
-        winRate: Math.round((wins / locRecords.length) * 100),
+        losses: records.length - wins,
+        winRate: Math.round((wins / records.length) * 100),
         totalChips,
-        avgChips: Math.round(totalChips / locRecords.length),
+        avgChips: Math.round(totalChips / records.length),
         lastVisitDaysAgo: daysAgo
       });
     });
     byLocation.sort((a, b) => a.lastVisitDaysAgo - b.lastVisitDaysAgo);
 
-    // ─── 游戏类型统计 ───
     const gameTypeMap = new Map<string, any[]>();
     allRecords.forEach(r => {
       if (!r.game_type_id) return;
@@ -264,41 +203,22 @@ function calculateGameStats(userId: string, targetDate: Date): GameStats | null 
     });
     byGameType.sort((a, b) => b.games - a.games);
 
-    // ─── 星期统计 ───
-    const dowMap: Record<string, { games: number; wins: number }> = {};
-    allRecords.forEach(r => {
-      const dow = getDayOfWeek(new Date(r.created_at));
-      if (!dowMap[dow]) dowMap[dow] = { games: 0, wins: 0 };
-      dowMap[dow].games++;
-      if (r.chips > 0) dowMap[dow].wins++;
-    });
-
-    const dayOfWeek: Record<string, DayOfWeekStats> = {};
-    Object.keys(dowMap).forEach(dow => {
-      dayOfWeek[dow] = {
-        games: dowMap[dow].games,
-        wins: dowMap[dow].wins,
-        winRate: Math.round((dowMap[dow].wins / dowMap[dow].games) * 100)
-      };
-    });
+    const allWins = allRecords.filter(r => r.chips > 0).length;
+    const allChips = allRecords.reduce((s, r) => s + (r.chips || 0), 0);
 
     return {
       allTime: {
         totalGames: allRecords.length,
         winRate: Math.round((allWins / allRecords.length) * 100),
         totalChips: allChips,
-        avgChips: Math.round(allChips / allRecords.length),
-        maxWin,
-        maxLoss
+        avgChips: Math.round(allChips / allRecords.length)
       },
       window7Days,
       window14Days,
       window30Days,
       byTimeSlot,
       byLocation,
-      byGameType,
-      dayOfWeek,
-      lastGameDaysAgo
+      byGameType
     };
   } catch (error) {
     console.error('calculateGameStats error:', error);
@@ -306,99 +226,73 @@ function calculateGameStats(userId: string, targetDate: Date): GameStats | null 
   }
 }
 
+function getGameStatsSummary(stats: GameStats | null): string {
+  if (!stats) return '暂无战绩数据';
+  const s = stats.window7Days;
+  return `近7天${s.games}场/胜率${s.winRate}%/盈亏${s.chips >= 0 ? '+' : ''}${s.chips}`;
+}
+
 // ─────────────────────────────────────────────────────────────
-// Prompt 构建
+// AI Prompt 构建
 // ─────────────────────────────────────────────────────────────
 
-function buildHoroscopePrompt(
-  user: { birthDate: string; name?: string },
-  todayDate: Date,
-  gameStats: GameStats
-): string {
-  const zodiacAnimal = getZodiacAnimal(user.birthDate);
-  const zodiacSign = getZodiacSign(user.birthDate);
-  const lunarDate = getLunarDate(todayDate);
-  const dateStr = formatDate(todayDate);
-  const lunarDateStr = `${lunarDate.yearName}年${lunarDate.month}月${lunarDate.day}日`;
-  const dayName: Record<string, string> = {
-    sunday: '周日', monday: '周一', tuesday: '周二', wednesday: '周三',
-    thursday: '周四', friday: '周五', saturday: '周六'
-  };
-  const dayOfWeek = dayName[getDayOfWeek(todayDate)];
+function buildNarrativePrompt(question: string, bazi: BaziInfo, almanac: AlmanacInfo, gameStats: GameStats | null = null): string {
+  const baziSummary = `${bazi.year}年 ${bazi.month}月 ${bazi.day}日 ${bazi.hour}时`;
+  const gameStatsSummary = getGameStatsSummary(gameStats);
 
-  const s = gameStats;
+  const prompt = `你是一位中国传统黄历解读师，专门为麻将玩家提供运势指导。
 
-  const locTop3 = s.byLocation.slice(0, 3).map(l =>
-    `${l.name}(${l.games}场/${l.winRate}%胜/均${l.avgChips > 0 ? '+' : ''}${l.avgChips}/近${l.lastVisitDaysAgo}天)`
-  ).join(' > ');
+用户信息：
+- 八字：${baziSummary} | 生肖${bazi.zodiacAnimal}
+- 今日黄历：宜${almanac.suitable.join('、')} 忌${almanac.avoid.join('、')} 财神${almanac.godOfWealth} 喜神${almanac.godOfJoy} 福神${almanac.godOfFortune}
+${gameStats ? `- 近期战绩：${getGameStatsSummary(gameStats)}` : ''}
 
-  const typeTop3 = s.byGameType.slice(0, 3).map(t =>
-    `${t.name}(${t.games}场/${t.winRate}%胜)`
-  ).join(' > ');
+请用大白话解读，不需要出现「驿马星」「财库」「命宫」等术语。
 
-  const dowLines = Object.entries(s.dayOfWeek)
-    .sort((a, b) => b[1].games - a[1].games)
-    .slice(0, 3)
-    .map(([d, v]) => `${dayName[d]}: ${v.games}场/${v.winRate}%`);
+输出格式：
+- 一段话描述今日整体运势（3-5句）
+- 针对麻将的具体建议（2-3句）
+- 如果有警示，加上提醒（1-2句）
 
-  const prompt = `你是一位数据分析+运势顾问。请根据以下用户数据，为用户生成今日打牌运势分析。
-
-【用户信息】
-- 出生日期：${user.birthDate}
-- 生肖：${zodiacAnimal} | 星座：${zodiacSign}
-
-【今日信息】
-- 日期：${dateStr}（农历${lunarDateStr}，${dayOfWeek}）
-
-【对局统计数据】
-【历史总览】
-- 总场次：${s.allTime.totalGames}场 | 胜率：${s.allTime.winRate}% | 总盈亏：${s.allTime.totalChips >= 0 ? '+' : ''}${s.allTime.totalChips} | 场均：${s.allTime.avgChips > 0 ? '+' : ''}${s.allTime.avgChips}
-- 单场最大胜：+${s.allTime.maxWin} | 单场最大负：${s.allTime.maxLoss}
-
-【近7天窗口】
-- 场次：${s.window7Days.games} | 胜率：${s.window7Days.winRate}% | 盈亏：${s.window7Days.chips >= 0 ? '+' : ''}${s.window7Days.chips}
-- 趋势：${s.window7Days.trend}
-${s.window7Days.lastGames ? `- 近半段：${s.window7Days.lastGames.wins}胜${s.window7Days.lastGames.losses}负/${s.window7Days.lastGames.chips >= 0 ? '+' : ''}${s.window7Days.lastGames.chips}` : ''}
-${s.window7Days.prevGames ? `- 前半段：${s.window7Days.prevGames.wins}胜${s.window7Days.prevGames.losses}负/${s.window7Days.prevGames.chips >= 0 ? '+' : ''}${s.window7Days.prevGames.chips}` : ''}
-
-【近14天窗口】
-- 场次：${s.window14Days.games} | 胜率：${s.window14Days.winRate}% | 盈亏：${s.window14Days.chips >= 0 ? '+' : ''}${s.window14Days.chips}
-- 趋势：${s.window14Days.trend}
-
-【近30天窗口】
-- 场次：${s.window30Days.games} | 胜率：${s.window30Days.winRate}% | 盈亏：${s.window30Days.chips >= 0 ? '+' : ''}${s.window30Days.chips}
-- 趋势：${s.window30Days.trend}
-
-【时段分析】
-- 下午(12-19时)：${s.byTimeSlot.afternoon.games}场/胜率${s.byTimeSlot.afternoon.winRate}%/场均${s.byTimeSlot.afternoon.avgChips > 0 ? '+' : ''}${s.byTimeSlot.afternoon.avgChips}
-- 晚场(19-24时)：${s.byTimeSlot.evening.games}场/胜率${s.byTimeSlot.evening.winRate}%/场均${s.byTimeSlot.evening.avgChips > 0 ? '+' : ''}${s.byTimeSlot.evening.avgChips}
-
-【地点排名】${locTop3 || '暂无数据'}
-【游戏类型】${typeTop3 || '暂无数据'}
-【星期规律】${dowLines.join(' | ') || '暂无数据'}
-【上次对局】${s.lastGameDaysAgo}天前
-
-请生成JSON格式运势分析，结构如下（只返回JSON，不要其他文字）：
-{
-  "score": 0-10的评分（数字，基于近期手风和当日运势综合判断）,
-  "summary": "一段话总结今日运势核心（20-40字）",
-  "recommendations": {
-    "timeSlot": { "preferred": "下午/晚场/均可", "reason": "原因说明" },
-    "location": { "preferred": "地点名或'无特定推荐'", "reason": "原因说明" },
-    "gameType": { "preferred": "类型名或'无特定推荐'", "reason": "原因说明" }
-  },
-  "warnings": ["警告1（如近期手风差、晚场胜率低等）", "警告2"],
-  "advice": "综合建议（30-60字，简洁有力）"
-}`;
+语气：轻松但有参考价值，不要过度乐观或悲观。`;
 
   return prompt;
+}
+
+function buildAnswerPrompt(question: string, bazi: BaziInfo, almanac: AlmanacInfo, gameStats: GameStats | null = null): string {
+  let context = '';
+
+  if (question.includes('禁忌')) {
+    context = `用户问今天打牌禁忌。强调忌：${almanac.avoid.join('、')}`;
+  } else if (question.includes('大牌') || question.includes('小注')) {
+    context = `用户问今天适合打大牌还是小注。结合近期战绩：${getGameStatsSummary(gameStats)}`;
+  } else if (question.includes('财神')) {
+    context = `用户问财神方位。今日财神在${almanac.godOfWealth}方向`;
+  } else if (question.includes('数字') || question.includes('颜色')) {
+    context = `用户问吉祥数字或颜色。结合生肖${bazi.zodiacAnimal}和纳音${bazi.yearTakeSound}`;
+  } else {
+    context = `用户问题：${question}`;
+  }
+
+  const baziSummary = `${bazi.year}年 ${bazi.month}月 ${bazi.day}日 ${bazi.hour}时`;
+
+  return `你是一位中国传统黄历解读师，专门为麻将玩家提供运势指导。
+
+用户信息：
+- 八字：${baziSummary} | 生肖${bazi.zodiacAnimal} | 年柱纳音${bazi.yearTakeSound}
+- 今日黄历：宜${almanac.suitable.join('、')} 忌${almanac.avoid.join('、')} 财神${almanac.godOfWealth} 喜神${almanac.godOfJoy} 福神${almanac.godOfFortune}
+${gameStats ? `- 近期战绩：${getGameStatsSummary(gameStats)}` : ''}
+
+当前问题：${context}
+
+请用大白话回答，不需要出现「驿马星」「财库」「命宫」等术语。回答要简洁，2-4句话即可。`;
 }
 
 // ─────────────────────────────────────────────────────────────
 // AI 调用
 // ─────────────────────────────────────────────────────────────
 
-async function callMiniMax(prompt: string): Promise<{ thinking: string; text: string }> {
+async function callMiniMax(prompt: string): Promise<string> {
   const apiKey = getMiniMaxApiKey();
   const apiUrl = getMiniMaxUrl();
 
@@ -409,7 +303,7 @@ async function callMiniMax(prompt: string): Promise<{ thinking: string; text: st
   try {
     const response = await axios.post(apiUrl, {
       model: 'MiniMax-M2.7',
-      max_tokens: 3000,
+      max_tokens: 2000,
       messages: [
         {
           role: 'user',
@@ -425,18 +319,21 @@ async function callMiniMax(prompt: string): Promise<{ thinking: string; text: st
       timeout: 120000
     });
 
-    const blocks: any[] = response.data.content || [];
-    const thinkingBlock = blocks.find((b: any) => b.type === 'thinking');
-    const textBlock = blocks.find((b: any) => b.type === 'text');
+    console.log('[MiniMax] response.status:', response.status);
+    console.log('[MiniMax] response.data:', JSON.stringify(response.data).substring(0, 500));
 
-    const thinking = thinkingBlock?.thinking || '';
+    const blocks: any[] = response.data.content || [];
+    console.log('[MiniMax] blocks:', JSON.stringify(blocks).substring(0, 500));
+    const textBlock = blocks.find((b: any) => b.type === 'text');
     const text = textBlock?.text || blocks.find((b: any) => b.text)?.text || '';
+
+    console.log('[MiniMax] extracted text:', text?.substring(0, 200));
 
     if (!text) {
       const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty response';
       throw new Error(`MiniMax API error: ${response.status} - ${reason}`);
     }
-    return { thinking, text };
+    return text;
   } catch (error: any) {
     const status = error.response?.status;
     const apiError = error.response?.data?.error;
@@ -448,7 +345,104 @@ async function callMiniMax(prompt: string): Promise<{ thinking: string; text: st
 }
 
 // ─────────────────────────────────────────────────────────────
-// 路由
+// 辅助函数
+// ─────────────────────────────────────────────────────────────
+
+function getDayOfWeek(date: Date): string {
+  const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  return days[date.getDay()];
+}
+
+function computeTrueSolarTime(birthTime: string, birthLongitude: number): string {
+  // 真太阳时 = 本地时间 + (经度 - 120) × 4分钟
+  const diff = (birthLongitude - 120) * 4;
+  const [h, m] = birthTime.split(':').map(Number);
+  const totalMinutes = h * 60 + m + diff;
+  const adjustedH = Math.floor(((totalMinutes % 1440) + 1440) % 1440 / 60);
+  const adjustedM = Math.floor(((totalMinutes % 1440) + 1440) % 1440 % 60);
+  return `${String(adjustedH).padStart(2, '0')}:${String(adjustedM).padStart(2, '0')}`;
+}
+
+function checkProfileComplete(user: any): boolean {
+  return !!(
+    user.birth_date &&
+    user.birth_time &&
+    user.birth_location &&
+    user.gender !== null &&
+    user.gender !== undefined
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 路由：GET /horoscope/bazi
+// ─────────────────────────────────────────────────────────────
+
+router.get('/bazi', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = (req.query.date as string) || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    console.log('[bazi] userId:', userId, 'date:', dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    // 获取用户信息
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
+
+    if (!user) {
+      console.log('[bazi] user not found, userId:', userId);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log('[bazi] user:', JSON.stringify(user));
+
+    const hasCompleteProfile = checkProfileComplete(user);
+    console.log('[bazi] hasCompleteProfile:', hasCompleteProfile);
+
+    // 计算农历信息
+    const lunar = getLunarDate(targetDate);
+    const lunarDateStr = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+    const dayOfWeek = getDayOfWeek(targetDate);
+
+    let bazi: BaziInfo | null = null;
+    let almanac: AlmanacInfo | null = null;
+    let zodiacAnimal = '';
+
+    if (hasCompleteProfile) {
+      // 计算真太阳时
+      const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+
+      // 计算八字
+      bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+      zodiacAnimal = bazi.zodiacAnimal;
+
+      // 获取黄历
+      almanac = getTodayAlmanac(targetDate);
+    }
+
+    res.json({
+      date: dateParam,
+      bazi,
+      almanac,
+      lunarDate: lunarDateStr,
+      dayOfWeek,
+      zodiacAnimal,
+      hasCompleteProfile
+    });
+  } catch (error: any) {
+    console.error('Get bazi error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get bazi' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 路由：GET /horoscope/stream/:date
 // ─────────────────────────────────────────────────────────────
 
 router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
@@ -456,6 +450,8 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     const userId = req.user!.id;
     const dateParam = req.params.date || formatDate(new Date());
     const targetDate = new Date(dateParam);
+
+    console.log('[stream] userId:', userId, 'date:', dateParam);
 
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
@@ -466,57 +462,86 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    const send = (progress: number, message: string, data?: any) => {
-      res.write(`data: ${JSON.stringify({ progress, message, data })}\n\n`);
+    const send = (progress: number, message: string, data?: any, extra?: any) => {
+      console.log('[stream] progress:', progress, 'message:', message);
+      res.write(`data: ${JSON.stringify({ progress, message, data, ...extra })}\n\n`);
     };
 
-    // 检查缓存
-    send(5, '检查缓存...');
-    const cached = db.prepare(`SELECT * FROM horoscope_cache WHERE user_id = ? AND date = ?`).get(userId, dateParam) as any;
+    // Step 1: 获取用户信息
+    send(5, '获取用户信息...');
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
 
-    if (cached) {
-      send(100, '使用缓存');
-      let result: any;
-      try { result = JSON.parse(cached.result_json); } catch { result = cached.result_json; }
-      res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...result, cached: true } })}\n\n`);
+    if (!user) {
+      console.log('[stream] user not found');
+      res.write(`data: ${JSON.stringify({ error: 'User not found' })}\n\n`);
       return res.end();
     }
 
-    // 获取用户
-    send(10, '获取用户信息...');
-    const user = db.prepare('SELECT birth_date, name FROM users WHERE id = ?').get(userId) as any;
-    if (!user || !user.birth_date) {
-      res.write(`data: ${JSON.stringify({ error: 'Please set your birth date in settings first' })}\n\n`);
+    console.log('[stream] user:', JSON.stringify(user));
+    const hasCompleteProfile = checkProfileComplete(user);
+    console.log('[stream] hasCompleteProfile:', hasCompleteProfile);
+
+    if (!hasCompleteProfile) {
+      res.write(`data: ${JSON.stringify({ error: 'Please complete your birth profile in settings first' })}\n\n`);
       return res.end();
     }
 
-    // 计算统计
-    send(20, '分析对局数据...');
+    // Step 2: 计算真太阳时
+    send(10, '计算真太阳时...');
+    const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+
+    // Step 3: 计算八字
+    send(15, '计算八字...');
+    const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+
+    // Step 4: 获取黄历
+    send(20, '获取黄历...');
+    const almanac = getTodayAlmanac(targetDate);
+
+    // 计算农历信息
+    const lunar = getLunarDate(targetDate);
+    const lunarDateStr = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+    const dayOfWeek = getDayOfWeek(targetDate);
+
+    // 发送八字+黄历数据（立即渲染）
+    send(20, '八字+黄历数据就绪', {
+      date: dateParam,
+      bazi,
+      almanac,
+      lunarDate: lunarDateStr,
+      dayOfWeek,
+      zodiacAnimal: bazi.zodiacAnimal,
+      hasCompleteProfile: true
+    });
+
+    // Step 5: 计算战绩
+    send(30, '分析战绩...');
     const gameStats = calculateGameStats(userId, targetDate);
 
-    // 生成运势
-    send(40, '正在生成运势...');
-    const prompt = buildHoroscopePrompt({ birthDate: user.birth_date, name: user.name }, targetDate, gameStats!);
-    const { thinking, text: rawResponse } = await callMiniMax(prompt);
+    // Step 6: AI narrative
+    send(40, '开始 AI 解读...');
+    const narrativePrompt = buildNarrativePrompt('', bazi, almanac, gameStats);
+    const narrative = await callMiniMax(narrativePrompt);
 
-    // 解析 JSON
-    send(80, '解析结果...');
-    let horoscopeResult: any;
-    try {
-      const jsonMatch = rawResponse.match(/```json\s*([\s\S]*?)\s*```/) || rawResponse.match(/\{[\s\S]*\}/);
-      horoscopeResult = JSON.parse(jsonMatch ? jsonMatch[1] || jsonMatch[0] : rawResponse);
-    } catch {
-      horoscopeResult = { score: 5, summary: rawResponse, recommendations: {}, warnings: [], advice: '' };
-    }
+    // 发送完整结果
+    send(100, '完成', null, {
+      done: true,
+      result: {
+        date: dateParam,
+        bazi,
+        almanac,
+        lunarDate: lunarDateStr,
+        dayOfWeek,
+        zodiacAnimal: bazi.zodiacAnimal,
+        hasCompleteProfile: true,
+        narrative,
+        stats: gameStats
+      }
+    });
 
-    // 保存缓存（包含 thinking）
-    send(95, '保存缓存...');
-    const cacheId = require('../database').generateId();
-    db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
-      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking, stats: gameStats }), new Date().toISOString());
-
-    send(100, '完成');
-    res.write(`data: ${JSON.stringify({ progress: 100, done: true, result: { date: dateParam, ...horoscopeResult, thinking, stats: gameStats, cached: false } })}\n\n`);
     res.end();
   } catch (error: any) {
     console.error('Stream error:', error);
@@ -524,6 +549,62 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     res.end();
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// 路由：POST /horoscope/answer
+// ─────────────────────────────────────────────────────────────
+
+router.post('/answer', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { question, date } = req.body;
+    const dateParam = date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (!question) {
+      return res.status(400).json({ error: 'Question is required' });
+    }
+
+    // 获取用户信息
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!checkProfileComplete(user)) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    // 计算真太阳时
+    const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+
+    // 计算八字
+    const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+
+    // 获取黄历
+    const almanac = getTodayAlmanac(targetDate);
+
+    // 计算战绩
+    const gameStats = calculateGameStats(userId, targetDate);
+
+    // 构建回答 prompt
+    const answerPrompt = buildAnswerPrompt(question, bazi, almanac, gameStats);
+    const answer = await callMiniMax(answerPrompt);
+
+    res.json({ answer });
+  } catch (error: any) {
+    console.error('Answer error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate answer' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 路由：GET /horoscope/:date（保留用于回退）
+// ─────────────────────────────────────────────────────────────
 
 router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {
@@ -535,42 +616,46 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    // 检查缓存
-    const cached = db.prepare(`SELECT * FROM horoscope_cache WHERE user_id = ? AND date = ?`).get(userId, dateParam) as any;
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
 
-    if (cached) {
-      let result: any;
-      try { result = JSON.parse(cached.result_json); } catch { result = cached.result_json; }
-      return res.json({ date: dateParam, ...result, cached: true });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    const user = db.prepare('SELECT birth_date, name FROM users WHERE id = ?').get(userId) as any;
-    if (!user || !user.birth_date) {
-      return res.status(400).json({ error: 'Please set your birth date in settings first' });
+    if (!checkProfileComplete(user)) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
     }
 
+    const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+    const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+    const almanac = getTodayAlmanac(targetDate);
     const gameStats = calculateGameStats(userId, targetDate);
-    const prompt = buildHoroscopePrompt({ birthDate: user.birth_date, name: user.name }, targetDate, gameStats!);
-    const { thinking, text: rawResponse } = await callMiniMax(prompt);
+    const narrativePrompt = buildNarrativePrompt('', bazi, almanac, gameStats);
+    const narrative = await callMiniMax(narrativePrompt);
 
-    let horoscopeResult: any;
-    try {
-      const jsonMatch = rawResponse.match(/```json\s*([\s\S]*?)\s*```/) || rawResponse.match(/\{[\s\S]*\}/);
-      horoscopeResult = JSON.parse(jsonMatch ? jsonMatch[1] || jsonMatch[0] : rawResponse);
-    } catch {
-      horoscopeResult = { score: 5, summary: rawResponse, recommendations: {}, warnings: [], advice: '' };
-    }
-
-    const cacheId = require('../database').generateId();
-    db.prepare(`INSERT OR REPLACE INTO horoscope_cache (id, user_id, date, result_json, created_at) VALUES (?, ?, ?, ?, ?)`)
-      .run(cacheId, userId, dateParam, JSON.stringify({ ...horoscopeResult, thinking, stats: gameStats }), new Date().toISOString());
-
-    res.json({ date: dateParam, ...horoscopeResult, thinking, stats: gameStats, cached: false });
+    res.json({
+      date: dateParam,
+      bazi,
+      almanac,
+      lunarDate: `${getLunarDate(targetDate).yearName}年${getLunarDate(targetDate).month}月${getLunarDate(targetDate).day}日`,
+      dayOfWeek: getDayOfWeek(targetDate),
+      zodiacAnimal: bazi.zodiacAnimal,
+      hasCompleteProfile: true,
+      narrative,
+      stats: gameStats
+    });
   } catch (error: any) {
     console.error('Get horoscope error:', error);
     res.status(500).json({ error: error.message || 'Failed to get horoscope' });
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// 路由：POST /horoscope/refresh（保留）
+// ─────────────────────────────────────────────────────────────
 
 router.post('/refresh/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {

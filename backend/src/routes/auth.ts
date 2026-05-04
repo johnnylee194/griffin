@@ -39,6 +39,14 @@ router.post('/login', (req, res) => {
       { expiresIn: '7d' }
     );
 
+    const hasCompleteProfile = !!(
+      user.birth_date &&
+      user.birth_time &&
+      user.birth_location &&
+      user.gender !== null &&
+      user.gender !== undefined
+    );
+
     res.json({
       token,
       user: {
@@ -50,7 +58,8 @@ router.post('/login', (req, res) => {
         birthLocation: user.birth_location,
         birthLatitude: user.birth_latitude,
         birthLongitude: user.birth_longitude,
-        gender: user.gender
+        gender: user.gender,
+        hasCompleteProfile
       }
     });
   } catch (error) {
@@ -79,6 +88,14 @@ router.get('/verify', (req, res) => {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
+    const hasCompleteProfile = !!(
+      user.birth_date &&
+      user.birth_time &&
+      user.birth_location &&
+      user.gender !== null &&
+      user.gender !== undefined
+    );
+
     res.json({
       user: {
         id: user.id,
@@ -89,7 +106,8 @@ router.get('/verify', (req, res) => {
         birthLocation: user.birth_location,
         birthLatitude: user.birth_latitude,
         birthLongitude: user.birth_longitude,
-        gender: user.gender
+        gender: user.gender,
+        hasCompleteProfile
       }
     });
   } catch (error) {
@@ -210,6 +228,14 @@ router.put('/profile', authMiddleware, async (req: AuthRequest, res) => {
       SELECT id, username, name, birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender FROM users WHERE id = ?
     `).get(userId) as any;
 
+    const hasCompleteProfile = !!(
+      user.birth_date &&
+      user.birth_time &&
+      user.birth_location &&
+      user.gender !== null &&
+      user.gender !== undefined
+    );
+
     res.json({
       user: {
         id: user.id,
@@ -220,7 +246,8 @@ router.put('/profile', authMiddleware, async (req: AuthRequest, res) => {
         birthLocation: user.birth_location,
         birthLatitude: user.birth_latitude,
         birthLongitude: user.birth_longitude,
-        gender: user.gender
+        gender: user.gender,
+        hasCompleteProfile
       }
     });
   } catch (error) {
@@ -241,6 +268,14 @@ router.get('/profile', authMiddleware, (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const hasCompleteProfile = !!(
+      user.birth_date &&
+      user.birth_time &&
+      user.birth_location &&
+      user.gender !== null &&
+      user.gender !== undefined
+    );
+
     res.json({
       user: {
         id: user.id,
@@ -251,7 +286,8 @@ router.get('/profile', authMiddleware, (req: AuthRequest, res) => {
         birthLocation: user.birth_location,
         birthLatitude: user.birth_latitude,
         birthLongitude: user.birth_longitude,
-        gender: user.gender
+        gender: user.gender,
+        hasCompleteProfile
       }
     });
   } catch (error) {

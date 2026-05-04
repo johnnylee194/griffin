@@ -196,6 +196,43 @@ export interface User {
   birthTime?: string;
   birthLocation?: string;
   gender?: number;
+  birthLatitude?: number;
+  birthLongitude?: number;
+  hasCompleteProfile?: boolean;
+}
+
+export interface BaziResponse {
+  date: string;
+  bazi: {
+    year: string;
+    month: string;
+    day: string;
+    hour: string;
+    yearStemTenGod: string;
+    monthStemTenGod: string;
+    dayStemTenGod: string;
+    hourStemTenGod: string;
+    yearTakeSound: string;
+    monthTakeSound: string;
+    dayTakeSound: string;
+    hourTakeSound: string;
+    missing: string[];
+    zodiacAnimal: string;
+  };
+  almanac: {
+    suitable: string[];
+    avoid: string[];
+    godOfWealth: string;
+    godOfJoy: string;
+    godOfFortune: string;
+    badGod: string;
+    isGoodDay: boolean;
+    note: string;
+  };
+  lunarDate: string;
+  dayOfWeek: string;
+  zodiacAnimal: string;
+  hasCompleteProfile: boolean;
 }
 
 export interface Horoscope {
@@ -230,6 +267,9 @@ export const authApi = {
 export const horoscopeApi = {
   get: (date?: string) => apiClient.get<Horoscope>(`/horoscope${date ? `/${date}` : ''}`),
   refresh: (date?: string) => apiClient.post(`/horoscope/refresh${date ? `/${date}` : ''}`),
+  getBazi: (date: string) => apiClient.get<BaziResponse>('/horoscope/bazi', { params: { date } }),
+  answerQuestion: (data: { question: string; date?: string }) =>
+    apiClient.post<{ answer: string }>('/horoscope/answer', data),
 };
 
 // 自定义筛选器类型定义

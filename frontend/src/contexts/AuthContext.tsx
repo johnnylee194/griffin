@@ -9,6 +9,9 @@ interface User {
   birthTime?: string;
   birthLocation?: string;
   gender?: number;
+  birthLatitude?: number;
+  birthLongitude?: number;
+  hasCompleteProfile?: boolean;
 }
 
 interface AuthContextType {

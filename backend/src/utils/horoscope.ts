@@ -44,11 +44,10 @@ export async function initLunisolar(): Promise<void> {
   const lunisolar = lunisolarModule.default;
 
   const { default: char8ex } = await import('lunisolar/plugins/char8ex.js');
-  const { takeSound } = await import('@lunisolar/plugin-takesound');
+  // Note: takeSound is already built into lunisolar's SB prototype, no need to extend
   const { theGods } = await import('@lunisolar/plugin-thegods');
 
   lunisolar.extend(char8ex);
-  lunisolar.extend(takeSound);
   lunisolar.extend(theGods);
 
   lunisolarInstance = lunisolar;
