@@ -227,7 +227,7 @@ export default function HoroscopePage() {
               <div key={id} id={`dimension-${id}`}>
                 <SkeletonCard title={
                   id === 'fortune' ? '今日运势' :
-                  id === 'betting' ? '投注策略' :
+                  id === 'betting' ? '打牌策略' :
                   id === 'bestAction' ? '麻将决策' :
                   id === 'direction' ? '方位' :
                   id === 'goldenTime' ? '黄金时段' :

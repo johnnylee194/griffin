@@ -384,7 +384,7 @@ function buildBettingPrompt(ctx: UserContext, fortuneLevel: string, fortuneSumma
 - 核心判断：${fortuneSummary}
 - 今日要点：${fortuneHighlights || fortuneSummary}
 
-请基于以上结论，推导今日投注策略。
+请基于以上结论，推导今日打牌策略。
 
 推导过程（请逐段输出）：
 1. 能量水平：今天整体运势如何，有没有底气去认真打

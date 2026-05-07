@@ -4,7 +4,7 @@ interface AnchorNavProps {
 
 const NAV_ITEMS = [
   { id: 'fortune', label: '运势' },
-  { id: 'betting', label: '投注' },
+  { id: 'betting', label: '打牌' },
   { id: 'bestAction', label: '决策' },
   { id: 'direction', label: '方位' },
   { id: 'goldenTime', label: '时段' },

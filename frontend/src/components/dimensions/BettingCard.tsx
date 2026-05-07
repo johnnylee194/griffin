@@ -39,7 +39,7 @@ export default function BettingCard({ id, isExpanded, isLoading, data, onToggle 
   return (
     <DimensionCard
       id={id}
-      title="投注策略"
+      title="打牌策略"
       status={data?.level}
       isExpanded={isExpanded}
       defaultExpanded={true}

@@ -1,8 +1,9 @@
 # Griffin Horoscope Phase 3 开发文档
 
-> 状态：开发指令，待执行
+> 状态：Partially Implemented（部分完成）
 > 生成日期：2026-05-06
-> 前提：Phase 2 已完成（7维度 streaming + 详细推导）
+> 最后更新：2026-05-07
+> 当前 HEAD：fc45524
 
 ---
 
@@ -10,19 +11,23 @@
 
 - **SPEC**：`docs/HOROSCOPE-SPEC.md`（总纲，里程碑追踪）
 - **设计上下文**：`docs/HOROSCOPE-DESIGN-CONTEXT.md`（7维度详情 + 用户数据 + 设计方案）
-- **避坑规则**：`griffin-horoscope-phase1-lessons` skill（SQLite迁移、ESM模块、geocoding、User类型同步等）
-- **Phase 1/2 经验**：`griffin-horoscope-phase1-dev` skill
+- **避坑规则**：`griffin-horoscope-lessons` skill（SQLite迁移、ESM模块、geocoding、User类型同步等）
+- **Phase 1/2 经验**：`griffin-horoscope-dev` skill
 
 ---
 
 ## 1. 核心约束（强制遵守）
 
-### 1.1 Streaming 策略：串行感知 + 瀑布流
+### 1.1 实际实现：串行请求 + 非 streaming
 
-**7个维度 = 7个独立 LLM API Call，全部并行请求，UI 串行展示。**
+**已实现：**
+- 7个维度使用 `for...of` + `await` 串行请求（不是并行）
+- 非 streaming 模式（MiniMax M2.7 SSE 截断 bug）
+- 前端骨架屏立即渲染，请求完成后直接显示完整内容（typewriter 效果未实现）
 
+**设计目标（未完成）：**
 ```
-前端行为：
+前端行为（设计目标）：
 1. 进入页面 → 立即渲染7张卡片骨架（Skeleton）
 2. 7个 API 同时请求（并行，不等待）
 3. fortune 第一个返回 → typewriter 效果输出到卡片1
@@ -56,7 +61,7 @@ const textBlocks = blocks.filter((b) => !b.thinking && b.type === 'text');
 const fullText = textBlocks.map((b) => b.text).join('');
 ```
 
-> 参考 `griffin-horoscope-phase1-lessons` skill 中的 MiniMax API 关键修复。
+> 参考 `griffin-horoscope-lessons` skill 中的 MiniMax API 关键修复。
 
 ### 1.3 四川麻将术语红线
 
@@ -403,9 +408,9 @@ const results = await Promise.all(requests);
 
 ---
 
-## 5. 前端组件结构
+## 6. 前端组件结构
 
-### 5.1 组件列表
+### 6.1 组件列表
 
 ```
 HoroscopePage/
@@ -460,9 +465,185 @@ function useTypewriter(text: string, speed: number = 30) {
 
 ---
 
-## 6. Prompt 设计
+## 5. Response Schema（API 返回格式）
 
-### 6.1 fortune prompt
+> 所有维度 API 返回统一 `HoroscopeDimension` 结构。数据库存 `result_json` 字段（JSON 字符串），格式如下。
+
+```typescript
+interface HoroscopeDimension {
+  dimension: string;   // 维度名，如 'fortune', 'betting'
+  level: string;      // 结论级别（前端渲染标签用）
+  summary: string;    // 简短摘要（50-100字）
+  content: string;    // 完整解读（长文本）
+  [key: string]: any; // 各维度特有字段
+}
+```
+
+### 5.1 fortune（综合运势）
+
+```json
+{
+  "dimension": "fortune",
+  "level": "旺",
+  "summary": "今日金气旺盛，日主庚金得令，整体运势上佳",
+  "content": "第一步：你的八字事实\n日主庚金在天干...",
+  "highlights": ["金气旺", "宜主动出击", "财运佳"]
+}
+```
+
+**字段说明：**
+- `level`: 旺/平/弱
+- `highlights`: 今日要点列表（供前端 bullet points 渲染）
+
+### 5.2 betting（投注策略）
+
+```json
+{
+  "dimension": "betting",
+  "level": "大注",
+  "summary": "金气旺盛，能量大，适合宽叫博大",
+  "content": "推导过程...\n结论：...",
+  "reason": "金气旺盛，能量大",
+  "strategy": "宽叫为主，适时自摸"
+}
+```
+
+**字段说明：**
+- `level`: 大注/小注/观望
+- `reason`: 一句话理由
+- `strategy`: 核心策略（宽叫/小注/观望优先）
+
+### 5.3 bestAction（麻将决策）
+
+```json
+{
+  "dimension": "bestAction",
+  "level": "参考",
+  "summary": "今日5大场景决策建议已生成",
+  "content": "完整解读...",
+  "scenarios": [
+    { "scene": "下叫决策", "conclusion": "宽叫优先", "reasoning": "金气旺适合做大番..." },
+    { "scene": "碰 vs 摸", "conclusion": "多摸少碰", "reasoning": "..." },
+    { "scene": "放炮 vs 自摸", "conclusion": "优先自摸", "reasoning": "..." },
+    { "scene": "对手方位", "conclusion": "防北位", "reasoning": "..." },
+    { "scene": "收官策略", "conclusion": "见好就收", "reasoning": "..." }
+  ]
+}
+```
+
+**字段说明：**
+- `scenarios[].scene`: 场景名（固定5个）
+- `scenarios[].conclusion`: 结论（10字以内）
+- `scenarios[].reasoning`: 推导过程
+
+### 5.4 direction（方位策略）
+
+```json
+{
+  "dimension": "direction",
+  "level": "方位参考",
+  "summary": "坐北最佳，防西位对家",
+  "content": "完整解读...",
+  "positions": {
+    "north": { "strategy": "坐北最佳", "caution": "防上家东位", "risk": "green" },
+    "east": { "strategy": "坐东较稳", "caution": "忌贪", "risk": "green" },
+    "south": { "strategy": "坐南激进", "caution": "防对家", "risk": "yellow" },
+    "west": { "strategy": "坐西保守", "caution": "宜观望", "risk": "red" }
+  }
+}
+```
+
+**字段说明：**
+- `positions.{direction}.risk`: green=不防，yellow=慎，red=防
+
+### 5.5 goldenTime（黄金时段）
+
+```json
+{
+  "dimension": "goldenTime",
+  "level": "时段参考",
+  "summary": "申酉15-19时最佳，巳午09-13时最差",
+  "content": "完整解读...",
+  "periods": [
+    { "hour": "子", "timeRange": "23-01", "element": "水", "rating": 3, "advice": "水泄金气，保守" },
+    { "hour": "丑", "timeRange": "01-03", "element": "土", "rating": 4, "advice": "土生金，中等" },
+    { "hour": "寅", "timeRange": "03-05", "element": "木", "rating": 2, "advice": "木被金克，低迷" },
+    { "hour": "卯", "timeRange": "05-07", "element": "木", "rating": 2, "advice": "木被金克，低迷" },
+    { "hour": "辰", "timeRange": "07-09", "element": "土", "rating": 4, "advice": "土生金，可出击" },
+    { "hour": "巳", "timeRange": "09-11", "element": "火", "rating": 1, "advice": "火克金，最差" },
+    { "hour": "午", "timeRange": "11-13", "element": "火", "rating": 1, "advice": "火克金，最差" },
+    { "hour": "未", "timeRange": "13-15", "element": "土", "rating": 4, "advice": "土生金，可出击" },
+    { "hour": "申", "timeRange": "15-17", "element": "金", "rating": 5, "advice": "金帮身，全力出击" },
+    { "hour": "酉", "timeRange": "17-19", "element": "金", "rating": 5, "advice": "金帮身，日主本气" },
+    { "hour": "戌", "timeRange": "19-21", "element": "土", "rating": 3, "advice": "土过旺则埋，谨慎" },
+    { "hour": "亥", "timeRange": "21-23", "element": "水", "rating": 3, "advice": "水泄金气，保守" }
+  ],
+  "best3": ["申酉", "辰未", "丑"],
+  "worst3": ["巳午", "寅卯"]
+}
+```
+
+**字段说明：**
+- `periods[].rating`: 1-5（★数量）
+- `periods[].advice`: 打法建议（10字以内）
+
+### 5.6 conflictWarning（冲突警示）
+
+```json
+{
+  "dimension": "conflictWarning",
+  "level": "警示参考",
+  "summary": "日支辰被戌冲，有破财之象",
+  "content": "完整解读...",
+  "warnings": [
+    { "type": "辰戌冲", "explanation": "日支辰被戌冲，财库受损", "mahjongImpact": "做大番时警惕对家碰牌" },
+    { "type": "卯害", "explanation": "日支卯被害，手气受阻", "mahjongImpact": "连续摸牌不顺考虑换策略" },
+    { "type": "申酉空", "explanation": "金气空亡，财运落空", "mahjongImpact": "宽叫不易，胡牌困难" }
+  ],
+  "alerts": [
+    "不要做大番时贪碰",
+    "巳午时段格外谨慎",
+    "连续3次摸牌不上手考虑换桌"
+  ]
+}
+```
+
+**字段说明：**
+- `warnings[].type`: 冲突类型
+- `warnings[].explanation`: 八字原理解释
+- `warnings[].mahjongImpact`: 麻将场景影响
+- `alerts`: 行动警示列表
+
+### 5.7 luckEnhancement（开运清单）
+
+```json
+{
+  "dimension": "luckEnhancement",
+  "level": "开运参考",
+  "summary": "宜金色白色，忌红色，饮品宜绿茶",
+  "content": "完整解读...",
+  "drinks": {
+    "suitable": [ { "name": "绿茶", "reason": "木生火克金，助运势" } ],
+    "optional": [ { "name": "蜂蜜水", "reason": "甘润中合" } ],
+    "avoid": [ { "name": "白酒", "reason": "火气旺盛不利金" } ]
+  },
+  "colors": {
+    "suitable": [ { "name": "白色", "reason": "金气相助" }, { "name": "金色", "reason": "日主本气" } ],
+    "accent": [ { "name": "银色", "reason": "金之余气" } ],
+    "avoid": [ { "name": "红色", "reason": "火克金" } ]
+  },
+  "accessories": {
+    "suitable": [ { "name": "金属项链", "reason": "金气补强" } ],
+    "avoid": [ { "name": "皮质腰带", "reason": "土气过旺" } ]
+  }
+}
+```
+
+---
+
+## 7. Prompt 设计
+
+### 7.1 fortune prompt
 
 ```
 你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
@@ -500,13 +681,15 @@ function useTypewriter(text: string, speed: number = 30) {
 - 语气：专业但亲切，像朋友在给你分析牌运
 ```
 
-### 6.2 betting prompt
+### 7.2 betting prompt
 
 ```
 你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
 
 以下是你已经确认的今日运势结论：
-[fortune 的 level + summary]
+- 运势等级：{fortune.level}
+- 核心判断：{fortune.summary}
+- 今日要点：{fortune.highlights}
 
 请基于以上结论，推导今日投注策略。
 
@@ -516,58 +699,74 @@ function useTypewriter(text: string, speed: number = 30) {
 3. 纳音质感：今天的能量质感是爆发型还是持续型
 4. 麻将连接：运气成分、心态、资金策略
 
-结论：[大注/小注/观望] + 一句话理由
-
 要求：
 - 不要重复 fortune 的推导，要在此基础上直接给出判断
 - 麻将术语（宽叫、大叫、做大番等）
 - 结论简洁有力，给出明确行动指导
+
+请按以下 JSON 格式输出（只输出 JSON，不要有其他内容）：
+{
+  "level": "大注",
+  "summary": "一句话摘要",
+  "reason": "一句话理由",
+  "strategy": "核心策略",
+  "content": "完整推导过程..."
+}
 ```
 
-### 6.3 bestAction prompt
+### 7.3 bestAction prompt
 
 ```
 你是一位四川麻将血战到底高手，同时精通八字命理。
 
-用户八字：[八字]
-今日运势：[fortune level]
+用户八字：{bazi}
+今日运势等级：{fortune.level}
+今日要点：{fortune.highlights}
 
 请针对以下5个场景，给出今日的麻将决策建议。
 
 场景1：下叫（听牌）决策
-今天适合宽叫（听牌张数多容易胡）还是大叫（番数高风险大）？
-先讲今天麻将场上的牌局特点，再讲八字/运势如何影响这个选择。
+今天适合宽叫还是大叫？
 
 场景2：碰 vs 摸
 什么情况下该碰牌，什么情况下该摸新牌？
-先讲麻将逻辑，再结合今日运势判断。
 
 场景3：放炮 vs 自摸
 遇到可以胡的牌，是放炮就胡还是贪自摸？
-结合今天的运势和冲煞空亡来推导。
 
 场景4：对手方位观察
 今天要重点防哪个方位的人，不怕哪个方位？
-结合 direction 维度的方位分析。
 
 场景5：收官策略
 牌局尾声，是乘胜追击还是见好就收？
-结合 goldenTime 的时段分析和 conflictWarning 的警示。
 
 要求：
 - 每个场景：结论先行（10字以内），再跟推导
 - 川麻术语（宽叫、大叫、放炮、自摸，碰，摸，下叫）
 - 不要用"坐庄/跟牌/做牌/押注/加注"
+
+请按以下 JSON 格式输出（只输出 JSON，不要有其他内容）：
+{
+  "summary": "一句话总述",
+  "scenarios": [
+    { "scene": "下叫决策", "conclusion": "宽叫优先", "reasoning": "..." },
+    { "scene": "碰 vs 摸", "conclusion": "多摸少碰", "reasoning": "..." },
+    { "scene": "放炮 vs 自摸", "conclusion": "优先自摸", "reasoning": "..." },
+    { "scene": "对手方位", "conclusion": "防北位", "reasoning": "..." },
+    { "scene": "收官策略", "conclusion": "见好就收", "reasoning": "..." }
+  ],
+  "content": "完整解读..."
+}
 ```
 
-### 6.4 direction prompt
+### 7.4 direction prompt
 
 ```
 你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供方位策略。
 
-用户日主：[日主，如庚金]
-五行喜忌：[喜什么、忌什么]
-今日财神/喜神方位：[方位]
+用户日主：{日主，如庚金}
+五行喜忌：{喜什么、忌什么}
+今日财神/喜神方位：{方位}
 
 四川麻将4人座位（东南西北），用户坐在某方位时：
 - 上家 = 逆时针第一家
@@ -582,19 +781,31 @@ function useTypewriter(text: string, speed: number = 30) {
 1. 各位置策略（坐在北/东/南/西位分别怎么打）
 2. 上下家对家克防关系（对每个位置，指出谁要防、谁不需防）
 
-格式要求：
+要求：
 - 用东南西北，不用"左边/右边"
-- 克防关系用 🔴防 🟡慎 🟢不防 表示
 - 结论清晰，让人坐在某位置时知道该怎么打
+
+请按以下 JSON 格式输出（只输出 JSON，不要有其他内容）：
+{
+  "summary": "一句话总述",
+  "positions": {
+    "north": { "strategy": "坐北最佳", "caution": "防上家东位", "risk": "green" },
+    "east": { "strategy": "坐东较稳", "caution": "忌贪", "risk": "green" },
+    "south": { "strategy": "坐南激进", "caution": "防对家", "risk": "yellow" },
+    "west": { "strategy": "坐西保守", "caution": "宜观望", "risk": "red" }
+  },
+  "content": "完整解读..."
+}
+其中 risk: green=不防，yellow=慎，red=防
 ```
 
-### 6.5 goldenTime prompt
+### 7.5 goldenTime prompt
 
 ```
 你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供时段策略。
 
-用户日主：[日主，如庚金]
-今日叠加：[今日日干 + 月令]
+用户日主：{日主，如庚金}
+今日叠加：{今日日干 + 月令}
 
 一天12时辰，对应五行能量：
 - 寅卯（03-07）：木，木被金克
@@ -603,156 +814,158 @@ function useTypewriter(text: string, speed: number = 30) {
 - 申酉（15-19）：金，金帮身
 - 子亥（23-01/21-23）：水，水泄金气
 
-请给出12时辰的能量评级和麻将打法建议：
-
-格式：
-[时辰名] [时间段] [五行] [★数量] [打法建议]
-
-示例：
-酉 17-19 金 ★★★★★ 日主本气，全力出击
-巳 09-11 火 ★☆☆☆☆ 火克金，最差时辰，保守
-
-结论：
-最优3时段：...
-最差3时段：...
-趋势：...
+请给出12时辰的能量评级和麻将打法建议。
 
 要求：
-- 用 ★ 符号不用 emoji
 - 打法建议简洁（10字以内）
 - 今天特别需要注意的时段要标注原因
+
+请按以下 JSON 格式输出（只输出 JSON，不要有其他内容）：
+{
+  "summary": "一句话总述",
+  "periods": [
+    { "hour": "子", "timeRange": "23-01", "element": "水", "rating": 3, "advice": "水泄金气，保守" },
+    { "hour": "丑", "timeRange": "01-03", "element": "土", "rating": 4, "advice": "土生金，中等" },
+    { "hour": "寅", "timeRange": "03-05", "element": "木", "rating": 2, "advice": "木被金克，低迷" },
+    { "hour": "卯", "timeRange": "05-07", "element": "木", "rating": 2, "advice": "木被金克，低迷" },
+    { "hour": "辰", "timeRange": "07-09", "element": "土", "rating": 4, "advice": "土生金，可出击" },
+    { "hour": "巳", "timeRange": "09-11", "element": "火", "rating": 1, "advice": "火克金，最差" },
+    { "hour": "午", "timeRange": "11-13", "element": "火", "rating": 1, "advice": "火克金，最差" },
+    { "hour": "未", "timeRange": "13-15", "element": "土", "rating": 4, "advice": "土生金，可出击" },
+    { "hour": "申", "timeRange": "15-17", "element": "金", "rating": 5, "advice": "金帮身，全力出击" },
+    { "hour": "酉", "timeRange": "17-19", "element": "金", "rating": 5, "advice": "金帮身，日主本气" },
+    { "hour": "戌", "timeRange": "19-21", "element": "土", "rating": 3, "advice": "土过旺则埋，谨慎" },
+    { "hour": "亥", "timeRange": "21-23", "element": "水", "rating": 3, "advice": "水泄金气，保守" }
+  ],
+  "best3": ["申酉", "辰未", "丑"],
+  "worst3": ["巳午", "寅卯"],
+  "content": "完整解读..."
+}
+其中 rating: 1-5（★数量）
 ```
 
-### 6.6 conflictWarning prompt
+### 7.6 conflictWarning prompt
 
 ```
 你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供风险警示。
 
-用户日支：[日支，如辰]
-今日日柱：[日柱，如庚辰]
-空亡：[空亡]
+用户日支：{日支，如辰}
+今日日柱：{日柱，如庚辰}
+空亡：{空亡}
 
 今日破坏性能量：
-- 日支冲：[冲的关系和结果]
-- 日支破：[破的关系和结果]
-- 日支害：[害的关系和结果]
-- 日柱空亡：[空亡的地支]
+- 日支冲：{冲的关系和结果}
+- 日支破：{破的关系和结果}
+- 日支害：{害的关系和结果}
+- 日柱空亡：{空亡的地支}
 
 请针对每种破坏性能量，输出：
 1. 是什么（八字原理）
 2. 为什么今天有这个（结合用户八字结构）
 3. 对打牌的具体影响（麻将场景）
 
-最后给出麻将场景下的具体警示（3-5条）：
-- 不要做什么
-- 要特别小心什么
-- 某个时段要格外注意
-
-格式：
-【名称】如"辰戌冲"
-解释：...
-麻将影响：...
-
-【麻将警示】
-· ...
-· ...
-
 要求：
 - 不要用"加大注"，用"做大番"
 - 警示要具体，不是"要小心"，而是"下叫后最后几张摸牌要格外小心"
+
+请按以下 JSON 格式输出（只输出 JSON，不要有其他内容）：
+{
+  "summary": "一句话总述",
+  "warnings": [
+    { "type": "辰戌冲", "explanation": "日支辰被戌冲，财库受损", "mahjongImpact": "做大番时警惕对家碰牌" }
+  ],
+  "alerts": ["不要做大番时贪碰", "巳午时段格外谨慎"],
+  "content": "完整解读..."
+}
 ```
 
-### 6.7 luckEnhancement prompt
+### 7.7 luckEnhancement prompt
 
 ```
 你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供今日开运指导。
 
 用户八字：
-- 日主：[日主，如庚金]
-- 身弱/身旺：[旺衰判断]
-- 五行喜忌：[喜什么、忌什么]
+- 日主：{日主，如庚金}
+- 身弱/身旺：{旺衰判断}
+- 五行喜忌：{喜什么、忌什么}
 
 今日黄历：
-- 今日：[年月日柱]
-- 五行结构：[哪股气最旺]
-- 当令之气：[今天什么气最旺]
+- 今日：{年月日柱}
+- 五行结构：{哪股气最旺}
+- 当令之气：{今天什么气最旺}
 
-推导过程（四步走）：
-1. 八字事实：日主旺衰喜忌
-2. 今天事实：五行结构，哪股气最旺
-3. 叠加推导：今天的核心问题 + 救星是什么
-4. 三类清单推导
-
-请输出今日开运清单：
-
-【饮品】
-✅ 宜：[饮品名]（五行解释）— 对打牌的影响
-✅ 可选：[饮品名]
-❌ 忌：[饮品名]（为什么忌）— 对打牌的影响
-⚠️ 少喝：[饮品名]
-
-【穿着颜色】
-✅ 宜：[颜色]（为什么今天穿这个好）
-⚡ 点缀：[颜色]
-⚠️ 备选：[颜色]
-❌ 忌：[颜色]（为什么忌）
-
-【饰品】
-✅ 宜：[饰品类型]（五行+今天的关系）
-❌ 忌：[饰品类型]
-
-结论一句话：今天核心是借[什么气]，要[做什么]不要[做什么]。
+请输出今日开运清单。
 
 要求：
 - 每类至少3个条目（宜/可选/忌）
 - 解释要简洁，10-20字
 - 麻将场景连接要直接（"抓牌有感觉"而不是"运气好"）
 - 不纳入：数字、左右手摸牌、上厕所时机、选座位
+
+请按以下 JSON 格式输出（只输出 JSON，不要有其他内容）：
+{
+  "summary": "一句话总述",
+  "drinks": {
+    "suitable": [ { "name": "绿茶", "reason": "木生火克金，助运势" } ],
+    "optional": [ { "name": "蜂蜜水", "reason": "甘润中合" } ],
+    "avoid": [ { "name": "白酒", "reason": "火气旺盛不利金" } ]
+  },
+  "colors": {
+    "suitable": [ { "name": "白色", "reason": "金气相助" }, { "name": "金色", "reason": "日主本气" } ],
+    "accent": [ { "name": "银色", "reason": "金之余气" } ],
+    "avoid": [ { "name": "红色", "reason": "火克金" } ]
+  },
+  "accessories": {
+    "suitable": [ { "name": "金属项链", "reason": "金气补强" } ],
+    "avoid": [ { "name": "皮质腰带", "reason": "土气过旺" } ]
+  },
+  "content": "完整解读..."
+}
 ```
 
 ---
 
-## 7. 避坑清单（必读）
+## 8. 避坑清单（必读）
 
-> 以下规则来自 `griffin-horoscope-phase1-lessons` skill，请开发前完整阅读。
+> 以下规则来自 `griffin-horoscope-lessons` skill，请开发前完整阅读。
 
-### 7.1 MiniMax API
+### 8.1 MiniMax API
 
 - **`thinking: { type: 'disabled' }` 必须显式设置**，MiniMax 默认可能开启
 - 响应解析只取 `content.blocks.filter(b => !b.thinking && b.type === 'text')`
 - API 域名是 `api.minimaxi.com`（不是 `api.minimaxaxi.com`）
 
-### 7.2 前端 User 类型
+### 8.2 前端 User 类型
 
 前端 `User` 接口在 `AuthContext.tsx` 和 `client.ts` 两处定义。新增用户字段必须同时修改两处。
 
-### 7.3 SQLite 迁移
+### 8.3 SQLite 迁移
 
 任何 `DROP TABLE` / `ALTER TABLE` 之前，必须 `PRAGMA foreign_keys=OFF`，操作完成后 `PRAGMA foreign_keys=ON`。
 
-### 7.4 第三方库 API
+### 8.4 第三方库 API
 
 对不熟悉的库，不确定是 getter 还是 function 时，用 `(obj as any).prop` 探测，不要主观假设。lunisolar 的 `theGods`、`takeSound` 是 getter 属性（值），不是方法。
 
-### 7.5 geocoding
+### 8.5 geocoding
 
 外部 API 校验类操作必须先调用 API 成功，再执行数据库写操作。不要先写后校验。
 
-### 7.6 ESM 模块
+### 8.6 ESM 模块
 
 lunisolar 是 ESM，只能 `import()` 动态加载。所有调用方变成 async。API spec 需同步声明但实现是 async，调用方保持 `await`。
 
-### 7.7 nginx 502
+### 8.7 nginx 502
 
 docker rebuild 后 502：`sudo rm -rf backend/dist/` 然后 `npm run build` 再重启容器。
 
-### 7.8 Docker builder cache
+### 8.8 Docker builder cache
 
 缓存导致构建不一致：`docker builder prune -f` 清理后再 build。
 
 ---
 
-## 8. 验证清单
+## 9. 验证清单
 
 开发完成后必须验证：
 
@@ -774,7 +987,7 @@ docker rebuild 后 502：`sudo rm -rf backend/dist/` 然后 `npm run build` 再�
 
 ---
 
-## 9. 文件变更清单
+## 10. 文件变更清单
 
 ### 后端
 
@@ -807,3 +1020,119 @@ docker rebuild 后 502：`sudo rm -rf backend/dist/` 然后 `npm run build` 再�
 
 - `docs/HOROSCOPE-PHASE3-DEV.md`（本文档）
 - `docs/HOROSCOPE-DESIGN-CONTEXT.md`（设计上下文）
+
+---
+
+## 11. 未完成项详情（P0 → P2）
+
+### P0（阻塞 betting/bestAction 功能）
+
+**betting/bestAction 接入真实 fortune 数据**
+
+- **问题**：后端 `buildBettingPrompt` 和 `buildBestActionPrompt` 用硬编码字符串拼接 fortune 数据，前端串行请求返回的 fortune 结构化字段（`level`/`summary`/`highlights`）没有传入
+- **根因**：前端 `useHoroscopeData.ts` 串行请求 fortune 后，数据没有作为参数传给 betAction/bestAction API
+- **修复方向**：
+  1. 前端：fortune 返回后，从响应中提取 `data.level`/`data.summary`/`data.highlights`，作为参数调 betAction 和 bestAction API
+  2. 后端：`buildBettingPrompt`/`buildBestActionPrompt` 接收结构化参数，用 `{fortune.level}`/`{fortune.summary}`/`{fortune.highlights}` 替换硬编码
+- **影响**：betting 和 bestAction 当前内容与用户真实运势无关，是假数据
+
+### P1（文档完善 + schema 验证）
+
+**§5 Response Schema 补充数据库变更说明**
+
+- 当前文档 §5 定义了 7 个维度的 JSON schema，但数据库仍存 `result_json`（整段 JSON 字符串）
+- 建议在 §5 末尾补充：「数据库变更计划：拆分为 `result_data`（结构化 JSON）+ `result_content`（完整解读文本），待前端 schema 验证稳定后实施」
+
+**§10 文件变更清单更新**
+
+- 需要标注每个文件的完成状态（✅/⚠️/❌），当前 fc45524 的文件状态未逐项核对
+
+**goldenTime 当前时辰高亮**
+
+- 前端渲染 `GoldenTimeCard` 时，识别当前时辰（本地时间），高亮对应时辰卡片边框
+- 需要 `frontend/src/utils/timeUtils.ts`（获取当前时辰逻辑）
+
+**theGods plugin API 验证**
+
+- `getTodayAlmanac` 返回的 `gods` 和 `acts` 字段为 `undefined`，需查 theGods plugin 实现
+
+**console.log 清理**
+
+- 多处 `console.log` 未清理，影响生产环境日志
+
+### P2（体验优化）
+
+**typewriter 效果**
+
+- 当前直接显示完整内容，无 typewriter 动画
+- 设计目标：fortune → betting → bestAction → ... 逐个维度 typewriter 输出
+- 依赖 `useStreamingShow.ts` hook，但 streaming 模式因 MiniMax bug 被暂停
+
+**方向维度的时辰策略展示**
+
+- 东南西北四象的每个时辰需要展示「今日宜/忌/平」三个维度的策略，而非简单平铺
+
+---
+
+## 12. 接棒开发指南（fc45524）
+
+### 当前 HEAD
+
+```
+commit fc45524
+feat(horoscope): HOROSCOPE-PHASE3 7维度架构 + 串行请求
+```
+
+### 建议开发顺序
+
+**Step 1：修复 P0 betting/bestAction 数据问题**
+```
+1. frontend/src/hooks/useHoroscopeData.ts
+   → fortune 返回后，取 data.level/summary/highlights
+   → 作为参数调 betAction 和 bestAction API
+2. backend/src/routes/horoscope.ts
+   → buildBettingPrompt 接收 fortuneLevel/fortuneSummary/fortuneHighlights 参数
+   → buildBestActionPrompt 同上
+3. 验证：betting 和 bestAction 内容与 fortune 一致
+```
+
+**Step 2：验证 P1 各项**
+```
+1. §5 Response Schema 写入后端 types
+2. goldenTime 前端高亮当前时辰
+3. theGods plugin gods/acts 字段排查
+4. 全局搜索 console.log 清理
+```
+
+**Step 3：实现 P2 typewriter 效果**
+```
+→ 等 MiniMax streaming bug 修复后再考虑
+→ 当前非 streaming 模式下 typewriter 效果价值有限
+```
+
+### 验证检查清单
+
+- [ ] betting 内容引用了 fortune 的真实 level/summary/highlights
+- [ ] bestAction 内容引用了 fortune 的真实 level/summary/highlights
+- [ ] 所有 7 个维度 API 均返回符合 §5 schema 的 JSON
+- [ ] goldenTime 卡片在本地时间对应时辰高亮显示
+- [ ] 无 console.log 残留生产代码
+- [ ] 7 个维度页面加载流畅，无骨架屏闪烁
+- [ ] 川麻术语红线检查：无「加大注」字样
+
+### 前任完成清单（fc45524）
+
+**已完成 17 个文件修改：**
+- 后端：HoroscopeRouter 添加 7 个维度路由，7 个 prompt builder，lunisolar 集成
+- 前端：7 个 Card 组件，HoroscopePage/AnchorNav/DimensionCard/SkeletonCard/DoneFooter，useHoroscopeData（串行请求）
+- 类型：HoroscopeResponse 类型定义
+- 文档：HOROSCOPE-PHASE3-DEV.md + HOROSCOPE-DESIGN-CONTEXT.md
+- Skills：重命名 griffin-horoscope-lessons / griffin-horoscope-dev
+
+**已知遗留问题：**
+1. betting/bestAction 硬编码假数据
+2. goldenTime 无当前时辰高亮
+3. theGods plugin gods/acts 返回 undefined
+4. 多处 console.log 未清理
+5. Streaming/typewriter 效果未实现
+6. §5 schema 未写入后端 types
