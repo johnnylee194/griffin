@@ -1,16 +1,16 @@
 import DimensionCard from '../DimensionCard';
-import type { HoroscopeDimension } from '../../api/client';
+import type { LuckEnhancementDimension } from '../../api/client';
 
 interface LuckEnhancementCardProps {
   id: string;
   isExpanded: boolean;
   isLoading: boolean;
-  data: HoroscopeDimension | null;
+  data: LuckEnhancementDimension | null;
   onToggle: () => void;
 }
 
 export default function LuckEnhancementCard({ id, isExpanded, isLoading, data, onToggle }: LuckEnhancementCardProps) {
-  const renderContent = (data: HoroscopeDimension) => {
+  const renderContent = (data: LuckEnhancementDimension) => {
     return (
       <div className="text-text text-sm leading-relaxed whitespace-pre-wrap space-y-4">
         {data.content.split('\n\n').map((paragraph, idx) => {
@@ -88,6 +88,7 @@ export default function LuckEnhancementCard({ id, isExpanded, isLoading, data, o
       data={data}
       onToggle={onToggle}
       renderContent={renderContent}
+      typewriterSpeed={30}
     />
   );
 }

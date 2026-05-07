@@ -277,6 +277,69 @@ export interface HoroscopeDimension {
   conclusion: string;
 }
 
+export interface FortuneDimension extends HoroscopeDimension {
+  highlights?: string[];
+}
+
+export interface BettingDimension extends HoroscopeDimension {
+  reason?: string;
+  strategy?: string;
+}
+
+export interface BestActionDimension extends HoroscopeDimension {
+  scenarios?: Array<{
+    scene: string;
+    conclusion: string;
+    reasoning: string;
+  }>;
+}
+
+export interface DirectionDimension extends HoroscopeDimension {
+  positions?: Record<string, {
+    strategy: string;
+    caution: string;
+    risk: 'green' | 'yellow' | 'red';
+  }>;
+}
+
+export interface GoldenTimeDimension extends HoroscopeDimension {
+  periods?: Array<{
+    hour: string;
+    timeRange: string;
+    element: string;
+    rating: number;
+    advice: string;
+  }>;
+  best3?: string[];
+  worst3?: string[];
+}
+
+export interface ConflictWarningDimension extends HoroscopeDimension {
+  warnings?: Array<{
+    type: string;
+    explanation: string;
+    mahjongImpact: string;
+  }>;
+  alerts?: string[];
+}
+
+export interface LuckEnhancementDimension extends HoroscopeDimension {
+  drinks?: {
+    suitable?: Array<{ name: string; reason: string }>;
+    optional?: Array<{ name: string; reason: string }>;
+    avoid?: Array<{ name: string; reason: string }>;
+  };
+  colors?: {
+    suitable?: Array<{ name: string; reason: string }>;
+    accent?: Array<{ name: string; reason: string }>;
+    avoid?: Array<{ name: string; reason: string }>;
+  };
+  accessories?: {
+    suitable?: Array<{ name: string; reason: string }>;
+    avoid?: Array<{ name: string; reason: string }>;
+  };
+}
+
 export const horoscopeApi = {
   get: (date?: string) => apiClient.get<Horoscope>(`/horoscope${date ? `/${date}` : ''}`),
   refresh: (date?: string) => apiClient.post(`/horoscope/refresh${date ? `/${date}` : ''}`),
@@ -284,9 +347,15 @@ export const horoscopeApi = {
   answerQuestion: (data: { question: string; date?: string }) =>
     apiClient.post<{ answer: string }>('/horoscope/answer', data),
   // Phase 3: 7维度独立端点
-  getFortune: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/fortune`),
-  getBetting: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/betting`),
-  getBestAction: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/best-action`),
+  getFortune: (date: string) => apiClient.get<FortuneDimension>(`/horoscope/${date}/fortune`),
+  getBetting: (date: string, fortuneLevel?: string, fortuneSummary?: string, fortuneHighlights?: string) =>
+    apiClient.get<BettingDimension>(`/horoscope/${date}/betting`, {
+      params: { fortuneLevel, fortuneSummary, fortuneHighlights }
+    }),
+  getBestAction: (date: string, fortuneLevel?: string, fortuneSummary?: string, fortuneHighlights?: string) =>
+    apiClient.get<BestActionDimension>(`/horoscope/${date}/best-action`, {
+      params: { fortuneLevel, fortuneSummary, fortuneHighlights }
+    }),
   getDirection: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/direction`),
   getGoldenTime: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/golden-time`),
   getConflictWarning: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/conflict-warning`),

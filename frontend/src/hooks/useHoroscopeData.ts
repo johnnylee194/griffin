@@ -41,10 +41,10 @@ const DIMENSION_ORDER = [
 
 type DimensionKey = typeof DIMENSION_ORDER[number];
 
-const API_METHODS: Record<DimensionKey, (date: string) => Promise<any>> = {
+const API_METHODS: Record<DimensionKey, (date: string, fortuneLevel?: string, fortuneSummary?: string, fortuneHighlights?: string) => Promise<any>> = {
   fortune: (date) => horoscopeApi.getFortune(date),
-  betting: (date) => horoscopeApi.getBetting(date),
-  bestAction: (date) => horoscopeApi.getBestAction(date),
+  betting: (date, fortuneLevel, fortuneSummary, fortuneHighlights) => horoscopeApi.getBetting(date, fortuneLevel, fortuneSummary, fortuneHighlights),
+  bestAction: (date, fortuneLevel, fortuneSummary, fortuneHighlights) => horoscopeApi.getBestAction(date, fortuneLevel, fortuneSummary, fortuneHighlights),
   direction: (date) => horoscopeApi.getDirection(date),
   goldenTime: (date) => horoscopeApi.getGoldenTime(date),
   conflictWarning: (date) => horoscopeApi.getConflictWarning(date),
@@ -73,6 +73,7 @@ export function useHoroscopeData(selectedDate: string) {
   });
   const [error, setError] = useState<string | null>(null);
   const loadingRef = useRef(false);
+  const fortuneDataRef = useRef<HoroscopeDimension | null>(null);
 
   // 获取基础八字数据
   useEffect(() => {
@@ -122,23 +123,31 @@ export function useHoroscopeData(selectedDate: string) {
       luckEnhancement: 'idle',
     });
     setError(null);
+    fortuneDataRef.current = null;
 
     // 串行请求：每个完成后再请求下一个
     for (const key of DIMENSION_ORDER) {
-      // 标记为 loading
       setStatus(prev => ({ ...prev, [key]: 'loading' }));
 
       try {
-        const res = await API_METHODS[key](selectedDate);
+        const fortuneLevel = fortuneDataRef.current?.level;
+        const fortuneSummary = fortuneDataRef.current?.summary;
+        const highlights = (fortuneDataRef.current as any)?.highlights;
+        const fortuneHighlights = Array.isArray(highlights) ? highlights.join('、') : '';
+        const res = await API_METHODS[key](selectedDate, fortuneLevel, fortuneSummary, fortuneHighlights);
         const data = res.data as HoroscopeDimension;
         setDimensions(prev => ({ ...prev, [key]: data }));
         setStatus(prev => ({ ...prev, [key]: 'done' }));
+
+        // 保存 fortune 数据供后续维度使用
+        if (key === 'fortune') {
+          fortuneDataRef.current = data;
+        }
       } catch (e: any) {
         console.error(`Dimension ${key} failed:`, e);
         setDimensions(prev => ({ ...prev, [key]: null }));
         setStatus(prev => ({ ...prev, [key]: 'error' }));
         setError(`部分数据加载失败`);
-        // 继续尝试下一个维度
       }
     }
   }, [selectedDate, horoscopeData?.hasCompleteProfile]);

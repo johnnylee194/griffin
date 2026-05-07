@@ -1,16 +1,16 @@
 import DimensionCard from '../DimensionCard';
-import type { HoroscopeDimension } from '../../api/client';
+import type { DirectionDimension } from '../../api/client';
 
 interface DirectionCardProps {
   id: string;
   isExpanded: boolean;
   isLoading: boolean;
-  data: HoroscopeDimension | null;
+  data: DirectionDimension | null;
   onToggle: () => void;
 }
 
 export default function DirectionCard({ id, isExpanded, isLoading, data, onToggle }: DirectionCardProps) {
-  const renderContent = (data: HoroscopeDimension) => {
+  const renderContent = (data: DirectionDimension) => {
     return (
       <div className="text-text text-sm leading-relaxed whitespace-pre-wrap space-y-3">
         {data.content.split('\n\n').map((paragraph, idx) => {
@@ -48,6 +48,7 @@ export default function DirectionCard({ id, isExpanded, isLoading, data, onToggl
       data={data}
       onToggle={onToggle}
       renderContent={renderContent}
+      typewriterSpeed={30}
     />
   );
 }

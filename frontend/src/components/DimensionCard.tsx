@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { HoroscopeDimension } from '../api/client';
+import { useTypewriter } from '../hooks/useTypewriter';
 
 interface DimensionCardProps {
   id: string;
@@ -11,6 +12,7 @@ interface DimensionCardProps {
   data?: HoroscopeDimension | null;
   onToggle: () => void;
   renderContent: (data: HoroscopeDimension) => React.ReactNode;
+  typewriterSpeed?: number;
 }
 
 export default function DimensionCard({
@@ -23,9 +25,14 @@ export default function DimensionCard({
   data,
   onToggle,
   renderContent,
+  typewriterSpeed = 0,
 }: DimensionCardProps) {
   const [localExpanded, setLocalExpanded] = useState(defaultExpanded);
   const expanded = localExpanded || isExpanded;
+
+  const textToType = (!isLoading && data?.content && typewriterSpeed > 0) ? data.content : '';
+  const { displayed, isComplete } = useTypewriter(textToType, typewriterSpeed);
+  const showTypewriter = textToType.length > 0 && !isComplete;
 
   const handleToggle = () => {
     setLocalExpanded(!expanded);
@@ -38,7 +45,6 @@ export default function DimensionCard({
       className="card transition-all duration-300"
       style={{ height: 'auto' }}
     >
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-text">{title}</h3>
         <div className="flex items-center gap-2">
@@ -47,29 +53,39 @@ export default function DimensionCard({
               {status}
             </span>
           )}
+          {showTypewriter && (
+            <span className="text-xs text-accent-yellow animate-pulse">输出中...</span>
+          )}
           {isLoading && (
             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           )}
         </div>
       </div>
 
-      {/* Status/Level highlight */}
       {data?.level && (
         <div className="mb-3 p-3 bg-gradient-to-r from-primary/5 to-accent-yellow/5 rounded-lg border border-primary/10">
           <div className="text-lg font-bold text-primary">{data.level}</div>
+          {data.summary && (
+            <div className="text-xs text-text-secondary mt-1">{data.summary}</div>
+          )}
         </div>
       )}
 
-      {/* Content */}
+      {showTypewriter && (
+        <div className="mb-3 p-3 bg-gray-50 rounded-lg text-sm text-text leading-relaxed whitespace-pre-wrap">
+          {displayed}
+          <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse" />
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-2">
           <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
           <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2" />
           <div className="h-4 bg-gray-200 rounded animate-pulse w-5/6" />
         </div>
-      ) : data ? (
+      ) : showTypewriter ? null : data ? (
         <>
-          {/* Collapsible derivation */}
           <div className="mb-2">
             <button
               onClick={handleToggle}

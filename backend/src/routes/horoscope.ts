@@ -367,10 +367,14 @@ function buildFortunePrompt(ctx: UserContext): string {
 - 重点字眼（日主、五行喜忌、核心问题、救星）加粗或用**包围
 - 麻将连接只在结论部分点一下，不在各推导段里展开
 - 川麻术语（宽叫、大叫、放炮、自摸、碰、摸）可直接使用
-- 语气：专业但亲切，像朋友在给你分析牌运`;
+- 语气：专业但亲切，像朋友在给你分析牌运
+
+在最后用单独一行输出今日要点，各要点用【】包围、逗号分隔。
+格式：要点：【要点1】、【要点2】、【要点3】
+例如：要点：【金气旺】、【宜主动出击】、【财运佳】`;
 }
 
-function buildBettingPrompt(ctx: UserContext, fortuneLevel: string, fortuneSummary: string): string {
+function buildBettingPrompt(ctx: UserContext, fortuneLevel: string, fortuneSummary: string, fortuneHighlights?: string): string {
   const { bazi, almanac } = ctx;
 
   return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
@@ -378,6 +382,7 @@ function buildBettingPrompt(ctx: UserContext, fortuneLevel: string, fortuneSumma
 以下是你已经确认的今日运势结论：
 - 运势等级：${fortuneLevel}
 - 核心判断：${fortuneSummary}
+- 今日要点：${fortuneHighlights || fortuneSummary}
 
 请基于以上结论，推导今日投注策略。
 
@@ -395,13 +400,15 @@ function buildBettingPrompt(ctx: UserContext, fortuneLevel: string, fortuneSumma
 - 结论简洁有力，给出明确行动指导`;
 }
 
-function buildBestActionPrompt(ctx: UserContext, fortuneLevel: string): string {
+function buildBestActionPrompt(ctx: UserContext, fortuneLevel: string, fortuneSummary?: string, fortuneHighlights?: string): string {
   const { bazi } = ctx;
 
   return `你是一位四川麻将血战到底高手，同时精通八字命理。
 
 用户八字：${bazi.year}年 ${bazi.month}月 ${bazi.day}日 ${bazi.hour}时
 今日运势：${fortuneLevel}
+核心判断：${fortuneSummary || ''}
+今日要点：${fortuneHighlights || ''}
 
 请针对以下5个场景，给出今日的麻将决策建议。
 
@@ -579,13 +586,14 @@ async function callMiniMax(prompt: string, maxTokens: number = 8192): Promise<st
   const apiKey = getMiniMaxApiKey();
   const apiUrl = getMiniMaxUrl();
 
-  console.log('[MiniMax] prompt:\n', prompt);
-
   if (!apiKey) {
     throw new Error('MINIMAX_API_KEY 未配置');
   }
 
-  console.log('[MiniMax] sending request to:', apiUrl);
+  const promptLabel = prompt.split('\n')[0].substring(0, 60);
+  const startTime = Date.now();
+  console.log(`[MiniMax] → ${promptLabel}...`);
+
   try {
     const response = await axios.post(apiUrl, {
       model: 'MiniMax-M2.7',
@@ -606,18 +614,13 @@ async function callMiniMax(prompt: string, maxTokens: number = 8192): Promise<st
       timeout: 180000
     });
 
-    console.log('[MiniMax] response received, status:', response.status);
-    console.log('[MiniMax] response.data:', JSON.stringify(response.data).substring(0, 500));
-
-    // Parse response: only take text blocks, exclude thinking
-    console.log('[MiniMax] parsing response...');
     const blocks: any[] = response.data.content || [];
-    console.log('[MiniMax] blocks count:', blocks.length);
     const textBlocks = blocks.filter((b: any) => !b.thinking && b.type === 'text');
-    console.log('[MiniMax] textBlocks count:', textBlocks.length);
     const fullText = textBlocks.map((b: any) => b.text).join('');
 
-    console.log('[MiniMax] extracted text length:', fullText.length);
+    const elapsed = Date.now() - startTime;
+    const bytes = new TextEncoder().encode(fullText).length;
+    console.log(`[MiniMax] ← ${promptLabel}  ${elapsed}ms  ${bytes}B`);
 
     if (!fullText) {
       const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty response';
@@ -625,10 +628,11 @@ async function callMiniMax(prompt: string, maxTokens: number = 8192): Promise<st
     }
     return fullText;
   } catch (error: any) {
+    const elapsed = Date.now() - startTime;
     const status = error.response?.status;
     const apiError = error.response?.data?.error;
     const reason = apiError?.message || apiError?.type || apiError?.code || error.message;
-    console.error(`MiniMax API Error [${status}]:`, reason, apiError || '');
+    console.error(`[MiniMax] ✗ ${promptLabel}  ${elapsed}ms  error: ${reason}`);
     error.message = `MiniMax API error: ${status} - ${reason}`;
     throw error;
   }
@@ -673,27 +677,20 @@ router.get('/bazi', authMiddleware, async (req: AuthRequest, res) => {
     const dateParam = (req.query.date as string) || formatDate(new Date());
     const targetDate = new Date(dateParam);
 
-    console.log('[bazi] userId:', userId, 'date:', dateParam);
-
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    // 获取用户信息
     const user = db.prepare(`
       SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
       FROM users WHERE id = ?
     `).get(userId) as any;
 
     if (!user) {
-      console.log('[bazi] user not found, userId:', userId);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    console.log('[bazi] user:', JSON.stringify(user));
-
     const hasCompleteProfile = checkProfileComplete(user);
-    console.log('[bazi] hasCompleteProfile:', hasCompleteProfile);
 
     // 计算农历信息
     const lunar = getLunarDate(targetDate);
@@ -741,8 +738,6 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     const dateParam = req.params.date || formatDate(new Date());
     const targetDate = new Date(dateParam);
 
-    console.log('[stream] userId:', userId, 'date:', dateParam);
-
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
@@ -753,11 +748,9 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
 
     const send = (progress: number, message: string, data?: any, extra?: any) => {
-      console.log('[stream] progress:', progress, 'message:', message);
       res.write(`data: ${JSON.stringify({ progress, message, data, ...extra })}\n\n`);
     };
 
-    // Step 1: 获取用户信息
     send(5, '获取用户信息...');
     const user = db.prepare(`
       SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
@@ -765,14 +758,11 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     `).get(userId) as any;
 
     if (!user) {
-      console.log('[stream] user not found');
       res.write(`data: ${JSON.stringify({ error: 'User not found' })}\n\n`);
       return res.end();
     }
 
-    console.log('[stream] user:', JSON.stringify(user));
     const hasCompleteProfile = checkProfileComplete(user);
-    console.log('[stream] hasCompleteProfile:', hasCompleteProfile);
 
     if (!hasCompleteProfile) {
       res.write(`data: ${JSON.stringify({ error: 'Please complete your birth profile in settings first' })}\n\n`);
@@ -989,10 +979,17 @@ router.get('/:date/fortune', authMiddleware, async (req: AuthRequest, res) => {
     const summaryMatch = content.match(/结论[：:].*?[。]([^]*?)$/m);
     const summary = summaryMatch ? summaryMatch[1].trim().substring(0, 100) : content.substring(0, 100);
 
+    // 提取要点列表
+    const highlightsMatch = content.match(/要点[：:]\s*((?:【[^】]+】、?)+)/);
+    const highlights = highlightsMatch
+      ? [...highlightsMatch[1].matchAll(/【([^】]+)】/g)].map(m => m[1])
+      : [level, summary.substring(0, 20)];
+
     res.json({
       dimension: 'fortune',
       level,
       summary,
+      highlights,
       content,
       derivation: {
         step1: '从八字事实提取',
@@ -1022,7 +1019,12 @@ router.get('/:date/betting', authMiddleware, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
     }
 
-    const prompt = buildBettingPrompt(ctx, '参考今日运势', '今天整体运势良好');
+    // 接收前端传入的真实 fortune 数据
+    const fortuneLevel = (req.query.fortuneLevel as string) || '参考今日运势';
+    const fortuneSummary = (req.query.fortuneSummary as string) || '今天整体运势良好';
+    const fortuneHighlights = (req.query.fortuneHighlights as string) || '';
+
+    const prompt = buildBettingPrompt(ctx, fortuneLevel, fortuneSummary, fortuneHighlights);
     const content = await callMiniMax(prompt);
 
     // 解析结论（大注/小注/观望）
@@ -1057,7 +1059,12 @@ router.get('/:date/best-action', authMiddleware, async (req: AuthRequest, res) =
       return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
     }
 
-    const prompt = buildBestActionPrompt(ctx, '今日运势');
+    // 接收前端传入的真实 fortune 数据
+    const fortuneLevel = (req.query.fortuneLevel as string) || '今日运势';
+    const fortuneSummary = (req.query.fortuneSummary as string) || '';
+    const fortuneHighlights = (req.query.fortuneHighlights as string) || '';
+
+    const prompt = buildBestActionPrompt(ctx, fortuneLevel, fortuneSummary, fortuneHighlights);
     const content = await callMiniMax(prompt);
 
     res.json({

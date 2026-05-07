@@ -1,16 +1,16 @@
 import DimensionCard from '../DimensionCard';
-import type { HoroscopeDimension } from '../../api/client';
+import type { BettingDimension } from '../../api/client';
 
 interface BettingCardProps {
   id: string;
   isExpanded: boolean;
   isLoading: boolean;
-  data: HoroscopeDimension | null;
+  data: BettingDimension | null;
   onToggle: () => void;
 }
 
 export default function BettingCard({ id, isExpanded, isLoading, data, onToggle }: BettingCardProps) {
-  const renderContent = (data: HoroscopeDimension) => {
+  const renderContent = (data: BettingDimension) => {
     return (
       <div className="text-text text-sm leading-relaxed whitespace-pre-wrap space-y-3">
         {data.content.split('\n\n').map((paragraph, idx) => {
@@ -47,6 +47,7 @@ export default function BettingCard({ id, isExpanded, isLoading, data, onToggle 
       data={data}
       onToggle={onToggle}
       renderContent={renderContent}
+      typewriterSpeed={30}
     />
   );
 }

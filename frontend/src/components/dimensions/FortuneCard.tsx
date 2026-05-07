@@ -1,16 +1,16 @@
 import DimensionCard from '../DimensionCard';
-import type { HoroscopeDimension } from '../../api/client';
+import type { FortuneDimension } from '../../api/client';
 
 interface FortuneCardProps {
   id: string;
   isExpanded: boolean;
   isLoading: boolean;
-  data: HoroscopeDimension | null;
+  data: FortuneDimension | null;
   onToggle: () => void;
 }
 
 export default function FortuneCard({ id, isExpanded, isLoading, data, onToggle }: FortuneCardProps) {
-  const renderContent = (data: HoroscopeDimension) => {
+  const renderContent = (data: FortuneDimension) => {
     return (
       <div className="text-text text-sm leading-relaxed whitespace-pre-wrap space-y-4">
         {data.content.split('\n\n').map((paragraph, idx) => {
@@ -49,6 +49,7 @@ export default function FortuneCard({ id, isExpanded, isLoading, data, onToggle 
       data={data}
       onToggle={onToggle}
       renderContent={renderContent}
+      typewriterSpeed={30}
     />
   );
 }

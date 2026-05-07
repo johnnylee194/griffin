@@ -1,16 +1,16 @@
 import DimensionCard from '../DimensionCard';
-import type { HoroscopeDimension } from '../../api/client';
+import type { ConflictWarningDimension } from '../../api/client';
 
 interface ConflictWarningCardProps {
   id: string;
   isExpanded: boolean;
   isLoading: boolean;
-  data: HoroscopeDimension | null;
+  data: ConflictWarningDimension | null;
   onToggle: () => void;
 }
 
 export default function ConflictWarningCard({ id, isExpanded, isLoading, data, onToggle }: ConflictWarningCardProps) {
-  const renderContent = (data: HoroscopeDimension) => {
+  const renderContent = (data: ConflictWarningDimension) => {
     return (
       <div
         className="text-text text-sm leading-relaxed whitespace-pre-wrap space-y-3"
@@ -58,6 +58,7 @@ export default function ConflictWarningCard({ id, isExpanded, isLoading, data, o
       data={data}
       onToggle={onToggle}
       renderContent={renderContent}
+      typewriterSpeed={30}
     />
   );
 }

@@ -1,16 +1,16 @@
 import DimensionCard from '../DimensionCard';
-import type { HoroscopeDimension } from '../../api/client';
+import type { BestActionDimension } from '../../api/client';
 
 interface BestActionCardProps {
   id: string;
   isExpanded: boolean;
   isLoading: boolean;
-  data: HoroscopeDimension | null;
+  data: BestActionDimension | null;
   onToggle: () => void;
 }
 
 export default function BestActionCard({ id, isExpanded, isLoading, data, onToggle }: BestActionCardProps) {
-  const renderContent = (data: HoroscopeDimension) => {
+  const renderContent = (data: BestActionDimension) => {
     return (
       <div className="text-text text-sm leading-relaxed whitespace-pre-wrap space-y-4">
         {data.content.split('\n\n').map((paragraph, idx) => {
@@ -47,6 +47,7 @@ export default function BestActionCard({ id, isExpanded, isLoading, data, onTogg
       data={data}
       onToggle={onToggle}
       renderContent={renderContent}
+      typewriterSpeed={30}
     />
   );
 }
