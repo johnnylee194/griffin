@@ -289,21 +289,308 @@ ${gameStats ? `- 近期战绩：${getGameStatsSummary(gameStats)}` : ''}
 }
 
 // ─────────────────────────────────────────────────────────────
+// Phase 3: 7维度 Prompt 构建
+// ─────────────────────────────────────────────────────────────
+
+interface UserContext {
+  userId: string;
+  bazi: BaziInfo;
+  almanac: AlmanacInfo;
+  gameStats: GameStats | null;
+  targetDate: Date;
+  lunarDateStr: string;
+  dayOfWeek: string;
+}
+
+function getUserContext(userId: string, targetDate: Date): UserContext | null {
+  const user = db.prepare(`
+    SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+    FROM users WHERE id = ?
+  `).get(userId) as any;
+
+  if (!user || !checkProfileComplete(user)) {
+    return null;
+  }
+
+  const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+  const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+  const almanac = getTodayAlmanac(targetDate);
+  const gameStats = calculateGameStats(userId, targetDate);
+  const lunar = getLunarDate(targetDate);
+  const lunarDateStr = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+
+  return {
+    userId,
+    bazi,
+    almanac,
+    gameStats,
+    targetDate,
+    lunarDateStr,
+    dayOfWeek: getDayOfWeek(targetDate)
+  };
+}
+
+function buildFortunePrompt(ctx: UserContext): string {
+  const { bazi, almanac, targetDate } = ctx;
+  const lunar = getLunarDate(targetDate);
+  const todayBazi = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
+
+用户信息：
+- 八字：${bazi.year}年柱 ${bazi.month}月柱 ${bazi.day}日柱 ${bazi.hour}时柱
+- 日主：${bazi.dayStemTenGod}（如庚金）
+- 空亡：${bazi.missing.length > 0 ? bazi.missing.join('、') : '无'}
+- 五行：年柱纳音${bazi.yearTakeSound}、月柱纳音${bazi.monthTakeSound}、日柱纳音${bazi.dayTakeSound}、时柱纳音${bazi.hourTakeSound}
+- 日支关系：${bazi.zodiacAnimal}年生
+
+今日黄历：
+- 今日：${todayBazi}
+- 日主：${lunar.day}
+- 月令：${lunar.month}
+
+请按以下结构输出今日运势解读：
+
+第一步：你的八字事实
+（讲日主是什么、五行旺衰、喜忌什么）
+
+第二步：今天的事实
+（讲今天的年月日柱是什么、五行结构是什么、哪股气最旺）
+
+第三步：叠加推导
+（八字事实 + 今天事实 → 今天的核心问题是什么、哪股气是今天的救星）
+
+结论：[旺/平/弱] + 一句话核心判断
+
+要求：
+- 全程用白话讲解，不预设用户懂八字
+- 重点字眼（日主、五行喜忌、核心问题、救星）加粗或用**包围
+- 麻将连接只在结论部分点一下，不在各推导段里展开
+- 川麻术语（宽叫、大叫、放炮、自摸、碰、摸）可直接使用
+- 语气：专业但亲切，像朋友在给你分析牌运`;
+}
+
+function buildBettingPrompt(ctx: UserContext, fortuneLevel: string, fortuneSummary: string): string {
+  const { bazi, almanac } = ctx;
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
+
+以下是你已经确认的今日运势结论：
+- 运势等级：${fortuneLevel}
+- 核心判断：${fortuneSummary}
+
+请基于以上结论，推导今日投注策略。
+
+推导过程（请逐段输出）：
+1. 能量水平：今天整体运势如何，有没有底气去认真打
+2. 十神财运型：今天财运靠什么——偏财（运气）还是正财（技术）
+3. 纳音质感：今天的能量质感是爆发型还是持续型
+4. 麻将连接：运气成分、心态、资金策略
+
+结论：[大注/小注/观望] + 一句话理由
+
+要求：
+- 不要重复 fortune 的推导，要在此基础上直接给出判断
+- 川麻术语（宽叫、大叫、做大番等）
+- 结论简洁有力，给出明确行动指导`;
+}
+
+function buildBestActionPrompt(ctx: UserContext, fortuneLevel: string): string {
+  const { bazi } = ctx;
+
+  return `你是一位四川麻将血战到底高手，同时精通八字命理。
+
+用户八字：${bazi.year}年 ${bazi.month}月 ${bazi.day}日 ${bazi.hour}时
+今日运势：${fortuneLevel}
+
+请针对以下5个场景，给出今日的麻将决策建议。
+
+场景1：下叫（听牌）决策
+今天适合宽叫（听牌张数多容易胡）还是大叫（番数高风险大）？
+先讲今天麻将场上的牌局特点，再讲八字/运势如何影响这个选择。
+
+场景2：碰 vs 摸
+什么情况下该碰牌，什么情况下该摸新牌？
+先讲麻将逻辑，再结合今日运势判断。
+
+场景3：放炮 vs 自摸
+遇到可以胡的牌，是放炮就胡还是贪自摸？
+结合今天的运势和冲煞空亡来推导。
+
+场景4：对手方位观察
+今天要重点防哪个方位的人，不怕哪个方位？
+结合 direction 维度的方位分析。
+
+场景5：收官策略
+牌局尾声，是乘胜追击还是见好就收？
+结合 goldenTime 的时段分析和 conflictWarning 的警示。
+
+要求：
+- 每个场景：结论先行（10字以内），再跟推导
+- 川麻术语（宽叫、大叫、放炮、自摸，碰，摸，下叫）
+- 不要用"坐庄/跟牌/做牌/押注/加注"`;
+}
+
+function buildDirectionPrompt(ctx: UserContext): string {
+  const { bazi } = ctx;
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供方位策略。
+
+用户日主：${bazi.dayStemTenGod}（如庚金）
+五行喜忌：${bazi.monthStemTenGod}月令
+
+四川麻将4人座位（东南西北），用户坐在某方位时：
+- 上家 = 逆时针第一家
+- 下家 = 顺时针第一家
+- 对家 = 正对面
+
+座位关系（以用户坐北位为例）：
+- 上家 = 东，下家 = 西，对家 = 南
+（坐东位时：上家=南，下家=北，对家=西；以此类推）
+
+请输出：
+1. 各位置策略（坐在北/东/南/西位分别怎么打）
+2. 上下家对家克防关系（对每个位置，指出谁要防、谁不需防）
+
+格式要求：
+- 用东南西北，不用"左边/右边"
+- 克防关系用 🔴防 🟡慎 🟢不防 表示
+- 结论清晰，让人坐在某位置时知道该怎么打`;
+}
+
+function buildGoldenTimePrompt(ctx: UserContext): string {
+  const { bazi } = ctx;
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供时段策略。
+
+用户日主：${bazi.dayStemTenGod}（如庚金）
+今日日干：${bazi.day}
+
+一天12时辰，对应五行能量：
+- 寅卯（03-07）：木，木被金克
+- 巳午（09-13）：火，火克金
+- 辰戌丑未（07-09/19-21等）：土，土生金但过旺则埋
+- 申酉（15-19）：金，金帮身
+- 子亥（23-01/21-23）：水，水泄金气
+
+请给出12时辰的能量评级和麻将打法建议：
+
+格式：
+[时辰名] [时间段] [五行] [★数量] [打法建议]
+
+示例：
+酉 17-19 金 ★★★★★ 日主本气，全力出击
+巳 09-11 火 ★☆☆☆☆ 火克金，最差时辰，保守
+
+结论：
+最优3时段：...
+最差3时段：...
+趋势：...
+
+要求：
+- 用 ★ 符号不用 emoji
+- 打法建议简洁（10字以内）
+- 今天特别需要注意的时段要标注原因`;
+}
+
+function buildConflictWarningPrompt(ctx: UserContext): string {
+  const { bazi, targetDate } = ctx;
+  const lunar = getLunarDate(targetDate);
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供风险警示。
+
+用户日支：${bazi.day.slice(-2)}
+今日日柱：${lunar.day}
+
+日支相关作用：
+- 日支被哪些地支冲、破、害（根据八字结构）
+
+请针对每种破坏性能量，输出：
+1. 是什么（八字原理）
+2. 为什么今天有这个（结合用户八字结构）
+3. 对打牌的具体影响（麻将场景）
+
+最后给出麻将场景下的具体警示（3-5条）：
+- 不要做什么
+- 要特别小心什么
+- 某个时段要格外注意
+
+格式：
+【名称】如"辰戌冲"
+解释：...
+麻将影响：...
+
+【麻将警示】
+· ...
+
+要求：
+- 不要用"加大注"，用"做大番"
+- 警示要具体，不是"要小心"，而是"下叫后最后几张摸牌要格外小心"`;
+}
+
+function buildLuckEnhancementPrompt(ctx: UserContext): string {
+  const { bazi, targetDate } = ctx;
+  const lunar = getLunarDate(targetDate);
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供今日开运指导。
+
+用户八字：
+- 日主：${bazi.dayStemTenGod}（如庚金）
+- 月令：${bazi.monthStemTenGod}
+- 年柱纳音：${bazi.yearTakeSound}
+- 日柱纳音：${bazi.dayTakeSound}
+
+今日黄历：
+- 今日：${lunar.yearName}年${lunar.month}月${lunar.day}日
+- 五行结构：木火土金水（根据日干判断哪股气最旺）
+
+请输出今日开运清单：
+
+【饮品】
+✅ 宜：[饮品名]（五行解释）— 对打牌的影响
+✅ 可选：[饮品名]
+❌ 忌：[饮品名]（为什么忌）— 对打牌的影响
+⚠️ 少喝：[饮品名]
+
+【穿着颜色】
+✅ 宜：[颜色]（为什么今天穿这个好）
+⚡ 点缀：[颜色]
+⚠️ 备选：[颜色]
+❌ 忌：[颜色]（为什么忌）
+
+【饰品】
+✅ 宜：[饰品类型]（五行+今天的关系）
+❌ 忌：[饰品类型]
+
+结论一句话：今天核心是借[什么气]，要[做什么]不要[做什么]。
+
+要求：
+- 每类至少3个条目（宜/可选/忌）
+- 解释要简洁，10-20字
+- 麻将场景连接要直接（"抓牌有感觉"而不是"运气好"）
+- 不纳入：数字、左右手摸牌、上厕所时机、选座位`;
+}
+
+// ─────────────────────────────────────────────────────────────
 // AI 调用
 // ─────────────────────────────────────────────────────────────
 
-async function callMiniMax(prompt: string): Promise<string> {
+async function callMiniMax(prompt: string, maxTokens: number = 8192): Promise<string> {
   const apiKey = getMiniMaxApiKey();
   const apiUrl = getMiniMaxUrl();
+
+  console.log('[MiniMax] prompt:\n', prompt);
 
   if (!apiKey) {
     throw new Error('MINIMAX_API_KEY 未配置');
   }
 
+  console.log('[MiniMax] sending request to:', apiUrl);
   try {
     const response = await axios.post(apiUrl, {
       model: 'MiniMax-M2.7',
-      max_tokens: 2000,
+      max_tokens: maxTokens,
+      thinking: { type: 'disabled' },
       messages: [
         {
           role: 'user',
@@ -316,24 +603,27 @@ async function callMiniMax(prompt: string): Promise<string> {
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01'
       },
-      timeout: 120000
+      timeout: 180000
     });
 
-    console.log('[MiniMax] response.status:', response.status);
+    console.log('[MiniMax] response received, status:', response.status);
     console.log('[MiniMax] response.data:', JSON.stringify(response.data).substring(0, 500));
 
+    // Parse response: only take text blocks, exclude thinking
+    console.log('[MiniMax] parsing response...');
     const blocks: any[] = response.data.content || [];
-    console.log('[MiniMax] blocks:', JSON.stringify(blocks).substring(0, 500));
-    const textBlock = blocks.find((b: any) => b.type === 'text');
-    const text = textBlock?.text || blocks.find((b: any) => b.text)?.text || '';
+    console.log('[MiniMax] blocks count:', blocks.length);
+    const textBlocks = blocks.filter((b: any) => !b.thinking && b.type === 'text');
+    console.log('[MiniMax] textBlocks count:', textBlocks.length);
+    const fullText = textBlocks.map((b: any) => b.text).join('');
 
-    console.log('[MiniMax] extracted text:', text?.substring(0, 200));
+    console.log('[MiniMax] extracted text length:', fullText.length);
 
-    if (!text) {
+    if (!fullText) {
       const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty response';
       throw new Error(`MiniMax API error: ${response.status} - ${reason}`);
     }
-    return text;
+    return fullText;
   } catch (error: any) {
     const status = error.response?.status;
     const apiError = error.response?.data?.error;
@@ -666,6 +956,244 @@ router.post('/refresh/:date?', authMiddleware, async (req: AuthRequest, res) => 
   } catch (error: any) {
     console.error('Refresh error:', error);
     res.status(500).json({ error: error.message || 'Failed to refresh' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// Phase 3: 7维度独立端点
+// ─────────────────────────────────────────────────────────────
+
+router.get('/:date/fortune', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildFortunePrompt(ctx);
+    const content = await callMiniMax(prompt);
+
+    // 解析结论（从内容中提取旺/平/弱）
+    const levelMatch = content.match(/结论[：:]\s*\[?(旺|平|弱)\]?/);
+    const level = levelMatch ? levelMatch[1] : '平';
+
+    // 提取一句话结论
+    const summaryMatch = content.match(/结论[：:].*?[。]([^]*?)$/m);
+    const summary = summaryMatch ? summaryMatch[1].trim().substring(0, 100) : content.substring(0, 100);
+
+    res.json({
+      dimension: 'fortune',
+      level,
+      summary,
+      content,
+      derivation: {
+        step1: '从八字事实提取',
+        step2: '从今天事实提取',
+        step3: '从叠加推导提取'
+      },
+      conclusion: content
+    });
+  } catch (error: any) {
+    console.error('Fortune dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate fortune' });
+  }
+});
+
+router.get('/:date/betting', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildBettingPrompt(ctx, '参考今日运势', '今天整体运势良好');
+    const content = await callMiniMax(prompt);
+
+    // 解析结论（大注/小注/观望）
+    const levelMatch = content.match(/结论[：:]\s*\[?(大注|小注|观望)\]?/);
+    const level = levelMatch ? levelMatch[1] : '观望';
+
+    res.json({
+      dimension: 'betting',
+      level,
+      summary: content.substring(0, 100),
+      content,
+      conclusion: content
+    });
+  } catch (error: any) {
+    console.error('Betting dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate betting strategy' });
+  }
+});
+
+router.get('/:date/best-action', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildBestActionPrompt(ctx, '今日运势');
+    const content = await callMiniMax(prompt);
+
+    res.json({
+      dimension: 'bestAction',
+      level: '决策参考',
+      summary: content.substring(0, 100),
+      content,
+      conclusion: content
+    });
+  } catch (error: any) {
+    console.error('BestAction dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate best action' });
+  }
+});
+
+router.get('/:date/direction', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildDirectionPrompt(ctx);
+    const content = await callMiniMax(prompt);
+
+    res.json({
+      dimension: 'direction',
+      level: '方位参考',
+      summary: content.substring(0, 100),
+      content,
+      conclusion: content
+    });
+  } catch (error: any) {
+    console.error('Direction dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate direction' });
+  }
+});
+
+router.get('/:date/golden-time', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildGoldenTimePrompt(ctx);
+    const content = await callMiniMax(prompt);
+
+    res.json({
+      dimension: 'goldenTime',
+      level: '时段参考',
+      summary: content.substring(0, 100),
+      content,
+      conclusion: content
+    });
+  } catch (error: any) {
+    console.error('GoldenTime dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate golden time' });
+  }
+});
+
+router.get('/:date/conflict-warning', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildConflictWarningPrompt(ctx);
+    const content = await callMiniMax(prompt);
+
+    res.json({
+      dimension: 'conflictWarning',
+      level: '风险警示',
+      summary: content.substring(0, 100),
+      content,
+      conclusion: content
+    });
+  } catch (error: any) {
+    console.error('ConflictWarning dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate conflict warning' });
+  }
+});
+
+router.get('/:date/luck-enhancement', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildLuckEnhancementPrompt(ctx);
+    const content = await callMiniMax(prompt);
+
+    res.json({
+      dimension: 'luckEnhancement',
+      level: '开运清单',
+      summary: content.substring(0, 100),
+      content,
+      conclusion: content
+    });
+  } catch (error: any) {
+    console.error('LuckEnhancement dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate luck enhancement' });
   }
 });
 

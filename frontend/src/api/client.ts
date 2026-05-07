@@ -264,12 +264,33 @@ export const authApi = {
     apiClient.put<{ user: User }>('/auth/profile', data),
 };
 
+export interface HoroscopeDimension {
+  dimension: string;
+  level: string;
+  summary: string;
+  content: string;
+  derivation?: {
+    step1: string;
+    step2: string;
+    step3: string;
+  };
+  conclusion: string;
+}
+
 export const horoscopeApi = {
   get: (date?: string) => apiClient.get<Horoscope>(`/horoscope${date ? `/${date}` : ''}`),
   refresh: (date?: string) => apiClient.post(`/horoscope/refresh${date ? `/${date}` : ''}`),
   getBazi: (date: string) => apiClient.get<BaziResponse>('/horoscope/bazi', { params: { date } }),
   answerQuestion: (data: { question: string; date?: string }) =>
     apiClient.post<{ answer: string }>('/horoscope/answer', data),
+  // Phase 3: 7维度独立端点
+  getFortune: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/fortune`),
+  getBetting: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/betting`),
+  getBestAction: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/best-action`),
+  getDirection: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/direction`),
+  getGoldenTime: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/golden-time`),
+  getConflictWarning: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/conflict-warning`),
+  getLuckEnhancement: (date: string) => apiClient.get<HoroscopeDimension>(`/horoscope/${date}/luck-enhancement`),
 };
 
 // 自定义筛选器类型定义

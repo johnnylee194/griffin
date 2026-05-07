@@ -125,26 +125,36 @@ export function getTodayAlmanac(date: Date = new Date()): AlmanacInfo {
   try {
     const ls = lunisolar(date);
 
-    // Get theGods data (神煞、宜忌) - it's a getter property, not a function
+    // theGods is an instance of TheGods class attached to the lunisolar instance
     const theGods = (ls as any).theGods;
 
-    // Extract suitable activities (宜)
-    const suitable = (theGods as any).suitable?.() || (theGods as any).suitables?.() || [];
+    // Extract suitable activities (宜) - use correct API
+    const suitable = theGods.getGoodActs?.() || theGods.getGoodActs(0) || [];
 
-    // Extract activities to avoid (忌)
-    const avoid = (theGods as any).avoid?.() || [];
+    // Extract activities to avoid (忌) - use correct API
+    const avoid = theGods.getBadActs?.() || theGods.getBadActs(0) || [];
 
-    // Get deity positions
-    const godOfWealth = (theGods as any).godOfWealth?.() || (theGods as any).wealth?.() || '';
-    const godOfJoy = (theGods as any).godOfJoy?.() || (theGods as any).joy?.() || '';
-    const godOfFortune = (theGods as any).godOfFortune?.() || (theGods as any).fortune?.() || '';
-    const badGod = (theGods as any).badGod?.() || (theGods as any).bad?.() || '';
+    // Get deity positions using getLuckDirection
+    // Returns [Direction24, God], direction is in result[0].name or result[0].direction
+    const godOfWealthResult = theGods.getLuckDirection?.('財神');
+    const godOfJoyResult = theGods.getLuckDirection?.('喜神');
+    const godOfFortuneResult = theGods.getLuckDirection?.('福神');
+    const godOfWealth = godOfWealthResult?.[0]?.name || godOfWealthResult?.[0]?.direction || '';
+    const godOfJoy = godOfJoyResult?.[0]?.name || godOfJoyResult?.[0]?.direction || '';
+    const godOfFortune = godOfFortuneResult?.[0]?.name || godOfFortuneResult?.[0]?.direction || '';
 
-    // Check if it's a good day (黄道/黑道)
-    const isGoodDay = (theGods as any).isGoodDay?.() ?? (theGods as any).goodDay?.() ?? true;
+    // Get bad god (煞神) - get the worst luck deity for the day
+    const badGods = theGods.getBadGods?.('MD') || [];
+    const badGod = badGods.length > 0 ? (badGods[0].name || badGods[0].key || '') : '';
 
-    // Get note/memo
-    const note = (theGods as any).note?.() || (theGods as any).memo?.() || '';
+    // Check if it's a good day (黄道/黑道) - getDuty12God returns a God, check its luckLevel
+    const dutyGod = theGods.getDuty12God?.();
+    const isGoodDay = dutyGod ? (dutyGod.luckLevel >= 0) : true;
+
+    // Get note: use queryString approach or fall back to good/bad acts summary
+    const goodActs = theGods.getGoodActs?.() || [];
+    const badActs = theGods.getBadActs?.() || [];
+    const note = goodActs.length === 0 && badActs.length === 0 ? '今日宜忌信息暂不可用' : '';
 
     return {
       suitable: Array.isArray(suitable) ? suitable : [suitable],
