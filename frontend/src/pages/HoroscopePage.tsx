@@ -118,23 +118,24 @@ export default function HoroscopePage() {
   return (
     <div className="h-full max-w-6xl mx-auto px-4 py-2 sm:py-4 space-y-4 overflow-y-auto">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <h2 className="text-xl sm:text-2xl font-bold text-text">今日黄历</h2>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* 日期控件二合一 */}
+      <div className="text-center mb-3">
+        <label className="flex items-center justify-center gap-2 cursor-pointer">
+          <span className="text-lg text-text">
+            {format(new Date(selectedDate), 'yyyy年MM月dd日')} {horoscopeData.dayOfWeek}
+          </span>
+          <span className="text-text-secondary">▼</span>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+            className="absolute opacity-0 w-0 h-0"
           />
-        </div>
-      </div>
-
-      {/* 日期展示 */}
-      <div className="text-center">
-        <p className="text-lg text-text-secondary">
-          {format(new Date(selectedDate), 'yyyy年MM月dd日')} {horoscopeData.dayOfWeek}
-        </p>
+        </label>
         <p className="text-sm text-text-secondary">{horoscopeData.lunarDate}</p>
       </div>
 
@@ -142,67 +143,75 @@ export default function HoroscopePage() {
       {horoscopeData.bazi && (
         <div className="card bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
           <h3 className="text-sm font-semibold text-amber-700 mb-3">八字</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-text-secondary">年柱：</span>
-              <span className="font-medium text-text">{horoscopeData.bazi.year}</span>
+          <div className="grid grid-cols-4 gap-2 text-sm">
+            <div className="text-center">
+              <div className="text-xs text-text-secondary mb-1">年柱</div>
+              <div className="font-medium text-text">{horoscopeData.bazi.year}</div>
+              {horoscopeData.bazi.yearTakeSound && (
+                <div className="text-xs text-amber-600 mt-1">{horoscopeData.bazi.yearTakeSound}</div>
+              )}
             </div>
-            <div>
-              <span className="text-text-secondary">月柱：</span>
-              <span className="font-medium text-text">{horoscopeData.bazi.month}</span>
+            <div className="text-center">
+              <div className="text-xs text-text-secondary mb-1">月柱</div>
+              <div className="font-medium text-text">{horoscopeData.bazi.month}</div>
+              {horoscopeData.bazi.monthTakeSound && (
+                <div className="text-xs text-amber-600 mt-1">{horoscopeData.bazi.monthTakeSound}</div>
+              )}
             </div>
-            <div>
-              <span className="text-text-secondary">日柱：</span>
-              <span className="font-medium text-text">{horoscopeData.bazi.day}</span>
+            <div className="text-center">
+              <div className="text-xs text-text-secondary mb-1">日柱</div>
+              <div className="font-medium text-text">
+                <span className="font-bold text-primary">{horoscopeData.bazi.day.charAt(0)}</span>
+                {horoscopeData.bazi.day.slice(1)}
+              </div>
+              {horoscopeData.bazi.dayTakeSound && (
+                <div className="text-xs text-amber-600 mt-1">{horoscopeData.bazi.dayTakeSound}</div>
+              )}
             </div>
-            <div>
-              <span className="text-text-secondary">时柱：</span>
-              <span className="font-medium text-text">{horoscopeData.bazi.hour}</span>
+            <div className="text-center">
+              <div className="text-xs text-text-secondary mb-1">时柱</div>
+              <div className="font-medium text-text">{horoscopeData.bazi.hour}</div>
+              {horoscopeData.bazi.hourTakeSound && (
+                <div className="text-xs text-amber-600 mt-1">{horoscopeData.bazi.hourTakeSound}</div>
+              )}
             </div>
           </div>
-          {horoscopeData.bazi.yearTakeSound && (
-            <div className="mt-3 pt-3 border-t border-amber-200 text-xs text-text-secondary">
-              <span className="font-medium text-amber-600">纳音：</span>
-              年柱{horoscopeData.bazi.yearTakeSound}、月柱{horoscopeData.bazi.monthTakeSound}、日柱{horoscopeData.bazi.dayTakeSound}、时柱{horoscopeData.bazi.hourTakeSound}
-            </div>
-          )}
         </div>
       )}
 
-      {/* 宜忌和方位 */}
+      {/* 宜忌和神位：3列+2列 紧凑网格 */}
       {horoscopeData.almanac && (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="card">
-              <h4 className="text-xs font-semibold text-text-secondary mb-2">宜</h4>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <div className="card p-2">
+              <h4 className="text-xs font-semibold text-text-secondary mb-1">宜</h4>
               <div className="flex flex-wrap gap-1">
-                {horoscopeData.almanac.suitable.map((item, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">{item}</span>
+                {horoscopeData.almanac.suitable.slice(0, 3).map((item, i) => (
+                  <span key={i} className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">{item}</span>
                 ))}
               </div>
             </div>
-            <div className="card">
-              <h4 className="text-xs font-semibold text-text-secondary mb-2">忌</h4>
+            <div className="card p-2">
+              <h4 className="text-xs font-semibold text-text-secondary mb-1">忌</h4>
               <div className="flex flex-wrap gap-1">
-                {horoscopeData.almanac.avoid.map((item, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">{item}</span>
+                {horoscopeData.almanac.avoid.slice(0, 3).map((item, i) => (
+                  <span key={i} className="text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded">{item}</span>
                 ))}
               </div>
+            </div>
+            <div className="card p-2 text-center">
+              <div className="text-xs text-text-secondary">财神</div>
+              <div className="text-sm font-bold text-amber-600">{horoscopeData.almanac.godOfWealth}</div>
             </div>
           </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            <div className="card text-center">
-              <div className="text-xs text-text-secondary">财神</div>
-              <div className="text-lg font-bold text-amber-600">{horoscopeData.almanac.godOfWealth}</div>
-            </div>
-            <div className="card text-center">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="card p-2 text-center">
               <div className="text-xs text-text-secondary">喜神</div>
-              <div className="text-lg font-bold text-pink-600">{horoscopeData.almanac.godOfJoy}</div>
+              <div className="text-sm font-bold text-pink-600">{horoscopeData.almanac.godOfJoy}</div>
             </div>
-            <div className="card text-center">
+            <div className="card p-2 text-center">
               <div className="text-xs text-text-secondary">福神</div>
-              <div className="text-lg font-bold text-purple-600">{horoscopeData.almanac.godOfFortune}</div>
+              <div className="text-sm font-bold text-purple-600">{horoscopeData.almanac.godOfFortune}</div>
             </div>
           </div>
         </>

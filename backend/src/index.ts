@@ -66,5 +66,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // 启动服务器
 app.listen(port, () => {
   console.log(`🚀 Griffin API server is running on port ${port}`);
+  console.log(`[DEBUG] Code version: 2025-05-07 - Fixed API endpoint and response parsing`);
 });
 

@@ -6,9 +6,10 @@ export interface BaziInfo {
   month: string;   // 月柱，如 "丁卯"
   day: string;     //日柱，如 "丙午"
   hour: string;     // 时柱，如 "戊子"
+  dayStem: string;     // 日主天干（如"辛"）
   yearStemTenGod: string;   // 年干十神
   monthStemTenGod: string;  // 月干十神
-  dayStemTenGod: string;    // 日主（不是十神）
+  dayStemTenGod: string;    // 日支十神
   hourStemTenGod: string;   // 时干十神
   yearTakeSound: string;   // 年柱纳音
   monthTakeSound: string;  // 月柱纳音
@@ -98,9 +99,10 @@ export function calculateBazi(
       month: char8ex.month?.toString?.() || '',
       day: char8ex.day?.toString?.() || '',
       hour: char8ex.hour?.toString?.() || '',
+      dayStem: char8ex.day?.stem?.toString?.() || '', // 日主天干（如"辛"）
       yearStemTenGod: char8ex.year?.stem?.tenGod?.() || '',
       monthStemTenGod: char8ex.month?.stem?.tenGod?.() || '',
-      dayStemTenGod: char8ex.day?.stem?.tenGod?.() || '', // 日主
+      dayStemTenGod: char8ex.day?.stem?.tenGod?.() || '',
       hourStemTenGod: char8ex.hour?.stem?.tenGod?.() || '',
       yearTakeSound: char8ex.year?._sb?.takeSound || '',
       monthTakeSound: char8ex.month?._sb?.takeSound || '',
@@ -199,7 +201,7 @@ export function buildHoroscopeContext(
 
   const fullContext = `八字：${baziSummary}
 纳音：年柱${bazi.yearTakeSound}、月柱${bazi.monthTakeSound}、日柱${bazi.dayTakeSound}、时柱${bazi.hourTakeSound}
-十神：年干${bazi.yearStemTenGod}、月干${bazi.monthStemTenGod}、日主${bazi.dayStemTenGod}、时干${bazi.hourStemTenGod}
+十神：年干${bazi.yearStemTenGod}、月干${bazi.monthStemTenGod}、日主${bazi.dayStem}、时干${bazi.hourStemTenGod}
 空亡：${bazi.missing.length > 0 ? bazi.missing.join('、') : '无'}
 ---
 今日黄历：

@@ -334,20 +334,29 @@ function buildFortunePrompt(ctx: UserContext): string {
   const { bazi, almanac, targetDate } = ctx;
   const lunar = getLunarDate(targetDate);
   const todayBazi = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+  
+  // 简单映射：日主从日柱中提取天干
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
+  
+  // 简单的月令处理
+  const monthZhiMap: Record<number, string> = {
+    1: '寅', 2: '卯', 3: '辰', 4: '巳', 5: '午', 6: '未',
+    7: '申', 8: '酉', 9: '戌', 10: '亥', 11: '子', 12: '丑'
+  };
+  const monthZhi = monthZhiMap[lunar.month] || '寅';
 
   return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
 
 用户信息：
 - 八字：${bazi.year}年柱 ${bazi.month}月柱 ${bazi.day}日柱 ${bazi.hour}时柱
-- 日主：${bazi.dayStemTenGod}（如庚金）
+- 日主：${dayStem}金
 - 空亡：${bazi.missing.length > 0 ? bazi.missing.join('、') : '无'}
 - 五行：年柱纳音${bazi.yearTakeSound}、月柱纳音${bazi.monthTakeSound}、日柱纳音${bazi.dayTakeSound}、时柱纳音${bazi.hourTakeSound}
 - 日支关系：${bazi.zodiacAnimal}年生
 
 今日黄历：
 - 今日：${todayBazi}
-- 日主：${lunar.day}
-- 月令：${lunar.month}
+- 月令：${monthZhi}
 
 请按以下结构输出今日运势解读：
 
@@ -440,10 +449,11 @@ function buildBestActionPrompt(ctx: UserContext, fortuneLevel: string, fortuneSu
 
 function buildDirectionPrompt(ctx: UserContext): string {
   const { bazi } = ctx;
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
 
   return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供方位策略。
 
-用户日主：${bazi.dayStemTenGod}（如庚金）
+用户日主：${dayStem}金
 五行喜忌：${bazi.monthStemTenGod}月令
 
 四川麻将4人座位（东南西北），用户坐在某方位时：
@@ -467,10 +477,11 @@ function buildDirectionPrompt(ctx: UserContext): string {
 
 function buildGoldenTimePrompt(ctx: UserContext): string {
   const { bazi } = ctx;
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
 
   return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供时段策略。
 
-用户日主：${bazi.dayStemTenGod}（如庚金）
+用户日主：${dayStem}金
 今日日干：${bazi.day}
 
 一天12时辰，对应五行能量：
@@ -539,10 +550,11 @@ function buildLuckEnhancementPrompt(ctx: UserContext): string {
   const { bazi, targetDate } = ctx;
   const lunar = getLunarDate(targetDate);
 
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
   return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供今日开运指导。
 
 用户八字：
-- 日主：${bazi.dayStemTenGod}（如庚金）
+- 日主：${dayStem}金
 - 月令：${bazi.monthStemTenGod}
 - 年柱纳音：${bazi.yearTakeSound}
 - 日柱纳音：${bazi.dayTakeSound}
@@ -586,6 +598,9 @@ async function callMiniMax(prompt: string, maxTokens: number = 8192): Promise<st
   const apiKey = getMiniMaxApiKey();
   const apiUrl = getMiniMaxUrl();
 
+  console.log(`[DEBUG] callMiniMax v2 - API URL: ${apiUrl}`);
+  console.log(`[DEBUG] Full prompt:\n${prompt}\n--- END OF PROMPT ---`);
+
   if (!apiKey) {
     throw new Error('MINIMAX_API_KEY 未配置');
   }
@@ -611,27 +626,50 @@ async function callMiniMax(prompt: string, maxTokens: number = 8192): Promise<st
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01'
       },
-      timeout: 180000
+      timeout: 60000
     });
 
-    const blocks: any[] = response.data.content || [];
-    const textBlocks = blocks.filter((b: any) => !b.thinking && b.type === 'text');
-    const fullText = textBlocks.map((b: any) => b.text).join('');
+    console.log(`[MiniMax] Raw response:`, JSON.stringify(response.data).substring(0, 500));
+
+    let fullText = '';
+
+    // 尝试多种可能的响应格式
+    if (response.data?.choices?.[0]?.message?.content) {
+      // OpenAI 格式
+      fullText = response.data.choices[0].message.content;
+    } else if (response.data?.content) {
+      // Anthropic/MiniMax 格式
+      const blocks: any[] = Array.isArray(response.data.content) ? response.data.content : [];
+      const textBlocks = blocks.filter((b: any) => !b.thinking && b.type === 'text');
+      fullText = textBlocks.map((b: any) => b.text).join('');
+    } else if (typeof response.data === 'string') {
+      // 直接返回字符串
+      fullText = response.data;
+    } else if (response.data?.output) {
+      // 其他可能格式
+      fullText = response.data.output;
+    } else {
+      // 尝试从整个响应中获取任何文本
+      fullText = JSON.stringify(response.data);
+    }
 
     const elapsed = Date.now() - startTime;
     const bytes = new TextEncoder().encode(fullText).length;
     console.log(`[MiniMax] ← ${promptLabel}  ${elapsed}ms  ${bytes}B`);
 
-    if (!fullText) {
-      const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty response';
+    if (!fullText || fullText.trim() === '' || fullText.length < 5) {
+      const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty or too short response';
+      console.error(`[MiniMax] Invalid response:`, response.data);
       throw new Error(`MiniMax API error: ${response.status} - ${reason}`);
     }
     return fullText;
   } catch (error: any) {
     const elapsed = Date.now() - startTime;
     const status = error.response?.status;
-    const apiError = error.response?.data?.error;
-    const reason = apiError?.message || apiError?.type || apiError?.code || error.message;
+    const reason = error.code === 'ECONNABORTED' 
+      ? 'Request timeout' 
+      : (error.response?.data?.error?.message || error.message);
+    
     console.error(`[MiniMax] ✗ ${promptLabel}  ${elapsed}ms  error: ${reason}`);
     error.message = `MiniMax API error: ${status} - ${reason}`;
     throw error;
@@ -950,6 +988,33 @@ router.post('/refresh/:date?', authMiddleware, async (req: AuthRequest, res) => 
 });
 
 // ─────────────────────────────────────────────────────────────
+// 辅助函数：从 LLM 输出提取结论
+// ─────────────────────────────────────────────────────────────
+
+function extractConclusion(content: string): string | null {
+  const conclusionMatch = content.match(/结论[：:]\s*(.+?)(?:\n|$)/);
+  if (conclusionMatch) {
+    return conclusionMatch[1].trim();
+  }
+  return null;
+}
+
+function extractDerivationSteps(content: string): { step1: string; step2: string; step3: string } | null {
+  const step1Match = content.match(/第[一一]步[：:]\s*(.+?)(?=\n第[二二]步|$)/s);
+  const step2Match = content.match(/第[二二]步[：:]\s*(.+?)(?=\n第[三三]步|$)/s);
+  const step3Match = content.match(/第[三三]步[：:]\s*(.+?)(?=\n结论|$)/s);
+  
+  if (step1Match || step2Match || step3Match) {
+    return {
+      step1: step1Match ? step1Match[1].trim() : '',
+      step2: step2Match ? step2Match[1].trim() : '',
+      step3: step3Match ? step3Match[1].trim() : '',
+    };
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Phase 3: 7维度独立端点
 // ─────────────────────────────────────────────────────────────
 
@@ -976,28 +1041,34 @@ router.get('/:date/fortune', authMiddleware, async (req: AuthRequest, res) => {
     const level = levelMatch ? levelMatch[1] : '平';
 
     // 提取一句话结论
-    const summaryMatch = content.match(/结论[：:].*?[。]([^]*?)$/m);
-    const summary = summaryMatch ? summaryMatch[1].trim().substring(0, 100) : content.substring(0, 100);
+    const conclusionText = extractConclusion(content) || content.substring(0, 100);
+
+    // 提取推导步骤
+    const derivation = extractDerivationSteps(content);
 
     // 提取要点列表
     const highlightsMatch = content.match(/要点[：:]\s*((?:【[^】]+】、?)+)/);
     const highlights = highlightsMatch
       ? [...highlightsMatch[1].matchAll(/【([^】]+)】/g)].map(m => m[1])
-      : [level, summary.substring(0, 20)];
+      : [level, conclusionText.substring(0, 20)];
 
-    res.json({
+    const result: any = {
       dimension: 'fortune',
       level,
-      summary,
+      summary: conclusionText,
       highlights,
       content,
-      derivation: {
-        step1: '从八字事实提取',
-        step2: '从今天事实提取',
-        step3: '从叠加推导提取'
-      },
-      conclusion: content
-    });
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    if (derivation) {
+      result.derivation = derivation;
+    }
+
+    res.json(result);
   } catch (error: any) {
     console.error('Fortune dimension error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate fortune' });
@@ -1031,13 +1102,21 @@ router.get('/:date/betting', authMiddleware, async (req: AuthRequest, res) => {
     const levelMatch = content.match(/结论[：:]\s*\[?(大注|小注|观望)\]?/);
     const level = levelMatch ? levelMatch[1] : '观望';
 
-    res.json({
+    // 提取一句话结论
+    const conclusionText = extractConclusion(content) || content.substring(0, 100);
+
+    const result: any = {
       dimension: 'betting',
       level,
-      summary: content.substring(0, 100),
+      summary: conclusionText,
       content,
-      conclusion: content
-    });
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    res.json(result);
   } catch (error: any) {
     console.error('Betting dimension error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate betting strategy' });
@@ -1067,13 +1146,20 @@ router.get('/:date/best-action', authMiddleware, async (req: AuthRequest, res) =
     const prompt = buildBestActionPrompt(ctx, fortuneLevel, fortuneSummary, fortuneHighlights);
     const content = await callMiniMax(prompt);
 
-    res.json({
+    const conclusionText = extractConclusion(content);
+
+    const result: any = {
       dimension: 'bestAction',
       level: '决策参考',
-      summary: content.substring(0, 100),
+      summary: conclusionText || content.substring(0, 100),
       content,
-      conclusion: content
-    });
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    res.json(result);
   } catch (error: any) {
     console.error('BestAction dimension error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate best action' });
@@ -1098,13 +1184,20 @@ router.get('/:date/direction', authMiddleware, async (req: AuthRequest, res) => 
     const prompt = buildDirectionPrompt(ctx);
     const content = await callMiniMax(prompt);
 
-    res.json({
+    const conclusionText = extractConclusion(content);
+
+    const result: any = {
       dimension: 'direction',
       level: '方位参考',
-      summary: content.substring(0, 100),
+      summary: conclusionText || content.substring(0, 100),
       content,
-      conclusion: content
-    });
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    res.json(result);
   } catch (error: any) {
     console.error('Direction dimension error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate direction' });
@@ -1129,13 +1222,20 @@ router.get('/:date/golden-time', authMiddleware, async (req: AuthRequest, res) =
     const prompt = buildGoldenTimePrompt(ctx);
     const content = await callMiniMax(prompt);
 
-    res.json({
+    const conclusionText = extractConclusion(content);
+
+    const result: any = {
       dimension: 'goldenTime',
       level: '时段参考',
-      summary: content.substring(0, 100),
+      summary: conclusionText || content.substring(0, 100),
       content,
-      conclusion: content
-    });
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    res.json(result);
   } catch (error: any) {
     console.error('GoldenTime dimension error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate golden time' });
@@ -1160,13 +1260,20 @@ router.get('/:date/conflict-warning', authMiddleware, async (req: AuthRequest, r
     const prompt = buildConflictWarningPrompt(ctx);
     const content = await callMiniMax(prompt);
 
-    res.json({
+    const conclusionText = extractConclusion(content);
+
+    const result: any = {
       dimension: 'conflictWarning',
       level: '风险警示',
-      summary: content.substring(0, 100),
+      summary: conclusionText || content.substring(0, 100),
       content,
-      conclusion: content
-    });
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    res.json(result);
   } catch (error: any) {
     console.error('ConflictWarning dimension error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate conflict warning' });
@@ -1191,13 +1298,20 @@ router.get('/:date/luck-enhancement', authMiddleware, async (req: AuthRequest, r
     const prompt = buildLuckEnhancementPrompt(ctx);
     const content = await callMiniMax(prompt);
 
-    res.json({
+    const conclusionText = extractConclusion(content);
+
+    const result: any = {
       dimension: 'luckEnhancement',
       level: '开运清单',
-      summary: content.substring(0, 100),
+      summary: conclusionText || content.substring(0, 100),
       content,
-      conclusion: content
-    });
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    res.json(result);
   } catch (error: any) {
     console.error('LuckEnhancement dimension error:', error);
     res.status(500).json({ error: error.message || 'Failed to generate luck enhancement' });
