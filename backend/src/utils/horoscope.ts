@@ -99,17 +99,17 @@ export function calculateBazi(
       month: char8ex.month?.toString?.() || '',
       day: char8ex.day?.toString?.() || '',
       hour: char8ex.hour?.toString?.() || '',
-      dayStem: char8ex.day?.stem?.toString?.() || '', // 日主天干（如"辛"）
-      yearStemTenGod: char8ex.year?.stem?.tenGod?.() || '',
-      monthStemTenGod: char8ex.month?.stem?.tenGod?.() || '',
-      dayStemTenGod: char8ex.day?.stem?.tenGod?.() || '',
-      hourStemTenGod: char8ex.hour?.stem?.tenGod?.() || '',
-      yearTakeSound: char8ex.year?._sb?.takeSound || '',
-      monthTakeSound: char8ex.month?._sb?.takeSound || '',
-      dayTakeSound: typeof takeSound === 'string' ? takeSound : '',
-      hourTakeSound: char8ex.hour?._sb?.takeSound || '',
+      dayStem: char8ex.me?.toString?.() || '', // 日主天干（如"辛"）
+      yearStemTenGod: char8ex.year?.stemTenGod?.name || '',
+      monthStemTenGod: char8ex.month?.stemTenGod?.name || '',
+      dayStemTenGod: char8ex.day?.stemTenGod?.name || '',
+      hourStemTenGod: char8ex.hour?.stemTenGod?.name || '',
+      yearTakeSound: char8ex.year?.takeSound || '',
+      monthTakeSound: char8ex.month?.takeSound || '',
+      dayTakeSound: char8ex.day?.takeSound || '',
+      hourTakeSound: char8ex.hour?.takeSound || '',
       missing: missing,
-      zodiacAnimal: zodiacAnimal,
+      zodiacAnimal: ls.format('cZ') || zodiacAnimal,
     };
   } catch (error) {
     console.error('Failed to calculate BaZi:', error);

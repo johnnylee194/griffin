@@ -7,13 +7,77 @@ import { getLunarDate, formatLunarDate } from '../utils/lunar';
 
 const router = Router();
 
-// 获取环境变量的函数
-function getMiniMaxApiKey(): string {
-  return process.env.MINIMAX_API_KEY || '';
+// ─────────────────────────────────────────────────────────────
+// LLM Provider 配置
+// ─────────────────────────────────────────────────────────────
+
+type LLMProvider = 'minimax' | 'deepseek';
+
+const ACTIVE_PROVIDER: LLMProvider = 'minimax'; // 默认值
+
+interface ProviderConfig {
+  name: string;
+  model: string;
+  apiKey: () => string;
+  apiUrl: () => string;
+  buildHeaders: (apiKey: string) => Record<string, string>;
+  buildBody: (model: string, maxTokens: number, prompt: string) => Record<string, any>;
+  extractText: (response: any) => string;
 }
 
-function getMiniMaxUrl(): string {
-  return process.env.MINIMAX_API_URL || 'https://api.minimaxi.com/anthropic/v1/messages';
+const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
+  minimax: {
+    name: 'MiniMax',
+    model: 'MiniMax-M2.7',
+    apiKey: () => process.env.MINIMAX_API_KEY || '',
+    apiUrl: () => process.env.MINIMAX_API_URL || 'https://api.minimaxi.com/anthropic/v1/messages',
+    buildHeaders: (apiKey) => ({
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01'
+    }),
+    buildBody: (model, maxTokens, prompt) => ({
+      model,
+      max_tokens: maxTokens,
+      thinking: { type: 'disabled' },
+      messages: [{ role: 'user', content: prompt }]
+    }),
+    extractText: (response) => {
+      if (response.data?.choices?.[0]?.message?.content) {
+        return response.data.choices[0].message.content;
+      }
+      const blocks: any[] = Array.isArray(response.data?.content) ? response.data.content : [];
+      const textBlocks = blocks.filter((b: any) => !b.thinking && b.type === 'text');
+      return textBlocks.map((b: any) => b.text).join('') || JSON.stringify(response.data);
+    }
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    model: 'deepseek-v4-flash',
+    apiKey: () => process.env.DEEPSEEK_API_KEY || '',
+    apiUrl: () => process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions',
+    buildHeaders: (apiKey) => ({
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    }),
+    buildBody: (model, maxTokens, prompt) => ({
+      model,
+      max_tokens: maxTokens,
+      thinking: { type: 'disabled' },
+      messages: [{ role: 'user', content: prompt }]
+    }),
+    extractText: (response) => {
+      if (response.data?.choices?.[0]?.message?.content) {
+        return response.data.choices[0].message.content;
+      }
+      return JSON.stringify(response.data);
+    }
+  }
+};
+
+function getActiveProvider(): ProviderConfig {
+  const provider = (process.env.LLM_PROVIDER as LLMProvider) || 'minimax';
+  return PROVIDERS[provider];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -594,84 +658,53 @@ function buildLuckEnhancementPrompt(ctx: UserContext): string {
 // AI 调用
 // ─────────────────────────────────────────────────────────────
 
-async function callMiniMax(prompt: string, maxTokens: number = 8192): Promise<string> {
-  const apiKey = getMiniMaxApiKey();
-  const apiUrl = getMiniMaxUrl();
+async function callLLM(prompt: string, maxTokens: number = 8192): Promise<string> {
+  const provider = getActiveProvider();
+  const apiKey = provider.apiKey();
+  const apiUrl = provider.apiUrl();
 
-  console.log(`[DEBUG] callMiniMax v2 - API URL: ${apiUrl}`);
+  console.log(`[DEBUG] LLM_PROVIDER env = ${process.env.LLM_PROVIDER}`);
+  console.log(`[DEBUG] DEEPSEEK_API_KEY env = ${process.env.DEEPSEEK_API_KEY ? 'SET' : 'NOT SET'}`);
+  console.log(`[DEBUG] callLLM - Provider: ${provider.name}, Model: ${provider.model}`);
   console.log(`[DEBUG] Full prompt:\n${prompt}\n--- END OF PROMPT ---`);
 
   if (!apiKey) {
-    throw new Error('MINIMAX_API_KEY 未配置');
+    throw new Error(`${provider.name}_API_KEY 未配置`);
   }
 
   const promptLabel = prompt.split('\n')[0].substring(0, 60);
   const startTime = Date.now();
-  console.log(`[MiniMax] → ${promptLabel}...`);
+  console.log(`[${provider.name}] → ${promptLabel}...`);
 
   try {
-    const response = await axios.post(apiUrl, {
-      model: 'MiniMax-M2.7',
-      max_tokens: maxTokens,
-      thinking: { type: 'disabled' },
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
-    }, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01'
-      },
+    const response = await axios.post(apiUrl, provider.buildBody(provider.model, maxTokens, prompt), {
+      headers: provider.buildHeaders(apiKey),
       timeout: 60000
     });
 
-    console.log(`[MiniMax] Raw response:`, JSON.stringify(response.data).substring(0, 500));
+    console.log(`[${provider.name}] Raw response:`, JSON.stringify(response.data).substring(0, 500));
 
-    let fullText = '';
-
-    // 尝试多种可能的响应格式
-    if (response.data?.choices?.[0]?.message?.content) {
-      // OpenAI 格式
-      fullText = response.data.choices[0].message.content;
-    } else if (response.data?.content) {
-      // Anthropic/MiniMax 格式
-      const blocks: any[] = Array.isArray(response.data.content) ? response.data.content : [];
-      const textBlocks = blocks.filter((b: any) => !b.thinking && b.type === 'text');
-      fullText = textBlocks.map((b: any) => b.text).join('');
-    } else if (typeof response.data === 'string') {
-      // 直接返回字符串
-      fullText = response.data;
-    } else if (response.data?.output) {
-      // 其他可能格式
-      fullText = response.data.output;
-    } else {
-      // 尝试从整个响应中获取任何文本
-      fullText = JSON.stringify(response.data);
-    }
+    const fullText = provider.extractText(response);
 
     const elapsed = Date.now() - startTime;
     const bytes = new TextEncoder().encode(fullText).length;
-    console.log(`[MiniMax] ← ${promptLabel}  ${elapsed}ms  ${bytes}B`);
+    console.log(`[${provider.name}] ← ${promptLabel}  ${elapsed}ms  ${bytes}B`);
 
     if (!fullText || fullText.trim() === '' || fullText.length < 5) {
       const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty or too short response';
-      console.error(`[MiniMax] Invalid response:`, response.data);
-      throw new Error(`MiniMax API error: ${response.status} - ${reason}`);
+      console.error(`[${provider.name}] Invalid response:`, response.data);
+      throw new Error(`${provider.name} API error: ${response.status} - ${reason}`);
     }
     return fullText;
   } catch (error: any) {
     const elapsed = Date.now() - startTime;
     const status = error.response?.status;
-    const reason = error.code === 'ECONNABORTED' 
-      ? 'Request timeout' 
+    const reason = error.code === 'ECONNABORTED'
+      ? 'Request timeout'
       : (error.response?.data?.error?.message || error.message);
-    
-    console.error(`[MiniMax] ✗ ${promptLabel}  ${elapsed}ms  error: ${reason}`);
-    error.message = `MiniMax API error: ${status} - ${reason}`;
+
+    console.error(`[${provider.name}] ✗ ${promptLabel}  ${elapsed}ms  error: ${reason}`);
+    error.message = `${provider.name} API error: ${status} - ${reason}`;
     throw error;
   }
 }
@@ -842,7 +875,7 @@ router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
     // Step 6: AI narrative
     send(40, '开始 AI 解读...');
     const narrativePrompt = buildNarrativePrompt('', bazi, almanac, gameStats);
-    const narrative = await callMiniMax(narrativePrompt);
+    const narrative = await callLLM(narrativePrompt);
 
     // 发送完整结果
     send(100, '完成', null, {
@@ -911,7 +944,7 @@ router.post('/answer', authMiddleware, async (req: AuthRequest, res) => {
 
     // 构建回答 prompt
     const answerPrompt = buildAnswerPrompt(question, bazi, almanac, gameStats);
-    const answer = await callMiniMax(answerPrompt);
+    const answer = await callLLM(answerPrompt);
 
     res.json({ answer });
   } catch (error: any) {
@@ -952,7 +985,7 @@ router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
     const almanac = getTodayAlmanac(targetDate);
     const gameStats = calculateGameStats(userId, targetDate);
     const narrativePrompt = buildNarrativePrompt('', bazi, almanac, gameStats);
-    const narrative = await callMiniMax(narrativePrompt);
+    const narrative = await callLLM(narrativePrompt);
 
     res.json({
       date: dateParam,
@@ -1034,7 +1067,7 @@ router.get('/:date/fortune', authMiddleware, async (req: AuthRequest, res) => {
     }
 
     const prompt = buildFortunePrompt(ctx);
-    const content = await callMiniMax(prompt);
+    const content = await callLLM(prompt);
 
     // 解析结论（从内容中提取旺/平/弱）
     const levelMatch = content.match(/结论[：:]\s*\[?(旺|平|弱)\]?/);
@@ -1075,247 +1108,11 @@ router.get('/:date/fortune', authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.get('/:date/betting', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const dateParam = req.params.date || formatDate(new Date());
-    const targetDate = new Date(dateParam);
-
-    if (isNaN(targetDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
-    const ctx = getUserContext(userId, targetDate);
-    if (!ctx) {
-      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
-    }
-
-    // 接收前端传入的真实 fortune 数据
-    const fortuneLevel = (req.query.fortuneLevel as string) || '参考今日运势';
-    const fortuneSummary = (req.query.fortuneSummary as string) || '今天整体运势良好';
-    const fortuneHighlights = (req.query.fortuneHighlights as string) || '';
-
-    const prompt = buildBettingPrompt(ctx, fortuneLevel, fortuneSummary, fortuneHighlights);
-    const content = await callMiniMax(prompt);
-
-    // 解析结论（大注/小注/观望）
-    const levelMatch = content.match(/结论[：:]\s*\[?(大注|小注|观望)\]?/);
-    const level = levelMatch ? levelMatch[1] : '观望';
-
-    // 提取一句话结论
-    const conclusionText = extractConclusion(content) || content.substring(0, 100);
-
-    const result: any = {
-      dimension: 'betting',
-      level,
-      summary: conclusionText,
-      content,
-    };
-
-    if (conclusionText) {
-      result.conclusion = conclusionText;
-    }
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('Betting dimension error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate betting strategy' });
-  }
-});
-
-router.get('/:date/best-action', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const dateParam = req.params.date || formatDate(new Date());
-    const targetDate = new Date(dateParam);
-
-    if (isNaN(targetDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
-    const ctx = getUserContext(userId, targetDate);
-    if (!ctx) {
-      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
-    }
-
-    // 接收前端传入的真实 fortune 数据
-    const fortuneLevel = (req.query.fortuneLevel as string) || '今日运势';
-    const fortuneSummary = (req.query.fortuneSummary as string) || '';
-    const fortuneHighlights = (req.query.fortuneHighlights as string) || '';
-
-    const prompt = buildBestActionPrompt(ctx, fortuneLevel, fortuneSummary, fortuneHighlights);
-    const content = await callMiniMax(prompt);
-
-    const conclusionText = extractConclusion(content);
-
-    const result: any = {
-      dimension: 'bestAction',
-      level: '决策参考',
-      summary: conclusionText || content.substring(0, 100),
-      content,
-    };
-
-    if (conclusionText) {
-      result.conclusion = conclusionText;
-    }
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('BestAction dimension error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate best action' });
-  }
-});
-
-router.get('/:date/direction', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const dateParam = req.params.date || formatDate(new Date());
-    const targetDate = new Date(dateParam);
-
-    if (isNaN(targetDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
-    const ctx = getUserContext(userId, targetDate);
-    if (!ctx) {
-      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
-    }
-
-    const prompt = buildDirectionPrompt(ctx);
-    const content = await callMiniMax(prompt);
-
-    const conclusionText = extractConclusion(content);
-
-    const result: any = {
-      dimension: 'direction',
-      level: '方位参考',
-      summary: conclusionText || content.substring(0, 100),
-      content,
-    };
-
-    if (conclusionText) {
-      result.conclusion = conclusionText;
-    }
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('Direction dimension error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate direction' });
-  }
-});
-
-router.get('/:date/golden-time', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const dateParam = req.params.date || formatDate(new Date());
-    const targetDate = new Date(dateParam);
-
-    if (isNaN(targetDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
-    const ctx = getUserContext(userId, targetDate);
-    if (!ctx) {
-      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
-    }
-
-    const prompt = buildGoldenTimePrompt(ctx);
-    const content = await callMiniMax(prompt);
-
-    const conclusionText = extractConclusion(content);
-
-    const result: any = {
-      dimension: 'goldenTime',
-      level: '时段参考',
-      summary: conclusionText || content.substring(0, 100),
-      content,
-    };
-
-    if (conclusionText) {
-      result.conclusion = conclusionText;
-    }
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('GoldenTime dimension error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate golden time' });
-  }
-});
-
-router.get('/:date/conflict-warning', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const dateParam = req.params.date || formatDate(new Date());
-    const targetDate = new Date(dateParam);
-
-    if (isNaN(targetDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
-    const ctx = getUserContext(userId, targetDate);
-    if (!ctx) {
-      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
-    }
-
-    const prompt = buildConflictWarningPrompt(ctx);
-    const content = await callMiniMax(prompt);
-
-    const conclusionText = extractConclusion(content);
-
-    const result: any = {
-      dimension: 'conflictWarning',
-      level: '风险警示',
-      summary: conclusionText || content.substring(0, 100),
-      content,
-    };
-
-    if (conclusionText) {
-      result.conclusion = conclusionText;
-    }
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('ConflictWarning dimension error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate conflict warning' });
-  }
-});
-
-router.get('/:date/luck-enhancement', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const dateParam = req.params.date || formatDate(new Date());
-    const targetDate = new Date(dateParam);
-
-    if (isNaN(targetDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
-    const ctx = getUserContext(userId, targetDate);
-    if (!ctx) {
-      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
-    }
-
-    const prompt = buildLuckEnhancementPrompt(ctx);
-    const content = await callMiniMax(prompt);
-
-    const conclusionText = extractConclusion(content);
-
-    const result: any = {
-      dimension: 'luckEnhancement',
-      level: '开运清单',
-      summary: conclusionText || content.substring(0, 100),
-      content,
-    };
-
-    if (conclusionText) {
-      result.conclusion = conclusionText;
-    }
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('LuckEnhancement dimension error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate luck enhancement' });
-  }
-});
+// [TESTING ONLY] router.get('/:date/betting', ...)
+// router.get('/:date/best-action', ...)
+// router.get('/:date/direction', ...)
+// router.get('/:date/golden-time', ...)
+// router.get('/:date/conflict-warning', ...)
+// router.get('/:date/luck-enhancement', ...)
 
 export default router;
