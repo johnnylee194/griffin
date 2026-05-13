@@ -28,6 +28,7 @@ export default function NewGamePage() {
 
   useEffect(() => {
     loadData()
+    loadLastSelections()
     const now = new Date()
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -43,6 +44,30 @@ export default function NewGamePage() {
     return res.data
   }
 
+  const loadLastSelections = () => {
+    const lastSelections = localStorage.getItem('last_game_selections')
+    if (lastSelections) {
+      try {
+        const parsed = JSON.parse(lastSelections)
+        if (parsed.locationId) setSelectedLocation(parsed.locationId)
+        if (parsed.gameTypeId) setSelectedGameTypeId(parsed.gameTypeId)
+        if (parsed.chipRateId) setSelectedChipRateId(parsed.chipRateId)
+        if (parsed.playerIds) setSelectedPlayerIds(parsed.playerIds)
+      } catch (e) {
+        console.error('Failed to parse last selections', e)
+      }
+    }
+  }
+
+  const saveLastSelections = () => {
+    localStorage.setItem('last_game_selections', JSON.stringify({
+      locationId: selectedLocation,
+      gameTypeId: selectedGameTypeId,
+      chipRateId: selectedChipRateId,
+      playerIds: selectedPlayerIds
+    }))
+  }
+
   const loadData = async () => {
     try {
       const [locationsRes] = await Promise.all([
@@ -50,20 +75,37 @@ export default function NewGamePage() {
       ])
       setLocations(locationsRes.data)
       
-      const defaultLoc = locationsRes.data.find(l => l.isDefault)
-      if (defaultLoc) {
-        setSelectedLocation(defaultLoc.id)
-        await loadGameTypes(defaultLoc.id)
-        const playersRes = await loadPlayers(defaultLoc.id)
-        const me = playersRes.find(p => p.isMe)
-        if (me) {
-          setSelectedPlayerIds(prev => [me.id, ...prev.filter(id => id !== me.id)])
+      // 只有在没有上次选择的情况下才使用默认值
+      const lastSelections = localStorage.getItem('last_game_selections')
+      if (!lastSelections) {
+        const defaultLoc = locationsRes.data.find(l => l.isDefault)
+        if (defaultLoc) {
+          setSelectedLocation(defaultLoc.id)
+          await loadGameTypes(defaultLoc.id)
+          const playersRes = await loadPlayers(defaultLoc.id)
+          const me = playersRes.find(p => p.isMe)
+          if (me) {
+            setSelectedPlayerIds(prev => [me.id, ...prev.filter(id => id !== me.id)])
+          }
+        } else {
+          const playersRes = await loadPlayers()
+          const me = playersRes.find(p => p.isMe)
+          if (me) {
+            setSelectedPlayerIds(prev => [me.id, ...prev.filter(id => id !== me.id)])
+          }
         }
       } else {
-        const playersRes = await loadPlayers()
-        const me = playersRes.find(p => p.isMe)
-        if (me) {
-          setSelectedPlayerIds(prev => [me.id, ...prev.filter(id => id !== me.id)])
+        // 如果有上次选择，仍然需要根据地点加载玩法、倍率和玩家列表以供选择
+        const parsed = JSON.parse(lastSelections)
+        if (parsed.locationId) {
+          await loadGameTypes(parsed.locationId)
+          await loadPlayers(parsed.locationId)
+          // 确保倍率列表也被加载
+          if (parsed.gameTypeId) {
+            await loadChipRates(parsed.locationId, parsed.gameTypeId)
+          }
+        } else {
+          await loadPlayers()
         }
       }
     } catch (error) {
@@ -219,6 +261,7 @@ export default function NewGamePage() {
         note: note || undefined,
         createdAt
       })
+      saveLastSelections()
       alert('对局记录成功！')
       navigate('/')
     } catch (error: any) {
