@@ -239,9 +239,25 @@ export const FilterStatsPage: React.FC = () => {
           tension: 0.3,
         },
         {
+          label: `凌晨${chartValueType === 'score' ? '分数' : '金额'}`,
+          data: dailyData.map(d => d[`lateNight${valueKey}`]),
+          borderColor: 'rgb(107, 114, 128)', // 灰色
+          backgroundColor: 'rgba(107, 114, 128, 0.05)',
+          borderWidth: 2,
+          tension: 0.3,
+        },
+        {
+          label: `上午${chartValueType === 'score' ? '分数' : '金额'}`,
+          data: dailyData.map(d => d[`morning${valueKey}`]),
+          borderColor: 'rgb(59, 130, 246)', // 蓝色
+          backgroundColor: 'rgba(59, 130, 246, 0.05)',
+          borderWidth: 2,
+          tension: 0.3,
+        },
+        {
           label: `下午${chartValueType === 'score' ? '分数' : '金额'}`,
           data: dailyData.map(d => d[`afternoon${valueKey}`]),
-          borderColor: 'rgb(251, 146, 60)', // 橙色（浅）
+          borderColor: 'rgb(251, 146, 60)', // 橙色
           backgroundColor: 'rgba(251, 146, 60, 0.05)',
           borderWidth: 2,
           tension: 0.3,
@@ -249,7 +265,7 @@ export const FilterStatsPage: React.FC = () => {
         {
           label: `晚上${chartValueType === 'score' ? '分数' : '金额'}`,
           data: dailyData.map(d => d[`evening${valueKey}`]),
-          borderColor: 'rgb(16, 185, 129)', // 绿色（浅）
+          borderColor: 'rgb(16, 185, 129)', // 绿色
           backgroundColor: 'rgba(16, 185, 129, 0.05)',
           borderWidth: 2,
           tension: 0.3,
@@ -329,8 +345,10 @@ export const FilterStatsPage: React.FC = () => {
 
         {/* 分时段统计 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderStatCard('下午场 (12:00-19:00)', stats.afternoon, false)}
-          {renderStatCard('晚上场 (19:00-24:00)', stats.evening, false)}
+          {renderStatCard('凌晨场 (00:00-08:00)', stats.lateNight, false)}
+          {renderStatCard('上午场 (08:00-12:00)', stats.morning, false)}
+          {renderStatCard('下午场 (12:00-18:00)', stats.afternoon, false)}
+          {renderStatCard('晚上场 (18:00-24:00)', stats.evening, false)}
         </div>
 
         {/* 按日曲线图 */}
@@ -467,6 +485,8 @@ export const FilterStatsPage: React.FC = () => {
 
                   // 计算当日统计
                   let totalScore = 0;
+                  let lateNightScore = 0;
+                  let morningScore = 0;
                   let afternoonScore = 0;
                   let eveningScore = 0;
                   dateGames.forEach(game => {
@@ -474,9 +494,13 @@ export const FilterStatsPage: React.FC = () => {
                     if (myRecord && myRecord.chips !== null) {
                       const hour = new Date(game.createdAt).getHours();
                       totalScore += myRecord.chips;
-                      if (hour >= 12 && hour < 19) {
+                      if (hour >= 0 && hour < 8) {
+                        lateNightScore += myRecord.chips;
+                      } else if (hour >= 8 && hour < 12) {
+                        morningScore += myRecord.chips;
+                      } else if (hour >= 12 && hour < 18) {
                         afternoonScore += myRecord.chips;
-                      } else if (hour >= 19 && hour < 24) {
+                      } else if (hour >= 18 && hour < 24) {
                         eveningScore += myRecord.chips;
                       }
                     }
@@ -486,21 +510,31 @@ export const FilterStatsPage: React.FC = () => {
                     <div key={date} className="bg-gray-50 rounded-lg p-3">
                       {/* 日期统计 */}
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-4">
+                        <div className="flex flex-col space-y-1">
                           <span className="text-sm font-semibold text-text">{displayDate}</span>
-                          <div className="flex items-center space-x-4 text-xs text-gray-500">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
                             <span>
-                              总计<span className={`ml-1 font-bold ${totalScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              总计<span className={`ml-0.5 font-bold ${totalScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {totalScore >= 0 ? '+' : ''}{totalScore}
                               </span>
                             </span>
                             <span>
-                              下午<span className={`ml-1 font-bold ${afternoonScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              凌晨<span className={`ml-0.5 font-bold ${lateNightScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {lateNightScore >= 0 ? '+' : ''}{lateNightScore}
+                              </span>
+                            </span>
+                            <span>
+                              上午<span className={`ml-0.5 font-bold ${morningScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {morningScore >= 0 ? '+' : ''}{morningScore}
+                              </span>
+                            </span>
+                            <span>
+                              下午<span className={`ml-0.5 font-bold ${afternoonScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {afternoonScore >= 0 ? '+' : ''}{afternoonScore}
                               </span>
                             </span>
                             <span>
-                              晚上<span className={`ml-1 font-bold ${eveningScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              晚上<span className={`ml-0.5 font-bold ${eveningScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {eveningScore >= 0 ? '+' : ''}{eveningScore}
                               </span>
                             </span>

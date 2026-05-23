@@ -37,6 +37,24 @@ interface MonthlyStats {
     totalExpense: number
     profit: number
   }
+  lateNight: {
+    totalGames: number
+    winGames: number
+    loseGames: number
+    winRate: number
+    totalIncome: number
+    totalExpense: number
+    profit: number
+  }
+  morning: {
+    totalGames: number
+    winGames: number
+    loseGames: number
+    winRate: number
+    totalIncome: number
+    totalExpense: number
+    profit: number
+  }
   evening: {
     totalGames: number
     winGames: number
@@ -47,6 +65,16 @@ interface MonthlyStats {
     profit: number
   }
   byGameType: Record<string, GameTypeStats>
+  byLocation: Record<string, {
+    name: string
+    totalGames: number
+    winGames: number
+    loseGames: number
+    winRate: number
+    totalIncome: number
+    totalExpense: number
+    profit: number
+  }>
 }
 
 export default function HomePage() {
@@ -343,9 +371,48 @@ export default function HomePage() {
                   <div className="text-xs text-gray-400">总输</div>
                 </div>
               </div>
+
+              {selectedLocationId === '' && monthlyStats.byLocation && Object.keys(monthlyStats.byLocation).length > 1 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.values(monthlyStats.byLocation)
+                      .sort((a, b) => b.profit - a.profit)
+                      .map((loc, index) => (
+                        <div key={`loc-${index}`} className="flex flex-col p-2 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold text-text truncate max-w-[70%]">{loc.name}</span>
+                            <span className="text-[8px] text-text-light">{loc.winRate}%</span>
+                          </div>
+                          <div className={`text-sm font-bold ${loc.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                            {loc.profit >= 0 ? '+' : ''}{loc.profit.toLocaleString()}
+                          </div>
+                          <div className="text-[8px] text-text-light">共{loc.totalGames}场</div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm">🌅</span>
+                    <span className="text-xs font-semibold text-text">上午场</span>
+                  </div>
+                  <span className={`${monthlyStats.morning.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
+                    {monthlyStats.morning.winRate}%
+                  </span>
+                </div>
+                <div className={`text-xl font-bold mb-2 ${
+                  monthlyStats.morning.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
+                }`}>
+                  {monthlyStats.morning.profit >= 0 ? '+' : ''}{monthlyStats.morning.profit.toLocaleString()}
+                </div>
+                <div className="text-xs text-text-light">共{monthlyStats.morning.totalGames}场</div>
+              </div>
+
               <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1">
@@ -380,6 +447,24 @@ export default function HomePage() {
                   {monthlyStats.evening.profit >= 0 ? '+' : ''}{monthlyStats.evening.profit.toLocaleString()}
                 </div>
                 <div className="text-xs text-text-light">共{monthlyStats.evening.totalGames}场</div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm">🌌</span>
+                    <span className="text-xs font-semibold text-text">凌晨场</span>
+                  </div>
+                  <span className={`${monthlyStats.lateNight.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
+                    {monthlyStats.lateNight.winRate}%
+                  </span>
+                </div>
+                <div className={`text-xl font-bold mb-2 ${
+                  monthlyStats.lateNight.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
+                }`}>
+                  {monthlyStats.lateNight.profit >= 0 ? '+' : ''}{monthlyStats.lateNight.profit.toLocaleString()}
+                </div>
+                <div className="text-xs text-text-light">共{monthlyStats.lateNight.totalGames}场</div>
               </div>
 
               {Object.values(monthlyStats.byGameType || {}).map((gt, index) => (

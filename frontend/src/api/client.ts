@@ -395,6 +395,34 @@ export interface FilterStats {
     maxDayWinChips: number;
     maxDayLossChips: number;
   };
+  lateNight: {
+    totalGames: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalScore: number;
+    totalChips: number;
+    avgScorePerGame: number;
+    avgChipsPerGame: number;
+    maxWinScore: number;
+    maxLossScore: number;
+    maxWinChips: number;
+    maxLossChips: number;
+  };
+  morning: {
+    totalGames: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    totalScore: number;
+    totalChips: number;
+    avgScorePerGame: number;
+    avgChipsPerGame: number;
+    maxWinScore: number;
+    maxLossScore: number;
+    maxWinChips: number;
+    maxLossChips: number;
+  };
   afternoon: {
     totalGames: number;
     wins: number;
@@ -427,11 +455,17 @@ export interface FilterStats {
     date: string;
     totalScore: number;
     totalChips: number;
+    lateNightScore: number;
+    lateNightChips: number;
+    morningScore: number;
+    morningChips: number;
     afternoonScore: number;
     afternoonChips: number;
     eveningScore: number;
     eveningChips: number;
     totalGames: number;
+    lateNightGames: number;
+    morningGames: number;
     afternoonGames: number;
     eveningGames: number;
   }>;

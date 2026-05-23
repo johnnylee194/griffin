@@ -478,6 +478,16 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     let winGames = 0;
     let loseGames = 0;
     
+    let lateNightWins = 0;
+    let lateNightLoses = 0;
+    let lateNightIncome = 0;
+    let lateNightExpense = 0;
+
+    let morningWins = 0;
+    let morningLoses = 0;
+    let morningIncome = 0;
+    let morningExpense = 0;
+
     let afternoonWins = 0;
     let afternoonLoses = 0;
     let afternoonIncome = 0;
@@ -487,6 +497,17 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     let eveningLoses = 0;
     let eveningIncome = 0;
     let eveningExpense = 0;
+
+    const locationStats: Record<string, {
+      name: string;
+      totalGames: number;
+      winGames: number;
+      loseGames: number;
+      winRate: number;
+      totalIncome: number;
+      totalExpense: number;
+      profit: number;
+    }> = {};
     
     const gameTypeStats: Record<string, {
       name: string;
@@ -513,7 +534,23 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
       const gameTime = new Date(record.createdAt);
       const hour = gameTime.getHours();
       
-      if (hour < 20) {
+      if (hour >= 0 && hour < 8) {
+        if (chips > 0) {
+          lateNightWins++;
+          lateNightIncome += chips;
+        } else if (chips < 0) {
+          lateNightLoses++;
+          lateNightExpense += Math.abs(chips);
+        }
+      } else if (hour >= 8 && hour < 12) {
+        if (chips > 0) {
+          morningWins++;
+          morningIncome += chips;
+        } else if (chips < 0) {
+          morningLoses++;
+          morningExpense += Math.abs(chips);
+        }
+      } else if (hour >= 12 && hour < 18) {
         if (chips > 0) {
           afternoonWins++;
           afternoonIncome += chips;
@@ -521,7 +558,7 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
           afternoonLoses++;
           afternoonExpense += Math.abs(chips);
         }
-      } else {
+      } else { // 18-24
         if (chips > 0) {
           eveningWins++;
           eveningIncome += chips;
@@ -531,6 +568,33 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
         }
       }
       
+      // Location Stats
+      const locationId = record.locationId || 'unknown';
+      const locationName = record.locationName || '未知地点';
+
+      if (!locationStats[locationId]) {
+        locationStats[locationId] = {
+          name: locationName,
+          totalGames: 0,
+          winGames: 0,
+          loseGames: 0,
+          winRate: 0,
+          totalIncome: 0,
+          totalExpense: 0,
+          profit: 0
+        };
+      }
+
+      const loc = locationStats[locationId];
+      loc.totalGames++;
+      if (chips > 0) {
+        loc.winGames++;
+        loc.totalIncome += chips;
+      } else if (chips < 0) {
+        loc.loseGames++;
+        loc.totalExpense += Math.abs(chips);
+      }
+
       const gameTypeId = record.gameTypeId || 'unknown';
       const gameTypeName = record.gameTypeName || '未知玩法';
       
@@ -563,10 +627,23 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
       gt.profit = gt.totalIncome - gt.totalExpense;
       gt.winRate = gt.totalGames > 0 ? Math.round((gt.winGames / gt.totalGames) * 100) : 0;
     });
+
+    Object.values(locationStats).forEach(loc => {
+      loc.profit = loc.totalIncome - loc.totalExpense;
+      loc.winRate = loc.totalGames > 0 ? Math.round((loc.winGames / loc.totalGames) * 100) : 0;
+    });
     
     const totalGames = winGames + loseGames;
     const profit = totalIncome - totalExpense;
     const winRate = totalGames > 0 ? Math.round((winGames / totalGames) * 100) : 0;
+
+    const lateNightTotal = lateNightWins + lateNightLoses;
+    const lateNightWinRate = lateNightTotal > 0 ? Math.round((lateNightWins / lateNightTotal) * 100) : 0;
+    const lateNightProfit = lateNightIncome - lateNightExpense;
+
+    const morningTotal = morningWins + morningLoses;
+    const morningWinRate = morningTotal > 0 ? Math.round((morningWins / morningTotal) * 100) : 0;
+    const morningProfit = morningIncome - morningExpense;
     
     const afternoonTotal = afternoonWins + afternoonLoses;
     const afternoonWinRate = afternoonTotal > 0 ? Math.round((afternoonWins / afternoonTotal) * 100) : 0;
@@ -595,6 +672,24 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
         loseGames,
         winRate
       },
+      lateNight: {
+        totalGames: lateNightTotal,
+        winGames: lateNightWins,
+        loseGames: lateNightLoses,
+        winRate: lateNightWinRate,
+        totalIncome: lateNightIncome,
+        totalExpense: lateNightExpense,
+        profit: lateNightProfit
+      },
+      morning: {
+        totalGames: morningTotal,
+        winGames: morningWins,
+        loseGames: morningLoses,
+        winRate: morningWinRate,
+        totalIncome: morningIncome,
+        totalExpense: morningExpense,
+        profit: morningProfit
+      },
       afternoon: {
         totalGames: afternoonTotal,
         winGames: afternoonWins,
@@ -613,7 +708,8 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
         totalExpense: eveningExpense,
         profit: eveningProfit
       },
-      byGameType: gameTypeStats
+      byGameType: gameTypeStats,
+      byLocation: locationStats
     });
   } catch (error) {
     console.error('Failed to get monthly stats:', error);

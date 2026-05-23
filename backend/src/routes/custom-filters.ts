@@ -299,6 +299,34 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
           maxDayWinChips: 0,
           maxDayLossChips: 0,
         },
+        lateNight: {
+          totalGames: 0,
+          wins: 0,
+          losses: 0,
+          winRate: 0,
+          totalScore: 0,
+          totalChips: 0,
+          avgScorePerGame: 0,
+          avgChipsPerGame: 0,
+          maxWinScore: 0,
+          maxLossScore: 0,
+          maxWinChips: 0,
+          maxLossChips: 0,
+        },
+        morning: {
+          totalGames: 0,
+          wins: 0,
+          losses: 0,
+          winRate: 0,
+          totalScore: 0,
+          totalChips: 0,
+          avgScorePerGame: 0,
+          avgChipsPerGame: 0,
+          maxWinScore: 0,
+          maxLossScore: 0,
+          maxWinChips: 0,
+          maxLossChips: 0,
+        },
         afternoon: {
           totalGames: 0,
           wins: 0,
@@ -345,9 +373,13 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
       const gameDate = new Date(game.created_at);
       const hour = gameDate.getHours();
       let timeSlot = 'other';
-      if (hour >= 12 && hour < 19) {
+      if (hour >= 0 && hour < 8) {
+        timeSlot = 'lateNight';
+      } else if (hour >= 8 && hour < 12) {
+        timeSlot = 'morning';
+      } else if (hour >= 12 && hour < 18) {
         timeSlot = 'afternoon';
-      } else if (hour >= 19 && hour < 24) {
+      } else if (hour >= 18 && hour < 24) {
         timeSlot = 'evening';
       }
 
@@ -413,9 +445,13 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
     const overall: any = calculateStats(gameDetails);
 
     // 分时段统计
+    const lateNightGames = gameDetails.filter(g => g.timeSlot === 'lateNight');
+    const morningGames = gameDetails.filter(g => g.timeSlot === 'morning');
     const afternoonGames = gameDetails.filter(g => g.timeSlot === 'afternoon');
     const eveningGames = gameDetails.filter(g => g.timeSlot === 'evening');
     
+    const lateNight = calculateStats(lateNightGames);
+    const morning = calculateStats(morningGames);
     const afternoon = calculateStats(afternoonGames);
     const evening = calculateStats(eveningGames);
 
@@ -427,11 +463,17 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
           date: game.date,
           totalScore: 0,
           totalChips: 0,
+          lateNightScore: 0,
+          lateNightChips: 0,
+          morningScore: 0,
+          morningChips: 0,
           afternoonScore: 0,
           afternoonChips: 0,
           eveningScore: 0,
           eveningChips: 0,
           totalGames: 0,
+          lateNightGames: 0,
+          morningGames: 0,
           afternoonGames: 0,
           eveningGames: 0,
         });
@@ -441,7 +483,15 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
       daily.totalChips += game.chips;
       daily.totalGames += 1;
       
-      if (game.timeSlot === 'afternoon') {
+      if (game.timeSlot === 'lateNight') {
+        daily.lateNightScore += game.score;
+        daily.lateNightChips += game.chips;
+        daily.lateNightGames += 1;
+      } else if (game.timeSlot === 'morning') {
+        daily.morningScore += game.score;
+        daily.morningChips += game.chips;
+        daily.morningGames += 1;
+      } else if (game.timeSlot === 'afternoon') {
         daily.afternoonScore += game.score;
         daily.afternoonChips += game.chips;
         daily.afternoonGames += 1;
@@ -500,6 +550,8 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
 
     res.json({
       overall,
+      lateNight,
+      morning,
       afternoon,
       evening,
       dailyStats,
