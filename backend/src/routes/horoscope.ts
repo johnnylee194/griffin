@@ -2,848 +2,1117 @@ import { Router } from 'express';
 import axios from 'axios';
 import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { getZodiacSign, getZodiacAnimal, formatDate } from '../utils/horoscope';
+import { calculateBazi, getTodayAlmanac, buildHoroscopeContext, formatDate, type BaziInfo, type AlmanacInfo } from '../utils/horoscope';
 import { getLunarDate, formatLunarDate } from '../utils/lunar';
 
 const router = Router();
 
-// 获取环境变量的函数（延迟读取，确保dotenv已加载）
-function getIrisUrl(): string {
-  return process.env.IRIS_URL || 'http://us-proxy.januslab.cn:8080';
+// ─────────────────────────────────────────────────────────────
+// LLM Provider 配置
+// ─────────────────────────────────────────────────────────────
+
+type LLMProvider = 'minimax' | 'deepseek';
+
+const ACTIVE_PROVIDER: LLMProvider = 'minimax'; // 默认值
+
+interface ProviderConfig {
+  name: string;
+  model: string;
+  apiKey: () => string;
+  apiUrl: () => string;
+  buildHeaders: (apiKey: string) => Record<string, string>;
+  buildBody: (model: string, maxTokens: number, prompt: string) => Record<string, any>;
+  extractText: (response: any) => string;
 }
 
-function getIrisClientId(): string {
-  return process.env.IRIS_CLIENT_ID || '';
+const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
+  minimax: {
+    name: 'MiniMax',
+    model: 'MiniMax-M2.7',
+    apiKey: () => process.env.MINIMAX_API_KEY || '',
+    apiUrl: () => process.env.MINIMAX_API_URL || 'https://api.minimaxi.com/anthropic/v1/messages',
+    buildHeaders: (apiKey) => ({
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01'
+    }),
+    buildBody: (model, maxTokens, prompt) => ({
+      model,
+      max_tokens: maxTokens,
+      thinking: { type: 'disabled' },
+      messages: [{ role: 'user', content: prompt }]
+    }),
+    extractText: (response) => {
+      if (response.data?.choices?.[0]?.message?.content) {
+        return response.data.choices[0].message.content;
+      }
+      const blocks: any[] = Array.isArray(response.data?.content) ? response.data.content : [];
+      const textBlocks = blocks.filter((b: any) => !b.thinking && b.type === 'text');
+      return textBlocks.map((b: any) => b.text).join('') || JSON.stringify(response.data);
+    }
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    model: 'deepseek-v4-flash',
+    apiKey: () => process.env.DEEPSEEK_API_KEY || '',
+    apiUrl: () => process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions',
+    buildHeaders: (apiKey) => ({
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    }),
+    buildBody: (model, maxTokens, prompt) => ({
+      model,
+      max_tokens: maxTokens,
+      thinking: { type: 'disabled' },
+      messages: [{ role: 'user', content: prompt }]
+    }),
+    extractText: (response) => {
+      if (response.data?.choices?.[0]?.message?.content) {
+        return response.data.choices[0].message.content;
+      }
+      return JSON.stringify(response.data);
+    }
+  }
+};
+
+function getActiveProvider(): ProviderConfig {
+  const provider = (process.env.LLM_PROVIDER as LLMProvider) || 'minimax';
+  return PROVIDERS[provider];
 }
 
-function getIrisClientSecret(): string {
-  return process.env.IRIS_CLIENT_SECRET || '';
+// ─────────────────────────────────────────────────────────────
+// 统计计算（保留原有逻辑）
+// ─────────────────────────────────────────────────────────────
+
+interface WindowStats {
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  chips: number;
+  avgChips: number;
+  trend: '上升' | '下降' | '平稳';
 }
 
-// 延迟初始化：在第一次使用时检查配置
-let configChecked = false;
-function checkConfig() {
-  if (configChecked) return;
-  configChecked = true;
-  
-  const IRIS_URL = getIrisUrl();
-  const IRIS_CLIENT_ID = getIrisClientId();
-  const IRIS_CLIENT_SECRET = getIrisClientSecret();
-  
-  // 验证配置
-  if (!IRIS_URL.includes(':8080') && !IRIS_URL.includes(':3000')) {
-    console.warn('⚠️  IRIS_URL 可能缺少端口号，建议使用 :8080 或 :3000');
-  }
-  
-  if (!IRIS_CLIENT_ID) {
-    console.warn('⚠️  IRIS_CLIENT_ID 未配置，Iris 服务可能拒绝请求');
-  }
-  
-  if (!IRIS_CLIENT_SECRET) {
-    console.warn('⚠️  IRIS_CLIENT_SECRET 未配置，Iris 服务可能拒绝请求');
-  }
+interface LocationStats {
+  name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalChips: number;
+  avgChips: number;
+  lastVisitDaysAgo: number;
 }
 
-/**
- * 计算单个时间段的统计信息
- */
-function calculateTimeSlotStats(records: any[], endDate: Date, timeSlotName: string) {
-  console.log(`\n📊 计算${timeSlotName}统计数据:`);
-  console.log(`   - 记录总数: ${records.length}`);
-  
-  if (records.length === 0) {
-    console.log(`   - 无记录，返回空统计`);
-    return {
-      totalGames: 0,
-      wins: 0,
-      losses: 0,
-      winRate: 0,
-      totalChips: 0,
-      trend: '平稳' as const,
-      recentWinRate: 0,
-      previousWinRate: 0
-    };
-  }
+interface GameTypeStats {
+  name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgChips: number;
+}
 
-  // 输出前几条记录的详细信息用于调试
-  console.log(`   - 前5条记录详情:`);
-  records.slice(0, 5).forEach((r, idx) => {
-    const recordDate = new Date(r.created_at);
-    const hour = recordDate.getHours();
-    const dateStr = recordDate.toISOString().split('T')[0];
-    const timeStr = recordDate.toTimeString().split(' ')[0];
-    console.log(`     [${idx + 1}] ${dateStr} ${timeStr} (${hour}时) - chips: ${r.chips}`);
-  });
+interface GameStats {
+  allTime: {
+    totalGames: number;
+    winRate: number;
+    totalChips: number;
+    avgChips: number;
+  };
+  window7Days: WindowStats;
+  window14Days: WindowStats;
+  window30Days: WindowStats;
+  byTimeSlot: {
+    afternoon: { games: number; winRate: number; chips: number; avgChips: number };
+    evening: { games: number; winRate: number; chips: number; avgChips: number };
+  };
+  byLocation: LocationStats[];
+  byGameType: GameTypeStats[];
+}
 
+function calcWindowStats(records: any[], splitIdx: number): WindowStats {
   const wins = records.filter(r => r.chips > 0).length;
   const losses = records.filter(r => r.chips < 0).length;
   const winRate = records.length > 0 ? Math.round((wins / records.length) * 100) : 0;
-  const totalChips = records.reduce((sum, r) => sum + (r.chips || 0), 0);
+  const chips = records.reduce((s, r) => s + (r.chips || 0), 0);
+  const avgChips = records.length > 0 ? Math.round(chips / records.length) : 0;
 
-  console.log(`   - 基础统计: 胜${wins}场, 负${losses}场, 胜率${winRate}%, 总盈亏${totalChips >= 0 ? '+' : ''}${totalChips}`);
+  let trend: '上升' | '下降' | '平稳' = '平稳';
+  if (splitIdx > 0 && records.length >= 2) {
+    const last = records.slice(0, Math.min(splitIdx, records.length));
+    const prev = records.slice(splitIdx, splitIdx * 2);
+    if (last.length > 0 && prev.length > 0) {
+      const lastWins = last.filter(r => r.chips > 0).length;
+      const prevWins = prev.filter(r => r.chips > 0).length;
+      const lastRate = Math.round((lastWins / last.length) * 100);
+      const prevRate = Math.round((prevWins / prev.length) * 100);
+      trend = lastRate > prevRate ? '上升' : lastRate < prevRate ? '下降' : '平稳';
+    }
+  }
 
-  // 计算趋势（最近3场 vs 前3场，即第4-6场）
-  // 记录已经按时间倒序排列，所以前3个是最近的，第4-6个是前3场
-  const recent3Games = records.slice(0, 3);
-  const previous3Games = records.slice(3, 6);
-
-  console.log(`   - 趋势计算: 最近3场${recent3Games.length}场, 前3场(第4-6场)${previous3Games.length}场`);
-
-  const recentWinRate = recent3Games.length > 0 
-    ? Math.round((recent3Games.filter(r => r.chips > 0).length / recent3Games.length) * 100)
-    : 0;
-  const previousWinRate = previous3Games.length > 0
-    ? Math.round((previous3Games.filter(r => r.chips > 0).length / previous3Games.length) * 100)
-    : 0;
-
-  const trend = recentWinRate > previousWinRate ? '上升' : recentWinRate < previousWinRate ? '下降' : '平稳';
-
-  console.log(`   - 趋势结果: 最近3场胜率${recentWinRate}%, 前3场胜率${previousWinRate}%, 趋势${trend}`);
-
-  const result = {
-    totalGames: records.length,
-    wins,
-    losses,
-    winRate,
-    totalChips,
-    trend,
-    recentWinRate,
-    previousWinRate
-  };
-
-  console.log(`   - 最终统计结果:`, JSON.stringify(result, null, 2));
-
-  return result;
+  return { games: records.length, wins, losses, winRate, chips, avgChips, trend };
 }
 
-/**
- * 获取用户对局统计数据（按下午和晚上分别统计）
- * 
- * 计算逻辑：
- * 1. 查询基准日期之前的所有对局记录（chips不为NULL的记录）
- * 2. 根据时间分为下午（12:00-19:00）和晚上（19:00-24:00）两组
- * 3. 分别取最近7场下午场和最近7场晚场
- * 4. 分别计算每组的：总场次、胜场、负场、胜率、总盈亏、趋势
- * 5. 趋势计算：比较最近3场 vs 前3场（第4-6场）的胜率
- * 
- * @param userId 用户ID
- * @param baseDate 基准日期（查询此日期之前的数据）
- * @param count 每个时间段取多少场，默认7场
- */
-function getUserGameStats(userId: string, baseDate: Date, count: number = 7) {
+function getTimeSlot(createdAt: Date): 'afternoon' | 'evening' | 'other' {
+  const h = createdAt.getHours();
+  if (h >= 12 && h < 19) return 'afternoon';
+  if (h >= 19 && h < 24) return 'evening';
+  return 'other';
+}
+
+function calculateGameStats(userId: string, targetDate: Date): GameStats | null {
   try {
-    console.log('\n🎮 开始计算对局统计数据...');
-    console.log(`📅 基准日期: ${baseDate.toISOString().split('T')[0]}`);
-    console.log(`📊 每个时间段取最近: ${count}场`);
-
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
-    if (!mePlayer) {
-      console.log('❌ 未找到"我"的玩家记录');
-      return null;
-    }
-    console.log(`👤 玩家ID: ${mePlayer.id}`);
-
-    // 查询基准日期之前的所有记录
-    const endDate = new Date(baseDate);
-    endDate.setHours(23, 59, 59, 999); // 设置为基准日期的结束时间
-
-    console.log(`📊 查询截止日期: ${endDate.toISOString()}`);
+    if (!mePlayer) return null;
 
     const allRecords = db.prepare(`
-      SELECT pr.chips, g.created_at
+      SELECT pr.chips, g.created_at, g.location_id, g.game_type_id,
+             l.name as location_name, gt.name as game_type_name
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ? 
+      LEFT JOIN locations l ON g.location_id = l.id
+      LEFT JOIN game_types gt ON g.game_type_id = gt.id
+      WHERE pr.player_id = ?
         AND g.user_id = ?
-        AND g.created_at < ?
         AND pr.chips IS NOT NULL
       ORDER BY g.created_at DESC
-    `).all(mePlayer.id, userId, endDate.toISOString()) as any[];
+    `).all(mePlayer.id, userId) as any[];
 
-    console.log(`📋 查询到的总记录数: ${allRecords.length}`);
+    if (allRecords.length === 0) return null;
 
-    if (allRecords.length === 0) {
-      console.log('⚠️ 没有找到对局记录');
-      return null;
+    const now = new Date();
+
+    function filterByDays(records: any[], days: number): any[] {
+      const cutoff = new Date(now);
+      cutoff.setDate(cutoff.getDate() - days);
+      return records.filter(r => new Date(r.created_at) >= cutoff);
     }
 
-    // 按时间段分组：下午（12:00-19:00）和晚上（19:00-24:00）
-    const afternoonRecords: any[] = [];
-    const eveningRecords: any[] = [];
-    const otherRecords: any[] = []; // 0:00-12:00 的记录
+    const rec7 = filterByDays(allRecords, 7);
+    const rec14 = filterByDays(allRecords, 14);
+    const rec30 = filterByDays(allRecords, 30);
 
-    allRecords.forEach(r => {
-      const recordDate = new Date(r.created_at);
-      const hour = recordDate.getHours();
-      
-      if (hour >= 12 && hour < 19) {
-        afternoonRecords.push(r);
-      } else if (hour >= 19 && hour < 24) {
-        eveningRecords.push(r);
-      } else {
-        otherRecords.push(r);
+    const window7Days = calcWindowStats(rec7, 3);
+    const window14Days = calcWindowStats(rec14, 7);
+    const window30Days = calcWindowStats(rec30, 14);
+
+    const afternoonRecs = allRecords.filter(r => getTimeSlot(new Date(r.created_at)) === 'afternoon');
+    const eveningRecs = allRecords.filter(r => getTimeSlot(new Date(r.created_at)) === 'evening');
+
+    const afternoonChips = afternoonRecs.reduce((s, r) => s + (r.chips || 0), 0);
+    const eveningChips = eveningRecs.reduce((s, r) => s + (r.chips || 0), 0);
+
+    const byTimeSlot = {
+      afternoon: {
+        games: afternoonRecs.length,
+        winRate: afternoonRecs.length > 0 ? Math.round((afternoonRecs.filter(r => r.chips > 0).length / afternoonRecs.length) * 100) : 0,
+        chips: afternoonChips,
+        avgChips: afternoonRecs.length > 0 ? Math.round(afternoonChips / afternoonRecs.length) : 0
+      },
+      evening: {
+        games: eveningRecs.length,
+        winRate: eveningRecs.length > 0 ? Math.round((eveningRecs.filter(r => r.chips > 0).length / eveningRecs.length) * 100) : 0,
+        chips: eveningChips,
+        avgChips: eveningRecs.length > 0 ? Math.round(eveningChips / eveningRecs.length) : 0
       }
-    });
-
-    console.log(`\n⏰ 按时间段分组结果:`);
-    console.log(`   - 下午(12:00-19:00): ${afternoonRecords.length}场`);
-    console.log(`   - 晚上(19:00-24:00): ${eveningRecords.length}场`);
-    console.log(`   - 其他时间(0:00-12:00): ${otherRecords.length}场（不统计）`);
-
-    // 分别取最近N场（已经按时间倒序排列，所以直接取前N个）
-    const recentAfternoon = afternoonRecords.slice(0, count);
-    const recentEvening = eveningRecords.slice(0, count);
-
-    console.log(`\n📈 取最近场次:`);
-    console.log(`   - 下午场: 取最近${count}场，实际${recentAfternoon.length}场`);
-    console.log(`   - 晚场: 取最近${count}场，实际${recentEvening.length}场`);
-
-    // 分别计算下午和晚上的统计
-    const afternoon = calculateTimeSlotStats(recentAfternoon, endDate, '下午');
-    const evening = calculateTimeSlotStats(recentEvening, endDate, '晚上');
-
-    const result = {
-      afternoon,
-      evening
     };
 
-    console.log(`\n✅ 对局统计计算完成:`);
-    console.log(JSON.stringify(result, null, 2));
+    const locationMap = new Map<string, any[]>();
+    allRecords.forEach(r => {
+      if (!r.location_id) return;
+      if (!locationMap.has(r.location_id)) locationMap.set(r.location_id, []);
+      locationMap.get(r.location_id)!.push(r);
+    });
 
-    return result;
+    const byLocation: LocationStats[] = [];
+    locationMap.forEach((records, locId) => {
+      const wins = records.filter(r => r.chips > 0).length;
+      const totalChips = records.reduce((s, r) => s + (r.chips || 0), 0);
+      const lastDate = new Date(Math.max(...records.map((r: any) => new Date(r.created_at).getTime())));
+      const daysAgo = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      byLocation.push({
+        name: records[0].location_name || '未知地点',
+        games: records.length,
+        wins,
+        losses: records.length - wins,
+        winRate: Math.round((wins / records.length) * 100),
+        totalChips,
+        avgChips: Math.round(totalChips / records.length),
+        lastVisitDaysAgo: daysAgo
+      });
+    });
+    byLocation.sort((a, b) => a.lastVisitDaysAgo - b.lastVisitDaysAgo);
+
+    const gameTypeMap = new Map<string, any[]>();
+    allRecords.forEach(r => {
+      if (!r.game_type_id) return;
+      if (!gameTypeMap.has(r.game_type_id)) gameTypeMap.set(r.game_type_id, []);
+      gameTypeMap.get(r.game_type_id)!.push(r);
+    });
+
+    const byGameType: GameTypeStats[] = [];
+    gameTypeMap.forEach((records, typeId) => {
+      const wins = records.filter(r => r.chips > 0).length;
+      const totalChips = records.reduce((s, r) => s + (r.chips || 0), 0);
+      byGameType.push({
+        name: records[0].game_type_name || '未知',
+        games: records.length,
+        wins,
+        losses: records.length - wins,
+        winRate: Math.round((wins / records.length) * 100),
+        avgChips: Math.round(totalChips / records.length)
+      });
+    });
+    byGameType.sort((a, b) => b.games - a.games);
+
+    const allWins = allRecords.filter(r => r.chips > 0).length;
+    const allChips = allRecords.reduce((s, r) => s + (r.chips || 0), 0);
+
+    return {
+      allTime: {
+        totalGames: allRecords.length,
+        winRate: Math.round((allWins / allRecords.length) * 100),
+        totalChips: allChips,
+        avgChips: Math.round(allChips / allRecords.length)
+      },
+      window7Days,
+      window14Days,
+      window30Days,
+      byTimeSlot,
+      byLocation,
+      byGameType
+    };
   } catch (error) {
-    console.error('❌ Failed to get user game stats:', error);
+    console.error('calculateGameStats error:', error);
     return null;
   }
 }
 
-/**
- * 构建中式运势Prompt
- */
-function buildChineseHoroscopePrompt(
-  birthDate: string,
-  todayDate: Date,
-  gameStats: any
-): string {
-  const zodiacAnimal = getZodiacAnimal(birthDate);
-  const lunarDate = getLunarDate(todayDate);
-  const dateStr = formatDate(todayDate);
-  const lunarDateStr = `${lunarDate.yearName}年${lunarDate.month}月${lunarDate.day}日`;
+function getGameStatsSummary(stats: GameStats | null): string {
+  if (!stats) return '暂无战绩数据';
+  const s = stats.window7Days;
+  return `近7天${s.games}场/胜率${s.winRate}%/盈亏${s.chips >= 0 ? '+' : ''}${s.chips}`;
+}
 
-  let gameInfo = '';
-  if (gameStats) {
-    const { afternoon, evening } = gameStats;
-    gameInfo = `
-对局信息（最近7场）：
-【下午（12:00-19:00）】
-- 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
-- 胜率：${afternoon.winRate}%
-- 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
-- 胜率趋势：${afternoon.trend}
+// ─────────────────────────────────────────────────────────────
+// AI Prompt 构建
+// ─────────────────────────────────────────────────────────────
 
-【晚上（19:00-24:00）】
-- 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
-- 胜率：${evening.winRate}%
-- 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
-- 胜率趋势：${evening.trend}
-`;
-  }
+function buildNarrativePrompt(question: string, bazi: BaziInfo, almanac: AlmanacInfo, gameStats: GameStats | null = null): string {
+  const baziSummary = `${bazi.year}年 ${bazi.month}月 ${bazi.day}日 ${bazi.hour}时`;
+  const gameStatsSummary = getGameStatsSummary(gameStats);
 
-  // 获取出生日期的农历
-  const birthLunarDate = formatLunarDate(new Date(birthDate));
-  
-  const prompt = `你是一位精通中国传统命理学的运势大师。请根据以下信息为用户生成今日运势：
+  const prompt = `你是一位中国传统黄历解读师，专门为麻将玩家提供运势指导。
 
 用户信息：
-- 出生日期：${birthDate}（农历：${birthLunarDate}）
-- 生肖：${zodiacAnimal}
-- 今日日期：${dateStr}（农历：${lunarDateStr}）
-${gameInfo}
+- 八字：${baziSummary} | 生肖${bazi.zodiacAnimal}
+- 今日黄历：宜${almanac.suitable.join('、')} 忌${almanac.avoid.join('、')} 财神${almanac.godOfWealth} 喜神${almanac.godOfJoy} 福神${almanac.godOfFortune}
+${gameStats ? `- 近期战绩：${getGameStatsSummary(gameStats)}` : ''}
 
-请根据传统命理学推算今日运势，并以JSON格式返回，格式如下：
-{
-  "intro": "一段50-80字的开场白，介绍用户命理和今日整体情况",
-  "dosAndDonts": {
-    "suitable": ["例如：打牌", "例如：聚会", "例如：出行"],
-    "bestGamingTime": "例如：未时(13:00-15:00)",
-    "luckyDirection": "例如：正南方位(背靠南方而坐)",
-    "avoid": ["例如：大额投资", "例如：重要决策"]
-  },
-  "wealthAnalysis": {
-    "wealthPosition": "例如：东南",
-    "wealthGodPosition": "例如：正北",
-    "wealthIndex": "需推算1-5之间的整数（返回数字类型，不要使用示例值）",
-    "gamingAdvice": "结合对局表现，今日是否适合打牌的建议（50-80字）"
-  },
-  "fiveElements": {
-    "todayElements": "例如：天干甲木,地支辰土",
-    "userElements": "例如：炉中火(丙寅)",
-    "analysis": "相生相克分析（50-80字）"
-  },
-  "timeFortune": {
-    "luckyHours": ["例如：未时(13:00-15:00)", "例如：戌时(19:00-21:00)"],
-    "unluckyHours": ["例如：申时(15:00-17:00,虎猴相冲)"],
-    "bestGamingHours": "例如：未时(13:00-15:00)、戌时(19:00-21:00)"
-  },
-  "zodiacFortune": {
-    "dailyOverview": "今日整体运势（50-80字）",
-    "specialReminder": "特别提醒（30-50字）"
-  }
-}
+请用大白话解读，不需要出现「驿马星」「财库」「命宫」等术语。
 
-要求：
-- 必须返回有效的JSON格式，不要包含任何其他文字
-- 根据用户信息和今日日期，运用传统命理学知识推算运势
-- 结合生肖特点和五行相生相克原理
-${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
-- 语言要专业但易懂
-- wealthIndex必须是数字类型，范围1-5，需根据实际情况推算，不要直接使用示例值，表示财运指数
-- 所有示例值都需要根据实际情况推算替换`;
+输出格式：
+- 一段话描述今日整体运势（3-5句）
+- 针对麻将的具体建议（2-3句）
+- 如果有警示，加上提醒（1-2句）
 
-  console.log('📝 中式运势Prompt构建完成:');
-  console.log('='.repeat(80));
-  console.log(prompt);
-  console.log('='.repeat(80));
-  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
-  
+语气：轻松但有参考价值，不要过度乐观或悲观。`;
+
   return prompt;
 }
 
-/**
- * 构建西式运势Prompt
- */
-function buildWesternHoroscopePrompt(
-  birthDate: string,
-  zodiacSign: string,
-  todayDate: Date,
-  gameStats: any
-): string {
-  const dateStr = formatDate(todayDate);
+function buildAnswerPrompt(question: string, bazi: BaziInfo, almanac: AlmanacInfo, gameStats: GameStats | null = null): string {
+  let context = '';
 
-  let gameInfo = '';
-  if (gameStats) {
-    const { afternoon, evening } = gameStats;
-    gameInfo = `
-对局信息（最近7场）：
-【下午（12:00-19:00）】
-- 总场次：${afternoon.totalGames}场（${afternoon.wins}胜${afternoon.losses}负）
-- 胜率：${afternoon.winRate}%
-- 总盈亏：${afternoon.totalChips >= 0 ? '+' : ''}${afternoon.totalChips}
-- 胜率趋势：${afternoon.trend}
-
-【晚上（19:00-24:00）】
-- 总场次：${evening.totalGames}场（${evening.wins}胜${evening.losses}负）
-- 胜率：${evening.winRate}%
-- 总盈亏：${evening.totalChips >= 0 ? '+' : ''}${evening.totalChips}
-- 胜率趋势：${evening.trend}
-`;
+  if (question.includes('禁忌')) {
+    context = `用户问今天打牌禁忌。强调忌：${almanac.avoid.join('、')}`;
+  } else if (question.includes('大牌') || question.includes('小注')) {
+    context = `用户问今天适合打大牌还是小注。结合近期战绩：${getGameStatsSummary(gameStats)}`;
+  } else if (question.includes('财神')) {
+    context = `用户问财神方位。今日财神在${almanac.godOfWealth}方向`;
+  } else if (question.includes('数字') || question.includes('颜色')) {
+    context = `用户问吉祥数字或颜色。结合生肖${bazi.zodiacAnimal}和纳音${bazi.yearTakeSound}`;
+  } else {
+    context = `用户问题：${question}`;
   }
 
-  const prompt = `你是一位专业的西方占星师。请根据以下信息为用户生成今日运势：
+  const baziSummary = `${bazi.year}年 ${bazi.month}月 ${bazi.day}日 ${bazi.hour}时`;
+
+  return `你是一位中国传统黄历解读师，专门为麻将玩家提供运势指导。
 
 用户信息：
-- 出生日期：${birthDate}
-- 星座：${zodiacSign}
-- 今日日期：${dateStr}
-${gameInfo}
+- 八字：${baziSummary} | 生肖${bazi.zodiacAnimal} | 年柱纳音${bazi.yearTakeSound}
+- 今日黄历：宜${almanac.suitable.join('、')} 忌${almanac.avoid.join('、')} 财神${almanac.godOfWealth} 喜神${almanac.godOfJoy} 福神${almanac.godOfFortune}
+${gameStats ? `- 近期战绩：${getGameStatsSummary(gameStats)}` : ''}
 
-请根据占星学原理推算今日运势，并以JSON格式返回，格式如下：
-{
-  "overall": {
-    "index": "需推算1-5之间的整数（返回数字类型，不要使用示例值）",
-    "theme": "今日主题（10-20字）"
-  },
-  "career": {
-    "advice": "工作/学习方面的建议（50-80字）",
-    "suitableForDecisions": true
-  },
-  "wealth": {
-    "advice": "财务方面的建议（50-80字）",
-    "gamingAdvice": "结合对局表现，今日是否适合打牌（50-80字）",
-    "bestGamingTime": "例如：下午2-4点"
-  },
-  "love": {
-    "advice": "人际关系和感情方面的建议（50-80字）"
-  },
-  "health": {
-    "advice": "健康方面的提醒（30-50字）"
-  },
-  "luckyElements": {
-    "number": "例如：7",
-    "color": "例如：蓝色",
-    "direction": "例如：东方"
-  },
-  "dailyAdvice": {
-    "tips": ["例如：建议1（20-30字）", "例如：建议2（20-30字）"],
-    "gamingTips": "特别针对打牌的建议（30-50字）"
-  }
+当前问题：${context}
+
+请用大白话回答，不需要出现「驿马星」「财库」「命宫」等术语。回答要简洁，2-4句话即可。`;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Phase 3: 7维度 Prompt 构建
+// ─────────────────────────────────────────────────────────────
+
+interface UserContext {
+  userId: string;
+  bazi: BaziInfo;
+  almanac: AlmanacInfo;
+  gameStats: GameStats | null;
+  targetDate: Date;
+  lunarDateStr: string;
+  dayOfWeek: string;
+}
+
+function getUserContext(userId: string, targetDate: Date): UserContext | null {
+  const user = db.prepare(`
+    SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+    FROM users WHERE id = ?
+  `).get(userId) as any;
+
+  if (!user || !checkProfileComplete(user)) {
+    return null;
+  }
+
+  const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+  const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+  const almanac = getTodayAlmanac(targetDate);
+  const gameStats = calculateGameStats(userId, targetDate);
+  const lunar = getLunarDate(targetDate);
+  const lunarDateStr = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+
+  return {
+    userId,
+    bazi,
+    almanac,
+    gameStats,
+    targetDate,
+    lunarDateStr,
+    dayOfWeek: getDayOfWeek(targetDate)
+  };
+}
+
+function buildFortunePrompt(ctx: UserContext): string {
+  const { bazi, almanac, targetDate } = ctx;
+  const lunar = getLunarDate(targetDate);
+  const todayBazi = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+  
+  // 简单映射：日主从日柱中提取天干
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
+  
+  // 简单的月令处理
+  const monthZhiMap: Record<number, string> = {
+    1: '寅', 2: '卯', 3: '辰', 4: '巳', 5: '午', 6: '未',
+    7: '申', 8: '酉', 9: '戌', 10: '亥', 11: '子', 12: '丑'
+  };
+  const monthZhi = monthZhiMap[lunar.month] || '寅';
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
+
+用户信息：
+- 八字：${bazi.year}年柱 ${bazi.month}月柱 ${bazi.day}日柱 ${bazi.hour}时柱
+- 日主：${dayStem}金
+- 空亡：${bazi.missing.length > 0 ? bazi.missing.join('、') : '无'}
+- 五行：年柱纳音${bazi.yearTakeSound}、月柱纳音${bazi.monthTakeSound}、日柱纳音${bazi.dayTakeSound}、时柱纳音${bazi.hourTakeSound}
+- 日支关系：${bazi.zodiacAnimal}年生
+
+今日黄历：
+- 今日：${todayBazi}
+- 月令：${monthZhi}
+
+请按以下结构输出今日运势解读：
+
+第一步：你的八字事实
+（讲日主是什么、五行旺衰、喜忌什么）
+
+第二步：今天的事实
+（讲今天的年月日柱是什么、五行结构是什么、哪股气最旺）
+
+第三步：叠加推导
+（八字事实 + 今天事实 → 今天的核心问题是什么、哪股气是今天的救星）
+
+结论：[旺/平/弱] + 一句话核心判断
 
 要求：
-- 必须返回有效的JSON格式，不要包含任何其他文字
-- 根据用户出生日期和今日日期，运用占星学知识推算运势
-- 结合星座特点给出个性化建议
-${gameStats ? '- 如果用户有对局记录，重点分析今日是否适合打牌' : ''}
-- 语言要亲切自然
-- index必须是数字类型，范围1-5，需根据实际情况推算，不要直接使用示例值，表示综合指数
-- suitableForDecisions是布尔值
-- 所有示例值都需要根据实际情况推算替换`;
+- 全程用白话讲解，不预设用户懂八字
+- 重点字眼（日主、五行喜忌、核心问题、救星）加粗或用**包围
+- 麻将连接只在结论部分点一下，不在各推导段里展开
+- 川麻术语（宽叫、大叫、放炮、自摸、碰、摸）可直接使用
+- 语气：专业但亲切，像朋友在给你分析牌运
 
-  console.log('📝 西式运势Prompt构建完成:');
-  console.log('='.repeat(80));
-  console.log(prompt);
-  console.log('='.repeat(80));
-  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
-  
-  return prompt;
+在最后用单独一行输出今日要点，各要点用【】包围、逗号分隔。
+格式：要点：【要点1】、【要点2】、【要点3】
+例如：要点：【金气旺】、【宜主动出击】、【财运佳】`;
 }
 
-/**
- * 构建综合建议Prompt
- */
-function buildCombinedAdvicePrompt(
-  chineseHoroscope: string,
-  westernHoroscope: string,
-  gameStats: any
-): string {
-  const prompt = `请根据以下中式和西式运势，生成一份综合建议：
+function buildBettingPrompt(ctx: UserContext, fortuneLevel: string, fortuneSummary: string, fortuneHighlights?: string): string {
+  const { bazi, almanac } = ctx;
 
-【中式运势】
-${chineseHoroscope}
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供运势指导。
 
-【西式运势】
-${westernHoroscope}
+以下是你已经确认的今日运势结论：
+- 运势等级：${fortuneLevel}
+- 核心判断：${fortuneSummary}
+- 今日要点：${fortuneHighlights || fortuneSummary}
 
-${gameStats ? `
-【对局数据（最近7场）】
-- 下午（12:00-19:00）：${gameStats.afternoon.totalGames}场，胜率${gameStats.afternoon.winRate}%，趋势${gameStats.afternoon.trend}
-- 晚上（19:00-24:00）：${gameStats.evening.totalGames}场，胜率${gameStats.evening.winRate}%，趋势${gameStats.evening.trend}
-` : ''}
+请基于以上结论，推导今日打牌策略。
 
-请综合两种运势的观点，生成一份综合建议，并以JSON格式返回，格式如下：
-{
-  "suitableForGaming": "例如：适合",
-  "bestGamingTime": "例如：未时(13:00-15:00)、戌时(19:00-21:00)",
-  "recommendedDirection": "例如：正南方位",
-  "advice": [
-    "例如：建议1（20-30字）",
-    "例如：建议2（20-30字）",
-    "例如：建议3（20-30字）"
-  ]
-}
+推导过程（请逐段输出）：
+1. 能量水平：今天整体运势如何，有没有底气去认真打
+2. 十神财运型：今天财运靠什么——偏财（运气）还是正财（技术）
+3. 纳音质感：今天的能量质感是爆发型还是持续型
+4. 麻将连接：运气成分、心态、资金策略
+
+结论：[大注/小注/观望] + 一句话理由
 
 要求：
-- 必须返回有效的JSON格式，不要包含任何其他文字
-- 综合两种运势的观点，给出明确的建议
-- 语言简洁有力
-- suitableForGaming的值必须是：适合、不适合、谨慎 之一
-- 所有示例值都需要根据实际情况推算替换`;
-
-  console.log('📝 综合建议Prompt构建完成:');
-  console.log('='.repeat(80));
-  console.log(prompt);
-  console.log('='.repeat(80));
-  console.log(`📏 Prompt长度: ${prompt.length} 字符`);
-  
-  return prompt;
+- 不要重复 fortune 的推导，要在此基础上直接给出判断
+- 川麻术语（宽叫、大叫、做大番等）
+- 结论简洁有力，给出明确行动指导`;
 }
 
-/**
- * 通过 Iris Gateway 调用 AI API
- */
-async function callGeminiAPI(prompt: string): Promise<string> {
-  checkConfig(); // 确保配置已检查
-  const IRIS_URL = getIrisUrl();
-  const IRIS_CLIENT_ID = getIrisClientId();
-  const IRIS_CLIENT_SECRET = getIrisClientSecret();
-  
+function buildBestActionPrompt(ctx: UserContext, fortuneLevel: string, fortuneSummary?: string, fortuneHighlights?: string): string {
+  const { bazi } = ctx;
+
+  return `你是一位四川麻将血战到底高手，同时精通八字命理。
+
+用户八字：${bazi.year}年 ${bazi.month}月 ${bazi.day}日 ${bazi.hour}时
+今日运势：${fortuneLevel}
+核心判断：${fortuneSummary || ''}
+今日要点：${fortuneHighlights || ''}
+
+请针对以下5个场景，给出今日的麻将决策建议。
+
+场景1：下叫（听牌）决策
+今天适合宽叫（听牌张数多容易胡）还是大叫（番数高风险大）？
+先讲今天麻将场上的牌局特点，再讲八字/运势如何影响这个选择。
+
+场景2：碰 vs 摸
+什么情况下该碰牌，什么情况下该摸新牌？
+先讲麻将逻辑，再结合今日运势判断。
+
+场景3：放炮 vs 自摸
+遇到可以胡的牌，是放炮就胡还是贪自摸？
+结合今天的运势和冲煞空亡来推导。
+
+场景4：对手方位观察
+今天要重点防哪个方位的人，不怕哪个方位？
+结合 direction 维度的方位分析。
+
+场景5：收官策略
+牌局尾声，是乘胜追击还是见好就收？
+结合 goldenTime 的时段分析和 conflictWarning 的警示。
+
+要求：
+- 每个场景：结论先行（10字以内），再跟推导
+- 川麻术语（宽叫、大叫、放炮、自摸，碰，摸，下叫）
+- 不要用"坐庄/跟牌/做牌/押注/加注"`;
+}
+
+function buildDirectionPrompt(ctx: UserContext): string {
+  const { bazi } = ctx;
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供方位策略。
+
+用户日主：${dayStem}金
+五行喜忌：${bazi.monthStemTenGod}月令
+
+四川麻将4人座位（东南西北），用户坐在某方位时：
+- 上家 = 逆时针第一家
+- 下家 = 顺时针第一家
+- 对家 = 正对面
+
+座位关系（以用户坐北位为例）：
+- 上家 = 东，下家 = 西，对家 = 南
+（坐东位时：上家=南，下家=北，对家=西；以此类推）
+
+请输出：
+1. 各位置策略（坐在北/东/南/西位分别怎么打）
+2. 上下家对家克防关系（对每个位置，指出谁要防、谁不需防）
+
+格式要求：
+- 用东南西北，不用"左边/右边"
+- 克防关系用 🔴防 🟡慎 🟢不防 表示
+- 结论清晰，让人坐在某位置时知道该怎么打`;
+}
+
+function buildGoldenTimePrompt(ctx: UserContext): string {
+  const { bazi } = ctx;
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供时段策略。
+
+用户日主：${dayStem}金
+今日日干：${bazi.day}
+
+一天12时辰，对应五行能量：
+- 寅卯（03-07）：木，木被金克
+- 巳午（09-13）：火，火克金
+- 辰戌丑未（07-09/19-21等）：土，土生金但过旺则埋
+- 申酉（15-19）：金，金帮身
+- 子亥（23-01/21-23）：水，水泄金气
+
+请给出12时辰的能量评级和麻将打法建议：
+
+格式：
+[时辰名] [时间段] [五行] [★数量] [打法建议]
+
+示例：
+酉 17-19 金 ★★★★★ 日主本气，全力出击
+巳 09-11 火 ★☆☆☆☆ 火克金，最差时辰，保守
+
+结论：
+最优3时段：...
+最差3时段：...
+趋势：...
+
+要求：
+- 用 ★ 符号不用 emoji
+- 打法建议简洁（10字以内）
+- 今天特别需要注意的时段要标注原因`;
+}
+
+function buildConflictWarningPrompt(ctx: UserContext): string {
+  const { bazi, targetDate } = ctx;
+  const lunar = getLunarDate(targetDate);
+
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供风险警示。
+
+用户日支：${bazi.day.slice(-2)}
+今日日柱：${lunar.day}
+
+日支相关作用：
+- 日支被哪些地支冲、破、害（根据八字结构）
+
+请针对每种破坏性能量，输出：
+1. 是什么（八字原理）
+2. 为什么今天有这个（结合用户八字结构）
+3. 对打牌的具体影响（麻将场景）
+
+最后给出麻将场景下的具体警示（3-5条）：
+- 不要做什么
+- 要特别小心什么
+- 某个时段要格外注意
+
+格式：
+【名称】如"辰戌冲"
+解释：...
+麻将影响：...
+
+【麻将警示】
+· ...
+
+要求：
+- 不要用"加大注"，用"做大番"
+- 警示要具体，不是"要小心"，而是"下叫后最后几张摸牌要格外小心"`;
+}
+
+function buildLuckEnhancementPrompt(ctx: UserContext): string {
+  const { bazi, targetDate } = ctx;
+  const lunar = getLunarDate(targetDate);
+
+  const dayStem = bazi.day[0]; // 日柱如"辛酉"，取第一个字"辛"
+  return `你是一位中国传统八字黄历解读师，专门为四川麻将血战到底玩家提供今日开运指导。
+
+用户八字：
+- 日主：${dayStem}金
+- 月令：${bazi.monthStemTenGod}
+- 年柱纳音：${bazi.yearTakeSound}
+- 日柱纳音：${bazi.dayTakeSound}
+
+今日黄历：
+- 今日：${lunar.yearName}年${lunar.month}月${lunar.day}日
+- 五行结构：木火土金水（根据日干判断哪股气最旺）
+
+请输出今日开运清单：
+
+【饮品】
+✅ 宜：[饮品名]（五行解释）— 对打牌的影响
+✅ 可选：[饮品名]
+❌ 忌：[饮品名]（为什么忌）— 对打牌的影响
+⚠️ 少喝：[饮品名]
+
+【穿着颜色】
+✅ 宜：[颜色]（为什么今天穿这个好）
+⚡ 点缀：[颜色]
+⚠️ 备选：[颜色]
+❌ 忌：[颜色]（为什么忌）
+
+【饰品】
+✅ 宜：[饰品类型]（五行+今天的关系）
+❌ 忌：[饰品类型]
+
+结论一句话：今天核心是借[什么气]，要[做什么]不要[做什么]。
+
+要求：
+- 每类至少3个条目（宜/可选/忌）
+- 解释要简洁，10-20字
+- 麻将场景连接要直接（"抓牌有感觉"而不是"运气好"）
+- 不纳入：数字、左右手摸牌、上厕所时机、选座位`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// AI 调用
+// ─────────────────────────────────────────────────────────────
+
+async function callLLM(prompt: string, maxTokens: number = 8192): Promise<string> {
+  const provider = getActiveProvider();
+  const apiKey = provider.apiKey();
+  const apiUrl = provider.apiUrl();
+
+  console.log(`[DEBUG] LLM_PROVIDER env = ${process.env.LLM_PROVIDER}`);
+  console.log(`[DEBUG] DEEPSEEK_API_KEY env = ${process.env.DEEPSEEK_API_KEY ? 'SET' : 'NOT SET'}`);
+  console.log(`[DEBUG] callLLM - Provider: ${provider.name}, Model: ${provider.model}`);
+  console.log(`[DEBUG] Full prompt:\n${prompt}\n--- END OF PROMPT ---`);
+
+  if (!apiKey) {
+    throw new Error(`${provider.name}_API_KEY 未配置`);
+  }
+
+  const promptLabel = prompt.split('\n')[0].substring(0, 60);
+  const startTime = Date.now();
+  console.log(`[${provider.name}] → ${promptLabel}...`);
+
   try {
-    const response = await axios.post(`${IRIS_URL}/api/gemini/generate`, {
-      prompt,
-      clientId: IRIS_CLIENT_ID,
-      clientSecret: IRIS_CLIENT_SECRET
-    }, {
-      timeout: 120000 // 120秒超时（2分钟）
+    const response = await axios.post(apiUrl, provider.buildBody(provider.model, maxTokens, prompt), {
+      headers: provider.buildHeaders(apiKey),
+      timeout: 60000
     });
 
-    if (response.data.success && response.data.text) {
-      return response.data.text;
-    } else {
-      throw new Error(response.data.error || 'Failed to generate content');
+    console.log(`[${provider.name}] Raw response:`, JSON.stringify(response.data).substring(0, 500));
+
+    const fullText = provider.extractText(response);
+
+    const elapsed = Date.now() - startTime;
+    const bytes = new TextEncoder().encode(fullText).length;
+    console.log(`[${provider.name}] ← ${promptLabel}  ${elapsed}ms  ${bytes}B`);
+
+    if (!fullText || fullText.trim() === '' || fullText.length < 5) {
+      const reason = response.data?.error?.message || response.data?.error?.type || response.data?.error?.code || 'empty or too short response';
+      console.error(`[${provider.name}] Invalid response:`, response.data);
+      throw new Error(`${provider.name} API error: ${response.status} - ${reason}`);
     }
+    return fullText;
   } catch (error: any) {
-    console.error('Iris API Error:', error);
-    throw new Error(error.response?.data?.error || error.message || 'Failed to call Iris API');
+    const elapsed = Date.now() - startTime;
+    const status = error.response?.status;
+    const reason = error.code === 'ECONNABORTED'
+      ? 'Request timeout'
+      : (error.response?.data?.error?.message || error.message);
+
+    console.error(`[${provider.name}] ✗ ${promptLabel}  ${elapsed}ms  error: ${reason}`);
+    error.message = `${provider.name} API error: ${status} - ${reason}`;
+    throw error;
   }
 }
 
-/**
- * 批量调用 Iris API（用于同时生成中式和西式运势）
- */
-async function callGeminiAPIBatch(prompts: string[]): Promise<string[]> {
-  checkConfig(); // 确保配置已检查
-  const IRIS_URL = getIrisUrl();
-  const IRIS_CLIENT_ID = getIrisClientId();
-  const IRIS_CLIENT_SECRET = getIrisClientSecret();
-  
-  try {
-    const url = `${IRIS_URL}/api/gemini/generate-batch`;
-    console.log(`📡 Calling Iris Gateway: ${url}`);
-    
-    const response = await axios.post(url, {
-      prompts,
-      clientId: IRIS_CLIENT_ID,
-      clientSecret: IRIS_CLIENT_SECRET
-    }, {
-      timeout: 180000, // 180秒超时（3分钟，批量请求需要更长时间）
-      maxRedirects: 0, // 禁止自动重定向，避免POST变GET
-      validateStatus: (status) => status < 500 // 允许4xx状态码，手动处理
-    });
+// ─────────────────────────────────────────────────────────────
+// 辅助函数
+// ─────────────────────────────────────────────────────────────
 
-    if (response.data.success && response.data.results) {
-      return response.data.results.map((r: any) => {
-        if (r.success) return r.text;
-        throw new Error(r.error || 'Failed to generate content');
-      });
-    } else {
-      throw new Error(response.data.error || 'Failed to generate content');
-    }
-  } catch (error: any) {
-    console.error('Iris API Batch Error:', error);
-    if (error.response) {
-      console.error(`❌ Iris Gateway Response Status: ${error.response.status}`);
-      console.error(`❌ Iris Gateway Response Data:`, JSON.stringify(error.response.data));
-      console.error(`❌ Request URL: ${error.config?.url}`);
-      if (error.response.status === 401) {
-        console.error('❌ 401 Unauthorized - Client 验证失败');
-        console.error('   请检查：');
-        console.error('   1. 后端 .env 文件中的 IRIS_CLIENT_ID 是否配置');
-        console.error('   2. 后端 .env 文件中的 IRIS_CLIENT_SECRET 是否配置');
-        console.error('   3. Iris 服务器上该 Client 是否已配置且 enabled');
-        console.error('   4. IRIS_CLIENT_SECRET 值是否完全一致（区分大小写）');
-      }
-    }
-    throw new Error(error.response?.data?.error || error.message || 'Failed to call Iris API');
-  }
+function getDayOfWeek(date: Date): string {
+  const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  return days[date.getDay()];
 }
 
-/**
- * 使用 Server-Sent Events 流式生成运势并推送进度
- */
+function computeTrueSolarTime(birthTime: string, birthLongitude: number): string {
+  // 真太阳时 = 本地时间 + (经度 - 120) × 4分钟
+  const diff = (birthLongitude - 120) * 4;
+  const [h, m] = birthTime.split(':').map(Number);
+  const totalMinutes = h * 60 + m + diff;
+  const adjustedH = Math.floor(((totalMinutes % 1440) + 1440) % 1440 / 60);
+  const adjustedM = Math.floor(((totalMinutes % 1440) + 1440) % 1440 % 60);
+  return `${String(adjustedH).padStart(2, '0')}:${String(adjustedM).padStart(2, '0')}`;
+}
+
+function checkProfileComplete(user: any): boolean {
+  return !!(
+    user.birth_date &&
+    user.birth_time &&
+    user.birth_location &&
+    user.gender !== null &&
+    user.gender !== undefined
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 路由：GET /horoscope/bazi
+// ─────────────────────────────────────────────────────────────
+
+router.get('/bazi', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = (req.query.date as string) || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const hasCompleteProfile = checkProfileComplete(user);
+
+    // 计算农历信息
+    const lunar = getLunarDate(targetDate);
+    const lunarDateStr = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+    const dayOfWeek = getDayOfWeek(targetDate);
+
+    let bazi: BaziInfo | null = null;
+    let almanac: AlmanacInfo | null = null;
+    let zodiacAnimal = '';
+
+    if (hasCompleteProfile) {
+      // 计算真太阳时
+      const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+
+      // 计算八字
+      bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+      zodiacAnimal = bazi.zodiacAnimal;
+
+      // 获取黄历
+      almanac = getTodayAlmanac(targetDate);
+    }
+
+    res.json({
+      date: dateParam,
+      bazi,
+      almanac,
+      lunarDate: lunarDateStr,
+      dayOfWeek,
+      zodiacAnimal,
+      hasCompleteProfile
+    });
+  } catch (error: any) {
+    console.error('Get bazi error:', error);
+    res.status(500).json({ error: error.message || 'Failed to get bazi' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 路由：GET /horoscope/stream/:date
+// ─────────────────────────────────────────────────────────────
+
 router.get('/stream/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const dateParam = req.params.date || formatDate(new Date());
-    
-    // 验证日期格式
     const targetDate = new Date(dateParam);
+
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    // 设置 SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
+    res.setHeader('X-Accel-Buffering', 'no');
 
-    const sendProgress = (progress: number, message: string, data?: any) => {
-      res.write(`data: ${JSON.stringify({ progress, message, data })}\n\n`);
+    const send = (progress: number, message: string, data?: any, extra?: any) => {
+      res.write(`data: ${JSON.stringify({ progress, message, data, ...extra })}\n\n`);
     };
 
-    // 检查缓存
-    sendProgress(5, '正在检查缓存...');
-    const cached = db.prepare(`
-      SELECT * FROM horoscope_cache 
-      WHERE user_id = ? AND date = ?
-    `).get(userId, dateParam) as any;
+    send(5, '获取用户信息...');
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
 
-    if (cached) {
-      sendProgress(100, '使用缓存数据');
-      let chineseHoroscope: any, westernHoroscope: any, combinedAdvice: any;
-      try {
-        chineseHoroscope = JSON.parse(cached.chinese_horoscope);
-        westernHoroscope = JSON.parse(cached.western_horoscope);
-        combinedAdvice = JSON.parse(cached.combined_advice);
-      } catch {
-        chineseHoroscope = cached.chinese_horoscope;
-        westernHoroscope = cached.western_horoscope;
-        combinedAdvice = cached.combined_advice;
-      }
-      res.write(`data: ${JSON.stringify({
-        progress: 100,
-        message: '完成',
-        done: true,
-        result: {
-          date: dateParam,
-          chineseHoroscope,
-          westernHoroscope,
-          combinedAdvice,
-          cached: true
-        }
-      })}\n\n`);
+    if (!user) {
+      res.write(`data: ${JSON.stringify({ error: 'User not found' })}\n\n`);
       return res.end();
     }
 
-    // 获取用户信息
-    sendProgress(10, '正在获取用户信息...');
-    const user = db.prepare('SELECT birth_date FROM users WHERE id = ?').get(userId) as any;
-    if (!user || !user.birth_date) {
-      res.write(`data: ${JSON.stringify({ error: 'Please set your birth date in settings first' })}\n\n`);
+    const hasCompleteProfile = checkProfileComplete(user);
+
+    if (!hasCompleteProfile) {
+      res.write(`data: ${JSON.stringify({ error: 'Please complete your birth profile in settings first' })}\n\n`);
       return res.end();
     }
 
-    // 获取对局统计
-    sendProgress(15, '正在分析对局数据...');
-    const gameStats = getUserGameStats(userId, targetDate, 7);
+    // Step 2: 计算真太阳时
+    send(10, '计算真太阳时...');
+    const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
 
-    // 构建Prompt
-    sendProgress(20, '正在准备AI提示词...');
-    const zodiacSign = getZodiacSign(user.birth_date);
-    const chinesePrompt = buildChineseHoroscopePrompt(user.birth_date, targetDate, gameStats);
-    const westernPrompt = buildWesternHoroscopePrompt(user.birth_date, zodiacSign, targetDate, gameStats);
+    // Step 3: 计算八字
+    send(15, '计算八字...');
+    const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
 
-    // 生成中式和西式运势
-    sendProgress(25, '正在生成中式运势...');
-    const [chineseHoroscopeRaw, westernHoroscopeRaw] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
-    sendProgress(70, '中式和西式运势生成完成');
+    // Step 4: 获取黄历
+    send(20, '获取黄历...');
+    const almanac = getTodayAlmanac(targetDate);
 
-    // 解析JSON
-    sendProgress(75, '正在解析运势数据...');
-    let chineseHoroscope: any, westernHoroscope: any;
-    try {
-      const chineseJsonMatch = chineseHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || chineseHoroscopeRaw.match(/\{[\s\S]*\}/);
-      const westernJsonMatch = westernHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || westernHoroscopeRaw.match(/\{[\s\S]*\}/);
-      chineseHoroscope = JSON.parse(chineseJsonMatch ? chineseJsonMatch[1] || chineseJsonMatch[0] : chineseHoroscopeRaw);
-      westernHoroscope = JSON.parse(westernJsonMatch ? westernJsonMatch[1] || westernJsonMatch[0] : westernHoroscopeRaw);
-    } catch {
-      chineseHoroscope = chineseHoroscopeRaw;
-      westernHoroscope = westernHoroscopeRaw;
-    }
+    // 计算农历信息
+    const lunar = getLunarDate(targetDate);
+    const lunarDateStr = `${lunar.yearName}年${lunar.month}月${lunar.day}日`;
+    const dayOfWeek = getDayOfWeek(targetDate);
 
-    // 生成综合建议
-    sendProgress(80, '正在生成综合建议...');
-    const combinedPrompt = buildCombinedAdvicePrompt(
-      typeof chineseHoroscope === 'string' ? chineseHoroscope : JSON.stringify(chineseHoroscope),
-      typeof westernHoroscope === 'string' ? westernHoroscope : JSON.stringify(westernHoroscope),
-      gameStats
-    );
-    const combinedAdviceRaw = await callGeminiAPI(combinedPrompt);
-    sendProgress(95, '综合建议生成完成');
+    // 发送八字+黄历数据（立即渲染）
+    send(20, '八字+黄历数据就绪', {
+      date: dateParam,
+      bazi,
+      almanac,
+      lunarDate: lunarDateStr,
+      dayOfWeek,
+      zodiacAnimal: bazi.zodiacAnimal,
+      hasCompleteProfile: true
+    });
 
-    // 解析综合建议
-    let combinedAdvice: any;
-    try {
-      const combinedJsonMatch = combinedAdviceRaw.match(/```json\s*([\s\S]*?)\s*```/) || combinedAdviceRaw.match(/\{[\s\S]*\}/);
-      combinedAdvice = JSON.parse(combinedJsonMatch ? combinedJsonMatch[1] || combinedJsonMatch[0] : combinedAdviceRaw);
-    } catch {
-      combinedAdvice = combinedAdviceRaw;
-    }
+    // Step 5: 计算战绩
+    send(30, '分析战绩...');
+    const gameStats = calculateGameStats(userId, targetDate);
 
-    // 保存到缓存
-    sendProgress(98, '正在保存缓存...');
-    const cacheId = require('../database').generateId();
-    db.prepare(`
-      INSERT INTO horoscope_cache (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      cacheId,
-      userId,
-      dateParam,
-      JSON.stringify(chineseHoroscope),
-      JSON.stringify(westernHoroscope),
-      JSON.stringify(combinedAdvice),
-      new Date().toISOString()
-    );
+    // Step 6: AI narrative
+    send(40, '开始 AI 解读...');
+    const narrativePrompt = buildNarrativePrompt('', bazi, almanac, gameStats);
+    const narrative = await callLLM(narrativePrompt);
 
-    // 发送最终结果
-    sendProgress(100, '生成完成！');
-    res.write(`data: ${JSON.stringify({
-      progress: 100,
-      message: '完成',
+    // 发送完整结果
+    send(100, '完成', null, {
       done: true,
       result: {
         date: dateParam,
-        chineseHoroscope,
-        westernHoroscope,
-        combinedAdvice,
-        cached: false
+        bazi,
+        almanac,
+        lunarDate: lunarDateStr,
+        dayOfWeek,
+        zodiacAnimal: bazi.zodiacAnimal,
+        hasCompleteProfile: true,
+        narrative,
+        stats: gameStats
       }
-    })}\n\n`);
+    });
+
     res.end();
   } catch (error: any) {
-    console.error('Failed to generate horoscope:', error);
-    res.write(`data: ${JSON.stringify({ error: error.message || 'Failed to generate horoscope' })}\n\n`);
+    console.error('Stream error:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message || 'Failed' })}\n\n`);
     res.end();
   }
 });
 
-/**
- * 获取运势（带缓存）
- */
+// ─────────────────────────────────────────────────────────────
+// 路由：POST /horoscope/answer
+// ─────────────────────────────────────────────────────────────
+
+router.post('/answer', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { question, date } = req.body;
+    const dateParam = date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (!question) {
+      return res.status(400).json({ error: 'Question is required' });
+    }
+
+    // 获取用户信息
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!checkProfileComplete(user)) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    // 计算真太阳时
+    const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+
+    // 计算八字
+    const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+
+    // 获取黄历
+    const almanac = getTodayAlmanac(targetDate);
+
+    // 计算战绩
+    const gameStats = calculateGameStats(userId, targetDate);
+
+    // 构建回答 prompt
+    const answerPrompt = buildAnswerPrompt(question, bazi, almanac, gameStats);
+    const answer = await callLLM(answerPrompt);
+
+    res.json({ answer });
+  } catch (error: any) {
+    console.error('Answer error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate answer' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 路由：GET /horoscope/:date（保留用于回退）
+// ─────────────────────────────────────────────────────────────
+
 router.get('/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const dateParam = req.params.date || formatDate(new Date());
-    
-    // 验证日期格式
     const targetDate = new Date(dateParam);
+
     if (isNaN(targetDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' });
     }
 
-    // 检查缓存
-    const cached = db.prepare(`
-      SELECT * FROM horoscope_cache 
-      WHERE user_id = ? AND date = ?
-    `).get(userId, dateParam) as any;
+    const user = db.prepare(`
+      SELECT birth_date, birth_time, birth_location, birth_latitude, birth_longitude, gender
+      FROM users WHERE id = ?
+    `).get(userId) as any;
 
-    if (cached) {
-      // 解析缓存的JSON
-      let chineseHoroscope: any;
-      let westernHoroscope: any;
-      let combinedAdvice: any;
-      
-      try {
-        chineseHoroscope = JSON.parse(cached.chinese_horoscope);
-      } catch {
-        chineseHoroscope = cached.chinese_horoscope; // 向后兼容
-      }
-      
-      try {
-        westernHoroscope = JSON.parse(cached.western_horoscope);
-      } catch {
-        westernHoroscope = cached.western_horoscope; // 向后兼容
-      }
-      
-      try {
-        combinedAdvice = JSON.parse(cached.combined_advice);
-      } catch {
-        combinedAdvice = cached.combined_advice; // 向后兼容
-      }
-
-      return res.json({
-        date: dateParam,
-        chineseHoroscope,
-        westernHoroscope,
-        combinedAdvice,
-        cached: true
-      });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // 获取用户信息
-    const user = db.prepare('SELECT birth_date FROM users WHERE id = ?').get(userId) as any;
-    if (!user || !user.birth_date) {
-      return res.status(400).json({ error: 'Please set your birth date in settings first' });
+    if (!checkProfileComplete(user)) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
     }
 
-    // 获取对局统计（基于选定日期前7天）
-    const gameStats = getUserGameStats(userId, targetDate, 7);
-
-    // 构建Prompt
-    console.log('🔨 开始构建运势Prompt...');
-    console.log(`📅 目标日期: ${dateParam}`);
-    console.log(`👤 用户出生日期: ${user.birth_date}`);
-    console.log(`🎮 对局统计:`, gameStats ? JSON.stringify(gameStats, null, 2) : '无');
-    
-    const zodiacSign = getZodiacSign(user.birth_date);
-    const chinesePrompt = buildChineseHoroscopePrompt(user.birth_date, targetDate, gameStats);
-    const westernPrompt = buildWesternHoroscopePrompt(user.birth_date, zodiacSign, targetDate, gameStats);
-
-    console.log('✅ Prompt构建完成，准备调用API');
-    console.log(`📊 中式Prompt长度: ${chinesePrompt.length} 字符`);
-    console.log(`📊 西式Prompt长度: ${westernPrompt.length} 字符`);
-
-    // 调用API生成运势
-    const [chineseHoroscopeRaw, westernHoroscopeRaw] = await callGeminiAPIBatch([chinesePrompt, westernPrompt]);
-
-    // 解析JSON响应
-    let chineseHoroscope: any;
-    let westernHoroscope: any;
-    try {
-      // 尝试提取JSON（可能包含markdown代码块）
-      const chineseJsonMatch = chineseHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || chineseHoroscopeRaw.match(/\{[\s\S]*\}/);
-      const westernJsonMatch = westernHoroscopeRaw.match(/```json\s*([\s\S]*?)\s*```/) || westernHoroscopeRaw.match(/\{[\s\S]*\}/);
-      
-      chineseHoroscope = JSON.parse(chineseJsonMatch ? chineseJsonMatch[1] || chineseJsonMatch[0] : chineseHoroscopeRaw);
-      westernHoroscope = JSON.parse(westernJsonMatch ? westernJsonMatch[1] || westernJsonMatch[0] : westernHoroscopeRaw);
-    } catch (parseError) {
-      console.error('Failed to parse JSON:', parseError);
-      // 如果解析失败，返回原始文本（向后兼容）
-      chineseHoroscope = chineseHoroscopeRaw;
-      westernHoroscope = westernHoroscopeRaw;
-    }
-
-    // 生成综合建议
-    console.log('🔨 开始构建综合建议Prompt...');
-    const combinedPrompt = buildCombinedAdvicePrompt(
-      typeof chineseHoroscope === 'string' ? chineseHoroscope : JSON.stringify(chineseHoroscope),
-      typeof westernHoroscope === 'string' ? westernHoroscope : JSON.stringify(westernHoroscope),
-      gameStats
-    );
-    console.log('✅ 综合建议Prompt构建完成，准备调用API');
-    const combinedAdviceRaw = await callGeminiAPI(combinedPrompt);
-
-    // 解析综合建议JSON
-    let combinedAdvice: any;
-    try {
-      const combinedJsonMatch = combinedAdviceRaw.match(/```json\s*([\s\S]*?)\s*```/) || combinedAdviceRaw.match(/\{[\s\S]*\}/);
-      combinedAdvice = JSON.parse(combinedJsonMatch ? combinedJsonMatch[1] || combinedJsonMatch[0] : combinedAdviceRaw);
-    } catch (parseError) {
-      console.error('Failed to parse combined advice JSON:', parseError);
-      combinedAdvice = combinedAdviceRaw;
-    }
-
-    // 保存到缓存（存储JSON字符串）
-    const cacheId = require('../database').generateId();
-    db.prepare(`
-      INSERT INTO horoscope_cache (id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      cacheId,
-      userId,
-      dateParam,
-      JSON.stringify(chineseHoroscope),
-      JSON.stringify(westernHoroscope),
-      JSON.stringify(combinedAdvice),
-      new Date().toISOString()
-    );
+    const trueSolarTime = computeTrueSolarTime(user.birth_time, user.birth_longitude || 120);
+    const bazi = calculateBazi(user.birth_date, trueSolarTime, user.gender as 0 | 1);
+    const almanac = getTodayAlmanac(targetDate);
+    const gameStats = calculateGameStats(userId, targetDate);
+    const narrativePrompt = buildNarrativePrompt('', bazi, almanac, gameStats);
+    const narrative = await callLLM(narrativePrompt);
 
     res.json({
       date: dateParam,
-      chineseHoroscope,
-      westernHoroscope,
-      combinedAdvice,
-      cached: false
+      bazi,
+      almanac,
+      lunarDate: `${getLunarDate(targetDate).yearName}年${getLunarDate(targetDate).month}月${getLunarDate(targetDate).day}日`,
+      dayOfWeek: getDayOfWeek(targetDate),
+      zodiacAnimal: bazi.zodiacAnimal,
+      hasCompleteProfile: true,
+      narrative,
+      stats: gameStats
     });
   } catch (error: any) {
-    console.error('Failed to get horoscope:', error);
+    console.error('Get horoscope error:', error);
     res.status(500).json({ error: error.message || 'Failed to get horoscope' });
   }
 });
 
-/**
- * 手动刷新运势（限制频率）
- */
+// ─────────────────────────────────────────────────────────────
+// 路由：POST /horoscope/refresh（保留）
+// ─────────────────────────────────────────────────────────────
+
 router.post('/refresh/:date?', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const dateParam = req.params.date || formatDate(new Date());
-
-    // TODO: 添加频率限制（每用户每天最多3次）
-
-    // 删除旧缓存
     db.prepare('DELETE FROM horoscope_cache WHERE user_id = ? AND date = ?').run(userId, dateParam);
-
-    // 重新获取（会触发新的API调用）
-    // 这里可以复用上面的逻辑，或者直接调用上面的处理函数
-    // 为了简化，我们直接返回成功，让前端重新请求
-    res.json({ success: true, message: 'Horoscope refreshed, please reload' });
+    res.json({ success: true, message: 'Refreshed, please reload' });
   } catch (error: any) {
-    console.error('Failed to refresh horoscope:', error);
-    res.status(500).json({ error: error.message || 'Failed to refresh horoscope' });
+    console.error('Refresh error:', error);
+    res.status(500).json({ error: error.message || 'Failed to refresh' });
   }
 });
 
-export default router;
+// ─────────────────────────────────────────────────────────────
+// 辅助函数：从 LLM 输出提取结论
+// ─────────────────────────────────────────────────────────────
 
+function extractConclusion(content: string): string | null {
+  const conclusionMatch = content.match(/结论[：:]\s*(.+?)(?:\n|$)/);
+  if (conclusionMatch) {
+    return conclusionMatch[1].trim();
+  }
+  return null;
+}
+
+function extractDerivationSteps(content: string): { step1: string; step2: string; step3: string } | null {
+  const step1Match = content.match(/第[一一]步[：:]\s*(.+?)(?=\n第[二二]步|$)/s);
+  const step2Match = content.match(/第[二二]步[：:]\s*(.+?)(?=\n第[三三]步|$)/s);
+  const step3Match = content.match(/第[三三]步[：:]\s*(.+?)(?=\n结论|$)/s);
+  
+  if (step1Match || step2Match || step3Match) {
+    return {
+      step1: step1Match ? step1Match[1].trim() : '',
+      step2: step2Match ? step2Match[1].trim() : '',
+      step3: step3Match ? step3Match[1].trim() : '',
+    };
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 3: 7维度独立端点
+// ─────────────────────────────────────────────────────────────
+
+router.get('/:date/fortune', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const dateParam = req.params.date || formatDate(new Date());
+    const targetDate = new Date(dateParam);
+
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    const ctx = getUserContext(userId, targetDate);
+    if (!ctx) {
+      return res.status(400).json({ error: 'Please complete your birth profile in settings first' });
+    }
+
+    const prompt = buildFortunePrompt(ctx);
+    const content = await callLLM(prompt);
+
+    // 解析结论（从内容中提取旺/平/弱）
+    const levelMatch = content.match(/结论[：:]\s*\[?(旺|平|弱)\]?/);
+    const level = levelMatch ? levelMatch[1] : '平';
+
+    // 提取一句话结论
+    const conclusionText = extractConclusion(content) || content.substring(0, 100);
+
+    // 提取推导步骤
+    const derivation = extractDerivationSteps(content);
+
+    // 提取要点列表
+    const highlightsMatch = content.match(/要点[：:]\s*((?:【[^】]+】、?)+)/);
+    const highlights = highlightsMatch
+      ? [...highlightsMatch[1].matchAll(/【([^】]+)】/g)].map(m => m[1])
+      : [level, conclusionText.substring(0, 20)];
+
+    const result: any = {
+      dimension: 'fortune',
+      level,
+      summary: conclusionText,
+      highlights,
+      content,
+    };
+
+    if (conclusionText) {
+      result.conclusion = conclusionText;
+    }
+
+    if (derivation) {
+      result.derivation = derivation;
+    }
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Fortune dimension error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate fortune' });
+  }
+});
+
+// [TESTING ONLY] router.get('/:date/betting', ...)
+// router.get('/:date/best-action', ...)
+// router.get('/:date/direction', ...)
+// router.get('/:date/golden-time', ...)
+// router.get('/:date/conflict-warning', ...)
+// router.get('/:date/luck-enhancement', ...)
+
+export default router;

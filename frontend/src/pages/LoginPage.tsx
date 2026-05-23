@@ -13,11 +13,8 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
-    console.log('开始登录:', { username, password: '***' });
-
     try {
       await login(username, password);
-      console.log('登录成功');
     } catch (err: any) {
       console.error('登录失败:', err);
       setError(err.response?.data?.error || '登录失败，请重试');

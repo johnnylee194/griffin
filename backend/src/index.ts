@@ -13,12 +13,16 @@ import chipRateRoutes from './routes/chip-rates';
 import gameTypeRoutes from './routes/game-types';
 import customFilterRoutes from './routes/custom-filters';
 import { authMiddleware } from './middleware/auth';
+import { initLunisolar } from './utils/horoscope';
 
 // 加载环境变量
 dotenv.config();
 
 // 初始化数据库
 initDatabase();
+
+// 预加载 lunisolar（异步初始化）
+initLunisolar().then(() => console.log('✅ Lunisolar initialized')).catch(console.error);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -73,5 +77,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // 启动服务器
 app.listen(port, () => {
   console.log(`🚀 Griffin API server is running on port ${port}`);
+  console.log(`[DEBUG] Code version: 2025-05-07 - Fixed API endpoint and response parsing`);
 });
 
