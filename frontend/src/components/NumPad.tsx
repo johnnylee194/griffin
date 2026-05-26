@@ -44,6 +44,11 @@ export default function NumPad({ onClose, onSubmit, initialValue = 0 }: NumPadPr
     onSubmit(finalValue)
   }
 
+  const handleQuickAdd = (num: number) => {
+    const current = parseInt(value) || 0
+    setValue((current + num).toString())
+  }
+
   const displayValue = (isNegative ? '-' : '+') + value
 
   return (
@@ -56,6 +61,19 @@ export default function NumPad({ onClose, onSubmit, initialValue = 0 }: NumPadPr
               {displayValue}
             </div>
           </div>
+        </div>
+
+        {/* 快捷输入 */}
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {[10, 20, 50, 100].map(num => (
+            <button
+              key={num}
+              onClick={() => handleQuickAdd(num)}
+              className="py-2 text-sm font-semibold rounded-lg bg-gray-100 text-text-secondary hover:bg-gray-200 active:bg-gray-300 transition-colors"
+            >
+              +{num}
+            </button>
+          ))}
         </div>
 
         {/* 键盘 */}

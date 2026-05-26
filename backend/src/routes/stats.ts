@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { StatsService } from '../services/stats.service';
 
 const router = Router();
 
@@ -230,64 +231,10 @@ function getLunarYear(date: Date): { year: number; startDate: string; endDate: s
 router.get('/annual', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    // 统计都是针对"我"的，直接获取"我"的玩家ID
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
-    if (!mePlayer) {
-      return res.status(404).json({ error: 'Current user not found, please create "我" player first' });
-    }
-    const currentUserId = mePlayer.id;
-
-    // 支持年份参数，默认为当前年
     const yearParam = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
-    const startDate = `${yearParam}-01-01T00:00:00`;
-    const endDate = `${yearParam + 1}-01-01T00:00:00`;
-
-    // 获取该年的所有记录（只查询当前用户的游戏）
-    const records = db.prepare(`
-      SELECT 
-        pr.chips,
-        pr.score
-      FROM player_records pr
-      JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ?
-        AND g.user_id = ?
-        AND g.created_at >= ?
-        AND g.created_at < ?
-      ORDER BY g.created_at ASC
-    `).all(currentUserId, userId, startDate, endDate) as any[];
-
-    // 计算总体统计
-    let totalIncome = 0;
-    let totalExpense = 0;
-    let wins = 0;
-    let losses = 0;
     
-    records.forEach(r => {
-      if (r.chips > 0) {
-        totalIncome += r.chips;
-        wins++;
-      } else if (r.chips < 0) {
-        totalExpense += Math.abs(r.chips);
-        losses++;
-      }
-    });
-    
-    const profit = totalIncome - totalExpense;
-    const totalGames = wins + losses;
-    const winRate = totalGames > 0 ? parseFloat(((wins / totalGames) * 100).toFixed(2)) : 0;
-
-    res.json({
-      year: yearParam,
-      overall: {
-        income: totalIncome,
-        expense: totalExpense,
-        profit,
-        wins,
-        losses,
-        totalGames,
-        winRate
-      }
-    });
+    const stats = StatsService.getAnnualStats(userId, yearParam, false);
+    res.json(stats);
   } catch (error) {
     console.error('Failed to fetch annual stats:', error);
     res.status(500).json({ error: 'Failed to fetch annual stats' });
@@ -298,94 +245,10 @@ router.get('/annual', (req: AuthRequest, res) => {
 router.get('/lunar-annual', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    // 统计都是针对"我"的，直接获取"我"的玩家ID
-    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
-    if (!mePlayer) {
-      return res.status(404).json({ error: 'Current user not found, please create "我" player first' });
-    }
-    const currentUserId = mePlayer.id;
-
-    // 支持年份参数，默认为当前农历年
-    let lunarYearInfo;
-    if (req.query.year) {
-      const yearParam = parseInt(req.query.year as string);
-      // 根据年份计算农历年范围（简化版）
-      const springFestivalDates: { [key: number]: string } = {
-        2024: '2024-02-10',
-        2025: '2025-01-29',
-        2026: '2026-02-17',
-        2027: '2027-02-06',
-        2028: '2028-01-26',
-        2029: '2029-02-13',
-        2030: '2030-02-03'
-      };
-      const currentYearSpringFestival = springFestivalDates[yearParam];
-      const nextYearSpringFestival = springFestivalDates[yearParam + 1];
-      if (currentYearSpringFestival && nextYearSpringFestival) {
-        lunarYearInfo = {
-          year: yearParam,
-          startDate: currentYearSpringFestival,
-          endDate: nextYearSpringFestival
-        };
-      } else {
-        // 如果年份不在映射表中，使用默认逻辑
-        lunarYearInfo = getLunarYear(new Date(`${yearParam}-06-01`));
-      }
-    } else {
-      lunarYearInfo = getLunarYear(new Date());
-    }
+    const yearParam = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
     
-    const startDate = `${lunarYearInfo.startDate}T00:00:00`;
-    const endDate = `${lunarYearInfo.endDate}T00:00:00`;
-
-    // 获取该农历年的所有记录（只查询当前用户的游戏）
-    const records = db.prepare(`
-      SELECT 
-        pr.chips,
-        pr.score
-      FROM player_records pr
-      JOIN games g ON pr.game_id = g.id
-      WHERE pr.player_id = ?
-        AND g.user_id = ?
-        AND g.created_at >= ?
-        AND g.created_at < ?
-      ORDER BY g.created_at ASC
-    `).all(currentUserId, userId, startDate, endDate) as any[];
-
-    // 计算总体统计
-    let totalIncome = 0;
-    let totalExpense = 0;
-    let wins = 0;
-    let losses = 0;
-    
-    records.forEach(r => {
-      if (r.chips > 0) {
-        totalIncome += r.chips;
-        wins++;
-      } else if (r.chips < 0) {
-        totalExpense += Math.abs(r.chips);
-        losses++;
-      }
-    });
-    
-    const profit = totalIncome - totalExpense;
-    const totalGames = wins + losses;
-    const winRate = totalGames > 0 ? parseFloat(((wins / totalGames) * 100).toFixed(2)) : 0;
-
-    res.json({
-      lunarYear: lunarYearInfo.year,
-      startDate: lunarYearInfo.startDate,
-      endDate: lunarYearInfo.endDate,
-      overall: {
-        income: totalIncome,
-        expense: totalExpense,
-        profit,
-        wins,
-        losses,
-        totalGames,
-        winRate
-      }
-    });
+    const stats = StatsService.getAnnualStats(userId, yearParam, true);
+    res.json(stats);
   } catch (error) {
     console.error('Failed to fetch lunar annual stats:', error);
     res.status(500).json({ error: 'Failed to fetch lunar annual stats' });
