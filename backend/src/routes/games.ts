@@ -416,10 +416,13 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
         pr.chips,
         g.created_at as createdAt,
         g.game_type_id as gameTypeId,
-        gt.name as gameTypeName
+        gt.name as gameTypeName,
+        g.location_id as locationId,
+        l.name as locationName
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       LEFT JOIN game_types gt ON g.game_type_id = gt.id
+      LEFT JOIN locations l ON g.location_id = l.id
       WHERE pr.player_id = ?
         AND g.user_id = ?
         AND g.created_at >= ?

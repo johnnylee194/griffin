@@ -17,7 +17,7 @@ export default function NewGamePage() {
   const [myScore, setMyScore] = useState<number>(0)
   const [gameTime, setGameTime] = useState<string>('')
   const [selectedDate, setSelectedDate] = useState<'today' | 'yesterday' | null>('today')
-  const [selectedTime, setSelectedTime] = useState<'afternoon' | 'evening' | null>('afternoon')
+  const [selectedTime, setSelectedTime] = useState<'morning' | 'afternoon' | 'evening' | 'latenight' | null>('afternoon')
   const [showNumPad, setShowNumPad] = useState(false)
   const [showNewPlayerModal, setShowNewPlayerModal] = useState(false)
   const [showNoteModal, setShowNoteModal] = useState(false)
@@ -251,7 +251,7 @@ export default function NewGamePage() {
   }
 
   const setQuickTime = (type: 'morning' | 'afternoon' | 'evening' | 'latenight') => {
-    setSelectedTime(type as any)
+    setSelectedTime(type)
     const currentDate = gameTime ? gameTime.split('T')[0] : new Date().toISOString().split('T')[0]
     let hours = '18'
     if (type === 'morning') hours = '11'
@@ -279,13 +279,13 @@ export default function NewGamePage() {
     }
     
     if (time === '11:00') {
-      setSelectedTime('morning' as any)
+      setSelectedTime('morning')
     } else if (time === '17:00') {
       setSelectedTime('afternoon')
     } else if (time === '23:00') {
       setSelectedTime('evening')
     } else if (time === '01:00') {
-      setSelectedTime('latenight' as any)
+      setSelectedTime('latenight')
     } else {
       setSelectedTime(null)
     }
@@ -518,7 +518,7 @@ export default function NewGamePage() {
             <button
               onClick={() => setQuickTime('morning')}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedTime === 'morning' as any
+                selectedTime === 'morning'
                   ? 'bg-primary text-white border-primary'
                   : 'border-gray-300 bg-white text-text hover:bg-gray-50'
               }`}
@@ -548,7 +548,7 @@ export default function NewGamePage() {
             <button
               onClick={() => setQuickTime('latenight')}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedTime === 'latenight' as any
+                selectedTime === 'latenight'
                   ? 'bg-primary text-white border-primary'
                   : 'border-gray-300 bg-white text-text hover:bg-gray-50'
               }`}
