@@ -83,12 +83,23 @@ export default function HistoryPage() {
   }
 
   const getTimeSlot = (dateTime: string) => {
-    const date = new Date(dateTime)
-    const hours = date.getHours()
-    if (hours >= 0 && hours < 8) return 'lateNight'
-    if (hours >= 8 && hours < 12) return 'morning'
-    if (hours >= 12 && hours < 18) return 'afternoon'
-    return 'evening'
+    const date = new Date(dateTime);
+
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const currentTime = `${hh}:${mm}`;
+
+    if (currentTime > "00:00" && currentTime <= "08:00") {
+      return 'lateNight';
+    }
+    if (currentTime > "08:00" && currentTime <= "12:00") {
+      return 'morning';
+    }
+    if (currentTime > "12:00" && currentTime <= "18:00") {
+      return 'afternoon';
+    }
+
+    return 'evening';
   }
 
   const getFilteredAndGroupedGames = () => {
