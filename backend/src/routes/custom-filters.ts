@@ -372,14 +372,19 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
 
       const gameDate = new Date(game.created_at);
       const hour = gameDate.getHours();
+      const minute = gameDate.getMinutes();
+      const second = gameDate.getSeconds();
+      const ts = hour * 3600 + minute * 60 + second;
+
       let timeSlot = 'other';
-      if (hour >= 0 && hour < 8) {
+      if (ts > 0 && ts <= 8 * 3600) {
         timeSlot = 'lateNight';
-      } else if (hour >= 8 && hour < 12) {
+      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
         timeSlot = 'morning';
-      } else if (hour >= 12 && hour < 18) {
+      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
         timeSlot = 'afternoon';
-      } else if (hour >= 18 && hour < 24) {
+      } else {
+        // 晚上包括 18:00:01-23:59:59 和正好 00:00:00
         timeSlot = 'evening';
       }
 

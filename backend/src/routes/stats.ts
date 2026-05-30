@@ -744,10 +744,16 @@ router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
         gamesByDate[date] = { afternoon: [], evening: [] };
       }
       
+      const gameTime = new Date(record.createdAt);
+      const h = gameTime.getHours();
+      const m = gameTime.getMinutes();
+      const s = gameTime.getSeconds();
+      const ts = h * 3600 + m * 60 + s;
+
       let timeSlot: 'afternoon' | 'evening' | 'other' = 'other';
-      if (record.hour >= 12 && record.hour < 18) {
+      if (ts > 12 * 3600 && ts <= 18 * 3600) {
         timeSlot = 'afternoon';
-      } else if (record.hour >= 18 && record.hour < 24) {
+      } else if (ts > 18 * 3600 || ts === 0) {
         timeSlot = 'evening';
       }
 

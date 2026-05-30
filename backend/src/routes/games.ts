@@ -536,8 +536,11 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
       
       const gameTime = new Date(record.createdAt);
       const hour = gameTime.getHours();
+      const minute = gameTime.getMinutes();
+      const second = gameTime.getSeconds();
+      const ts = hour * 3600 + minute * 60 + second;
       
-      if (hour >= 0 && hour < 8) {
+      if (ts > 0 && ts <= 8 * 3600) {
         if (chips > 0) {
           lateNightWins++;
           lateNightIncome += chips;
@@ -545,7 +548,7 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
           lateNightLoses++;
           lateNightExpense += Math.abs(chips);
         }
-      } else if (hour >= 8 && hour < 12) {
+      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
         if (chips > 0) {
           morningWins++;
           morningIncome += chips;
@@ -553,7 +556,7 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
           morningLoses++;
           morningExpense += Math.abs(chips);
         }
-      } else if (hour >= 12 && hour < 18) {
+      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
         if (chips > 0) {
           afternoonWins++;
           afternoonIncome += chips;
@@ -561,7 +564,7 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
           afternoonLoses++;
           afternoonExpense += Math.abs(chips);
         }
-      } else { // 18-24
+      } else { // 18:00:01-23:59:59 and 00:00:00
         if (chips > 0) {
           eveningWins++;
           eveningIncome += chips;

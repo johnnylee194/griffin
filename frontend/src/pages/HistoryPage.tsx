@@ -83,12 +83,29 @@ export default function HistoryPage() {
   }
 
   const getTimeSlot = (dateTime: string) => {
-    const date = new Date(dateTime)
-    const hours = date.getHours()
-    if (hours >= 0 && hours < 8) return 'lateNight'
-    if (hours >= 8 && hours < 12) return 'morning'
-    if (hours >= 12 && hours < 18) return 'afternoon'
-    return 'evening'
+    const date = new Date(dateTime);
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    const second = date.getSeconds();
+
+    // 转换为自 00:00:00 以来的秒数，以完美处理边界判定
+    const ts = hour * 3600 + minute * 60 + second;
+
+    // 凌晨 (lateNight): 00:00:01 至 08:00:00
+    if (ts > 0 && ts <= 8 * 3600) {
+      return 'lateNight';
+    }
+    // 上午 (morning): 08:00:01 至 12:00:00
+    if (ts > 8 * 3600 && ts <= 12 * 3600) {
+      return 'morning';
+    }
+    // 下午 (afternoon): 12:00:01 至 18:00:00
+    if (ts > 12 * 3600 && ts <= 18 * 3600) {
+      return 'afternoon';
+    }
+
+    // 晚上 (evening): 18:00:01 至 23:59:59，以及正好等于 00:00:00
+    return 'evening';
   }
 
   const getFilteredAndGroupedGames = () => {
