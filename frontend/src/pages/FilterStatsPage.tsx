@@ -492,15 +492,17 @@ export const FilterStatsPage: React.FC = () => {
                   dateGames.forEach(game => {
                     const myRecord = game.records.find(r => r.player.isMe);
                     if (myRecord && myRecord.chips !== null) {
-                      const hour = new Date(game.createdAt).getHours();
+                      const date = new Date(game.createdAt);
+                      const totalSeconds = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+
                       totalScore += myRecord.chips;
-                      if (hour >= 0 && hour < 8) {
+                      if (totalSeconds > 0 && totalSeconds <= 8 * 3600) {
                         lateNightScore += myRecord.chips;
-                      } else if (hour >= 8 && hour < 12) {
+                      } else if (totalSeconds > 8 * 3600 && totalSeconds <= 12 * 3600) {
                         morningScore += myRecord.chips;
-                      } else if (hour >= 12 && hour < 18) {
+                      } else if (totalSeconds > 12 * 3600 && totalSeconds <= 18 * 3600) {
                         afternoonScore += myRecord.chips;
-                      } else if (hour >= 18 && hour < 24) {
+                      } else {
                         eveningScore += myRecord.chips;
                       }
                     }
