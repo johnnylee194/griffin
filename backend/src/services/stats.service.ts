@@ -6,9 +6,12 @@ export interface MonthlyStats {
   availableLocations: Array<{ id: string; name: string }>;
   earliestMonth: { year: number; month: number } | null;
   overall: StatSummary;
+  lateNight: StatSummary;
+  morning: StatSummary;
   afternoon: StatSummary;
   evening: StatSummary;
   byGameType: Record<string, GameTypeStat>;
+  byLocation: Record<string, LocationStat>;
 }
 
 export interface StatSummary {
@@ -22,6 +25,10 @@ export interface StatSummary {
 }
 
 export interface GameTypeStat extends StatSummary {
+  name: string;
+}
+
+export interface LocationStat extends StatSummary {
   name: string;
 }
 
@@ -43,10 +50,13 @@ export class StatsService {
         pr.chips,
         g.created_at as createdAt,
         g.game_type_id as gameTypeId,
-        gt.name as gameTypeName
+        gt.name as gameTypeName,
+        g.location_id as locationId,
+        l.name as locationName
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       LEFT JOIN game_types gt ON g.game_type_id = gt.id
+      LEFT JOIN locations l ON g.location_id = l.id
       WHERE pr.player_id = ?
         AND g.user_id = ?
         AND g.created_at >= ?
@@ -70,11 +80,12 @@ export class StatsService {
       JOIN locations l ON g.location_id = l.id
       WHERE pr.player_id = ?
         AND g.user_id = ?
+        AND l.user_id = ?
         AND g.created_at >= ?
         AND g.created_at < ?
       ORDER BY l.name
     `;
-    const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, startDate, endDate) as any[];
+    const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, userId, startDate, endDate) as any[];
 
     // Get earliest month
     const earliestDateQuery = `
@@ -106,14 +117,20 @@ export class StatsService {
     });
 
     const overall = initialStat();
+    const lateNight = initialStat();
+    const morning = initialStat();
     const afternoon = initialStat();
     const evening = initialStat();
     const byGameType: Record<string, GameTypeStat> = {};
+    const byLocation: Record<string, LocationStat> = {};
 
     records.forEach(record => {
       const chips = record.chips || 0;
       const gameTime = new Date(record.createdAt);
       const hour = gameTime.getHours();
+      const minute = gameTime.getMinutes();
+      const second = gameTime.getSeconds();
+      const ts = hour * 3600 + minute * 60 + second;
 
       const updateStat = (stat: StatSummary) => {
         stat.totalGames++;
@@ -127,7 +144,13 @@ export class StatsService {
       };
 
       updateStat(overall);
-      if (hour < 20) {
+
+      // (0, 8h] Late Night, (8h, 12h] Morning, (12h, 18h] Afternoon, Else Evening
+      if (ts > 0 && ts <= 8 * 3600) {
+        updateStat(lateNight);
+      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
+        updateStat(morning);
+      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
         updateStat(afternoon);
       } else {
         updateStat(evening);
@@ -138,6 +161,12 @@ export class StatsService {
         byGameType[gtId] = { ...initialStat(), name: record.gameTypeName || '未知玩法' };
       }
       updateStat(byGameType[gtId]);
+
+      const locId = record.locationId || 'unknown';
+      if (!byLocation[locId]) {
+        byLocation[locId] = { ...initialStat(), name: record.locationName || '未知地点' };
+      }
+      updateStat(byLocation[locId]);
     });
 
     const finalizeStat = (stat: StatSummary) => {
@@ -146,18 +175,24 @@ export class StatsService {
     };
 
     finalizeStat(overall);
+    finalizeStat(lateNight);
+    finalizeStat(morning);
     finalizeStat(afternoon);
     finalizeStat(evening);
     Object.values(byGameType).forEach(finalizeStat);
+    Object.values(byLocation).forEach(finalizeStat);
 
     return {
       month: `${year}-${String(month).padStart(2, '0')}`,
       availableLocations: availableLocations.map(loc => ({ id: loc.location_id, name: loc.name })),
       earliestMonth,
       overall,
+      lateNight,
+      morning,
       afternoon,
       evening,
-      byGameType
+      byGameType,
+      byLocation
     };
   }
 
