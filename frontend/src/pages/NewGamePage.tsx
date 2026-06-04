@@ -17,11 +17,12 @@ export default function NewGamePage() {
   const [myScore, setMyScore] = useState<number>(0)
   const [gameTime, setGameTime] = useState<string>('')
   const [selectedDate, setSelectedDate] = useState<'today' | 'yesterday' | null>('today')
-  const [selectedTime, setSelectedTime] = useState<'afternoon' | 'evening' | null>('afternoon')
+  const [selectedTime, setSelectedTime] = useState<'morning' | 'afternoon' | 'evening' | 'latenight' | null>('afternoon')
   const [showNumPad, setShowNumPad] = useState(false)
   const [showNewPlayerModal, setShowNewPlayerModal] = useState(false)
   const [showNoteModal, setShowNoteModal] = useState(false)
   const [showAllPlayers, setShowAllPlayers] = useState(false)
+  const [showPlayerList, setShowPlayerList] = useState(false)
   const [newPlayerName, setNewPlayerName] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
@@ -292,10 +293,15 @@ export default function NewGamePage() {
     setGameTime(`${year}-${month}-${day}T${currentTime}`)
   }
 
-  const setQuickTime = (type: 'afternoon' | 'evening') => {
+  const setQuickTime = (type: 'morning' | 'afternoon' | 'evening' | 'latenight') => {
     setSelectedTime(type)
     const currentDate = gameTime ? gameTime.split('T')[0] : new Date().toISOString().split('T')[0]
-    const hours = type === 'afternoon' ? '18' : '23'
+    let hours = '18'
+    if (type === 'morning') hours = '11'
+    else if (type === 'afternoon') hours = '17'
+    else if (type === 'evening') hours = '23'
+    else if (type === 'latenight') hours = '01'
+
     const minutes = '00'
     setGameTime(`${currentDate}T${hours}:${minutes}`)
   }
@@ -315,10 +321,14 @@ export default function NewGamePage() {
       setSelectedDate(null)
     }
     
-    if (time === '18:00') {
+    if (time === '11:00') {
+      setSelectedTime('morning')
+    } else if (time === '17:00') {
       setSelectedTime('afternoon')
     } else if (time === '23:00') {
       setSelectedTime('evening')
+    } else if (time === '01:00') {
+      setSelectedTime('latenight')
     } else {
       setSelectedTime(null)
     }
@@ -365,14 +375,76 @@ export default function NewGamePage() {
           👥 玩家 ({selectedPlayerIds.length}/4)
         </label>
 
-        {selectedLocation ? (
-          // 有地点：分组显示，有记录的排前，无记录的放"显示全部"后面
+        {showPlayerList ? (
           <>
-            {/* 有记录的玩家（该地点历史出现次数 > 0 或 isMe） */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-              {players
-                .filter(p => p.isMe || (p.appearanceCount !== undefined && p.appearanceCount > 0))
-                .map(player => {
+            {selectedLocation ? (
+              // 有地点：分组显示，有记录的排前，无记录的放"显示全部"后面
+              <>
+                {/* 有记录的玩家（该地点历史出现次数 > 0 或 isMe） */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                  {players
+                    .filter(p => p.isMe || (p.appearanceCount !== undefined && p.appearanceCount > 0))
+                    .map(player => {
+                      const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
+                      return (
+                        <button
+                          key={player.id}
+                          onClick={() => togglePlayer(player)}
+                          disabled={player.isMe}
+                          className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
+                            isSelected
+                              ? 'bg-primary text-white'
+                              : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+                          } ${player.isMe ? 'opacity-100 cursor-not-allowed' : ''}`}
+                        >
+                          {player.name} {player.isMe && '(我)'}
+                        </button>
+                      )
+                    })}
+                </div>
+
+                {/* 无记录的玩家（该地点历史出现次数 = 0） */}
+                {players.some(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0)) && (
+                  <>
+                    {!showAllPlayers ? (
+                      <button
+                        onClick={() => setShowAllPlayers(true)}
+                        className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors mb-3"
+                      >
+                        显示全部 ({players.filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0)).length})
+                      </button>
+                    ) : (
+                      <>
+                        <div className="text-xs text-text-secondary mb-2 px-1">以下玩家在该地点暂无记录</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                          {players
+                            .filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0))
+                            .map(player => {
+                              const isSelected = selectedPlayerIds.includes(player.id)
+                              return (
+                                <button
+                                  key={player.id}
+                                  onClick={() => togglePlayer(player)}
+                                  className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
+                                    isSelected
+                                      ? 'bg-primary text-white'
+                                      : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {player.name}
+                                </button>
+                              )
+                            })}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              // 无地点：平铺显示全部玩家
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                {players.map(player => {
                   const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
                   return (
                     <button
@@ -389,67 +461,16 @@ export default function NewGamePage() {
                     </button>
                   )
                 })}
-            </div>
-
-            {/* 无记录的玩家（该地点历史出现次数 = 0） */}
-            {players.some(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0)) && (
-              <>
-                {!showAllPlayers ? (
-                  <button
-                    onClick={() => setShowAllPlayers(true)}
-                    className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors mb-3"
-                  >
-                    显示全部 ({players.filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0)).length})
-                  </button>
-                ) : (
-                  <>
-                    <div className="text-xs text-text-secondary mb-2 px-1">以下玩家在该地点暂无记录</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                      {players
-                        .filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0))
-                        .map(player => {
-                          const isSelected = selectedPlayerIds.includes(player.id)
-                          return (
-                            <button
-                              key={player.id}
-                              onClick={() => togglePlayer(player)}
-                              className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
-                                isSelected
-                                  ? 'bg-primary text-white'
-                                  : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-                              }`}
-                            >
-                              {player.name}
-                            </button>
-                          )
-                        })}
-                    </div>
-                  </>
-                )}
-              </>
+              </div>
             )}
           </>
         ) : (
-          // 无地点：平铺显示全部玩家
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-            {players.map(player => {
-              const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
-              return (
-                <button
-                  key={player.id}
-                  onClick={() => togglePlayer(player)}
-                  disabled={player.isMe}
-                  className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
-                    isSelected
-                      ? 'bg-primary text-white'
-                      : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-                  } ${player.isMe ? 'opacity-100 cursor-not-allowed' : ''}`}
-                >
-                  {player.name} {player.isMe && '(我)'}
-                </button>
-              )
-            })}
-          </div>
+          <button
+            onClick={() => setShowPlayerList(true)}
+            className="w-full py-3 px-4 rounded-lg border border-gray-300 bg-white text-text font-semibold hover:bg-gray-50 transition-colors mb-3"
+          >
+            显示玩家
+          </button>
         )}
 
         <button
@@ -535,8 +556,18 @@ export default function NewGamePage() {
               昨天
             </button>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <span className="text-sm text-text-secondary py-1.5">时间：</span>
+            <button
+              onClick={() => setQuickTime('morning')}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedTime === 'morning'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
+            >
+              上午
+            </button>
             <button
               onClick={() => setQuickTime('afternoon')}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
@@ -556,6 +587,16 @@ export default function NewGamePage() {
               }`}
             >
               晚上
+            </button>
+            <button
+              onClick={() => setQuickTime('latenight')}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedTime === 'latenight'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
+            >
+              凌晨
             </button>
           </div>
         </div>

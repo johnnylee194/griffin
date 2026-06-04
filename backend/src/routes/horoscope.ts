@@ -157,8 +157,12 @@ function calcWindowStats(records: any[], splitIdx: number): WindowStats {
 
 function getTimeSlot(createdAt: Date): 'afternoon' | 'evening' | 'other' {
   const h = createdAt.getHours();
-  if (h >= 12 && h < 19) return 'afternoon';
-  if (h >= 19 && h < 24) return 'evening';
+  const m = createdAt.getMinutes();
+  const s = createdAt.getSeconds();
+  const ts = h * 3600 + m * 60 + s;
+
+  if (ts > 12 * 3600 && ts <= 18 * 3600) return 'afternoon';
+  if (ts > 18 * 3600 || ts === 0) return 'evening';
   return 'other';
 }
 

@@ -28,12 +28,19 @@ export const initDatabase = () => {
 
   // 创建用户表
   // 原始 commit: 121adc3 — replace Prisma with better-sqlite3
+  // 经过多次迁移，目前完整结构包含 birth_date, birth_time 等
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       name TEXT,
+      birth_date TEXT,
+      birth_time TEXT,
+      birth_location TEXT,
+      birth_latitude REAL,
+      birth_longitude REAL,
+      gender INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);

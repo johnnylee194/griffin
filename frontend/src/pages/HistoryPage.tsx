@@ -82,10 +82,30 @@ export default function HistoryPage() {
     return days
   }
 
-  const isAfternoon = (dateTime: string) => {
-    const date = new Date(dateTime)
-    const hours = date.getHours()
-    return hours < 20
+  const getTimeSlot = (dateTime: string) => {
+    const date = new Date(dateTime);
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+    const second = date.getSeconds();
+
+    // 转换为自 00:00:00 以来的秒数，以完美处理边界判定
+    const ts = hour * 3600 + minute * 60 + second;
+
+    // 凌晨 (lateNight): 00:00:01 至 08:00:00
+    if (ts > 0 && ts <= 8 * 3600) {
+      return 'lateNight';
+    }
+    // 上午 (morning): 08:00:01 至 12:00:00
+    if (ts > 8 * 3600 && ts <= 12 * 3600) {
+      return 'morning';
+    }
+    // 下午 (afternoon): 12:00:01 至 18:00:00
+    if (ts > 12 * 3600 && ts <= 18 * 3600) {
+      return 'afternoon';
+    }
+
+    // 晚上 (evening): 18:00:01 至 23:59:59，以及正好等于 00:00:00
+    return 'evening';
   }
 
   const getFilteredAndGroupedGames = () => {
@@ -120,9 +140,11 @@ export default function HistoryPage() {
       grouped[date].push(game)
     })
 
-    const dailyStats: { [date: string]: { total: number; afternoon: number; evening: number } } = {}
+    const dailyStats: { [date: string]: { total: number; lateNight: number; morning: number; afternoon: number; evening: number } } = {}
     Object.keys(grouped).forEach(date => {
       let total = 0
+      let lateNight = 0
+      let morning = 0
       let afternoon = 0
       let evening = 0
 
@@ -131,15 +153,15 @@ export default function HistoryPage() {
         if (myRecord && myRecord.chips !== null) {
           const chips = myRecord.chips
           total += chips
-          if (isAfternoon(game.createdAt)) {
-            afternoon += chips
-          } else {
-            evening += chips
-          }
+          const slot = getTimeSlot(game.createdAt)
+          if (slot === 'lateNight') lateNight += chips
+          else if (slot === 'morning') morning += chips
+          else if (slot === 'afternoon') afternoon += chips
+          else evening += chips
         }
       })
 
-      dailyStats[date] = { total, afternoon, evening }
+      dailyStats[date] = { total, lateNight, morning, afternoon, evening }
     })
 
     return { grouped, dailyStats }
@@ -220,21 +242,31 @@ export default function HistoryPage() {
             return (
               <div key={date} className="card bg-gray-50 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-4">
+                  <div className="flex flex-col space-y-1">
                     <span className="text-base font-semibold text-text">{displayDate}</span>
-                    <div className="flex items-center space-x-4 text-xs text-text-light">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-light">
                       <span>
-                        总计<span className={`ml-1 font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                        总计<span className={`ml-0.5 font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                           {stats.total >= 0 ? '+' : ''}{stats.total}
                         </span>
                       </span>
                       <span>
-                        下午<span className={`ml-1 font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                        凌晨<span className={`ml-0.5 font-bold ${stats.lateNight >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {stats.lateNight >= 0 ? '+' : ''}{stats.lateNight}
+                        </span>
+                      </span>
+                      <span>
+                        上午<span className={`ml-0.5 font-bold ${stats.morning >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {stats.morning >= 0 ? '+' : ''}{stats.morning}
+                        </span>
+                      </span>
+                      <span>
+                        下午<span className={`ml-0.5 font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                           {stats.afternoon >= 0 ? '+' : ''}{stats.afternoon}
                         </span>
                       </span>
                       <span>
-                        晚上<span className={`ml-1 font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                        晚上<span className={`ml-0.5 font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                           {stats.evening >= 0 ? '+' : ''}{stats.evening}
                         </span>
                       </span>

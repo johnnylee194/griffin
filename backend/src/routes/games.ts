@@ -289,8 +289,315 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
     const year = yearParam ? parseInt(yearParam as string) : now.getFullYear();
     const month = monthParam ? parseInt(monthParam as string) : now.getMonth() + 1;
     
-    const stats = StatsService.getMonthlyStats(userId, year, month, locationId as string);
-    res.json(stats);
+    let query = `
+      SELECT 
+        pr.chips,
+        g.created_at as createdAt,
+        g.game_type_id as gameTypeId,
+        gt.name as gameTypeName,
+        g.location_id as locationId,
+        l.name as locationName
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      LEFT JOIN game_types gt ON g.game_type_id = gt.id
+      LEFT JOIN locations l ON g.location_id = l.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND g.created_at >= ?
+        AND g.created_at < ?
+    `;
+    const params: any[] = [mePlayer.id, userId, startDate, endDate];
+    
+    if (locationId) {
+      const location = db.prepare(`
+        SELECT id FROM locations WHERE id = ? AND user_id = ?
+      `).get(locationId, userId) as any;
+      if (!location) {
+        return res.status(404).json({ error: 'Location not found' });
+      }
+      query += ` AND g.location_id = ?`;
+      params.push(locationId);
+    }
+    
+    query += ` ORDER BY g.created_at ASC`;
+    
+    const records = db.prepare(query).all(...params) as any[];
+    
+    const locationQuery = `
+      SELECT DISTINCT g.location_id, l.name
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      JOIN locations l ON g.location_id = l.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND l.user_id = ?
+        AND g.created_at >= ?
+        AND g.created_at < ?
+      ORDER BY l.name
+    `;
+    const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, userId, startDate, endDate) as any[];
+    
+    const earliestDateQuery = `
+      SELECT MIN(g.created_at) as earliest_date
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND pr.chips IS NOT NULL
+    `;
+    const earliestDateResult = db.prepare(earliestDateQuery).get(mePlayer.id, userId) as any;
+    let earliestYear = null;
+    let earliestMonth = null;
+    if (earliestDateResult && earliestDateResult.earliest_date) {
+      const earliestDate = new Date(earliestDateResult.earliest_date);
+      earliestYear = earliestDate.getFullYear();
+      earliestMonth = earliestDate.getMonth() + 1;
+    }
+    
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let winGames = 0;
+    let loseGames = 0;
+    
+    let lateNightWins = 0;
+    let lateNightLoses = 0;
+    let lateNightIncome = 0;
+    let lateNightExpense = 0;
+
+    let morningWins = 0;
+    let morningLoses = 0;
+    let morningIncome = 0;
+    let morningExpense = 0;
+
+    let afternoonWins = 0;
+    let afternoonLoses = 0;
+    let afternoonIncome = 0;
+    let afternoonExpense = 0;
+    
+    let eveningWins = 0;
+    let eveningLoses = 0;
+    let eveningIncome = 0;
+    let eveningExpense = 0;
+
+    const locationStats: Record<string, {
+      name: string;
+      totalGames: number;
+      winGames: number;
+      loseGames: number;
+      winRate: number;
+      totalIncome: number;
+      totalExpense: number;
+      profit: number;
+    }> = {};
+    
+    const gameTypeStats: Record<string, {
+      name: string;
+      totalGames: number;
+      winGames: number;
+      loseGames: number;
+      winRate: number;
+      totalIncome: number;
+      totalExpense: number;
+      profit: number;
+    }> = {};
+    
+    records.forEach(record => {
+      const chips = record.chips;
+      
+      if (chips > 0) {
+        totalIncome += chips;
+        winGames++;
+      } else if (chips < 0) {
+        totalExpense += Math.abs(chips);
+        loseGames++;
+      }
+      
+      const gameTime = new Date(record.createdAt);
+      const hour = gameTime.getHours();
+      const minute = gameTime.getMinutes();
+      const second = gameTime.getSeconds();
+      const ts = hour * 3600 + minute * 60 + second;
+      
+      if (ts > 0 && ts <= 8 * 3600) {
+        if (chips > 0) {
+          lateNightWins++;
+          lateNightIncome += chips;
+        } else if (chips < 0) {
+          lateNightLoses++;
+          lateNightExpense += Math.abs(chips);
+        }
+      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
+        if (chips > 0) {
+          morningWins++;
+          morningIncome += chips;
+        } else if (chips < 0) {
+          morningLoses++;
+          morningExpense += Math.abs(chips);
+        }
+      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
+        if (chips > 0) {
+          afternoonWins++;
+          afternoonIncome += chips;
+        } else if (chips < 0) {
+          afternoonLoses++;
+          afternoonExpense += Math.abs(chips);
+        }
+      } else { // 18:00:01-23:59:59 and 00:00:00
+        if (chips > 0) {
+          eveningWins++;
+          eveningIncome += chips;
+        } else if (chips < 0) {
+          eveningLoses++;
+          eveningExpense += Math.abs(chips);
+        }
+      }
+      
+      // Location Stats
+      const locationId = record.locationId || 'unknown';
+      const locationName = record.locationName || '未知地点';
+
+      if (!locationStats[locationId]) {
+        locationStats[locationId] = {
+          name: locationName,
+          totalGames: 0,
+          winGames: 0,
+          loseGames: 0,
+          winRate: 0,
+          totalIncome: 0,
+          totalExpense: 0,
+          profit: 0
+        };
+      }
+
+      const loc = locationStats[locationId];
+      loc.totalGames++;
+      if (chips > 0) {
+        loc.winGames++;
+        loc.totalIncome += chips;
+      } else if (chips < 0) {
+        loc.loseGames++;
+        loc.totalExpense += Math.abs(chips);
+      }
+
+      const gameTypeId = record.gameTypeId || 'unknown';
+      const gameTypeName = record.gameTypeName || '未知玩法';
+      
+      if (!gameTypeStats[gameTypeId]) {
+        gameTypeStats[gameTypeId] = {
+          name: gameTypeName,
+          totalGames: 0,
+          winGames: 0,
+          loseGames: 0,
+          winRate: 0,
+          totalIncome: 0,
+          totalExpense: 0,
+          profit: 0
+        };
+      }
+      
+      const gt = gameTypeStats[gameTypeId];
+      gt.totalGames++;
+      
+      if (chips > 0) {
+        gt.winGames++;
+        gt.totalIncome += chips;
+      } else if (chips < 0) {
+        gt.loseGames++;
+        gt.totalExpense += Math.abs(chips);
+      }
+    });
+    
+    Object.values(gameTypeStats).forEach(gt => {
+      gt.profit = gt.totalIncome - gt.totalExpense;
+      gt.winRate = gt.totalGames > 0 ? Math.round((gt.winGames / gt.totalGames) * 100) : 0;
+    });
+
+    Object.values(locationStats).forEach(loc => {
+      loc.profit = loc.totalIncome - loc.totalExpense;
+      loc.winRate = loc.totalGames > 0 ? Math.round((loc.winGames / loc.totalGames) * 100) : 0;
+    });
+    
+    const totalGames = winGames + loseGames;
+    const profit = totalIncome - totalExpense;
+    const winRate = totalGames > 0 ? Math.round((winGames / totalGames) * 100) : 0;
+
+    const lateNightTotal = lateNightWins + lateNightLoses;
+    const lateNightWinRate = lateNightTotal > 0 ? Math.round((lateNightWins / lateNightTotal) * 100) : 0;
+    const lateNightProfit = lateNightIncome - lateNightExpense;
+
+    const morningTotal = morningWins + morningLoses;
+    const morningWinRate = morningTotal > 0 ? Math.round((morningWins / morningTotal) * 100) : 0;
+    const morningProfit = morningIncome - morningExpense;
+    
+    const afternoonTotal = afternoonWins + afternoonLoses;
+    const afternoonWinRate = afternoonTotal > 0 ? Math.round((afternoonWins / afternoonTotal) * 100) : 0;
+    const afternoonProfit = afternoonIncome - afternoonExpense;
+    
+    const eveningTotal = eveningWins + eveningLoses;
+    const eveningWinRate = eveningTotal > 0 ? Math.round((eveningWins / eveningTotal) * 100) : 0;
+    const eveningProfit = eveningIncome - eveningExpense;
+    
+    res.json({
+      month: `${year}-${String(month + 1).padStart(2, '0')}`,
+      availableLocations: availableLocations.map(loc => ({
+        id: loc.location_id,
+        name: loc.name
+      })),
+      earliestMonth: earliestYear && earliestMonth ? {
+        year: earliestYear,
+        month: earliestMonth
+      } : null,
+      overall: {
+        totalIncome,
+        totalExpense,
+        profit,
+        totalGames,
+        winGames,
+        loseGames,
+        winRate
+      },
+      lateNight: {
+        totalGames: lateNightTotal,
+        winGames: lateNightWins,
+        loseGames: lateNightLoses,
+        winRate: lateNightWinRate,
+        totalIncome: lateNightIncome,
+        totalExpense: lateNightExpense,
+        profit: lateNightProfit
+      },
+      morning: {
+        totalGames: morningTotal,
+        winGames: morningWins,
+        loseGames: morningLoses,
+        winRate: morningWinRate,
+        totalIncome: morningIncome,
+        totalExpense: morningExpense,
+        profit: morningProfit
+      },
+      afternoon: {
+        totalGames: afternoonTotal,
+        winGames: afternoonWins,
+        loseGames: afternoonLoses,
+        winRate: afternoonWinRate,
+        totalIncome: afternoonIncome,
+        totalExpense: afternoonExpense,
+        profit: afternoonProfit
+      },
+      evening: {
+        totalGames: eveningTotal,
+        winGames: eveningWins,
+        loseGames: eveningLoses,
+        winRate: eveningWinRate,
+        totalIncome: eveningIncome,
+        totalExpense: eveningExpense,
+        profit: eveningProfit
+      },
+      byGameType: gameTypeStats,
+      byLocation: locationStats
+    });
+//  } catch (error) {
+//    const stats = StatsService.getMonthlyStats(userId, year, month, locationId as string);
+//    res.json(stats);
   } catch (error: any) {
     console.error('Failed to get monthly stats:', error);
     res.status(500).json({ error: error.message || 'Failed to get monthly stats' });

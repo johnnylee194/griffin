@@ -19,7 +19,7 @@ export default function EditGamePage() {
   const [myScore, setMyScore] = useState<number>(0)
   const [gameTime, setGameTime] = useState<string>('')
   const [selectedDate, setSelectedDate] = useState<'today' | 'yesterday' | null>(null)
-  const [selectedTime, setSelectedTime] = useState<'afternoon' | 'evening' | null>(null)
+  const [selectedTime, setSelectedTime] = useState<'morning' | 'afternoon' | 'evening' | 'latenight' | null>(null)
   const [showNumPad, setShowNumPad] = useState(false)
   const [showNewPlayerModal, setShowNewPlayerModal] = useState(false)
   const [showNoteModal, setShowNoteModal] = useState(false)
@@ -154,10 +154,14 @@ export default function EditGamePage() {
           setSelectedDate(null)
         }
         
-        if (timePart === '18:00') {
+        if (timePart === '11:00') {
+          setSelectedTime('morning')
+        } else if (timePart === '17:00') {
           setSelectedTime('afternoon')
         } else if (timePart === '23:00') {
           setSelectedTime('evening')
+        } else if (timePart === '01:00') {
+          setSelectedTime('latenight')
         } else {
           setSelectedTime(null)
         }
@@ -270,10 +274,15 @@ export default function EditGamePage() {
     setGameTime(`${year}-${month}-${day}T${currentTime}`)
   }
 
-  const setQuickTime = (type: 'afternoon' | 'evening') => {
+  const setQuickTime = (type: 'morning' | 'afternoon' | 'evening' | 'latenight') => {
     setSelectedTime(type)
     const currentDate = gameTime ? gameTime.split('T')[0] : new Date().toISOString().split('T')[0]
-    const hours = type === 'afternoon' ? '18' : '23'
+    let hours = '18'
+    if (type === 'morning') hours = '11'
+    else if (type === 'afternoon') hours = '17'
+    else if (type === 'evening') hours = '23'
+    else if (type === 'latenight') hours = '01'
+
     const minutes = '00'
     setGameTime(`${currentDate}T${hours}:${minutes}`)
   }
@@ -293,10 +302,14 @@ export default function EditGamePage() {
       setSelectedDate(null)
     }
     
-    if (time === '18:00') {
+    if (time === '11:00') {
+      setSelectedTime('morning')
+    } else if (time === '17:00') {
       setSelectedTime('afternoon')
     } else if (time === '23:00') {
       setSelectedTime('evening')
+    } else if (time === '01:00') {
+      setSelectedTime('latenight')
     } else {
       setSelectedTime(null)
     }
@@ -448,8 +461,18 @@ export default function EditGamePage() {
               昨天
             </button>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <span className="text-sm text-text-secondary py-1.5">时间：</span>
+            <button
+              onClick={() => setQuickTime('morning')}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedTime === 'morning'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
+            >
+              上午
+            </button>
             <button
               onClick={() => setQuickTime('afternoon')}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
@@ -469,6 +492,16 @@ export default function EditGamePage() {
               }`}
             >
               晚上
+            </button>
+            <button
+              onClick={() => setQuickTime('latenight')}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedTime === 'latenight'
+                  ? 'bg-primary text-white border-primary'
+                  : 'border-gray-300 bg-white text-text hover:bg-gray-50'
+              }`}
+            >
+              凌晨
             </button>
           </div>
         </div>
