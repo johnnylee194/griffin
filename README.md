@@ -5,8 +5,6 @@
 
 <div align="center">
 
-![Griffin](frontend/public/griffin-icon.svg)
-
 **专业的麻将记分与数据分析应用**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-gold.svg)](LICENSE)
