@@ -59,8 +59,19 @@ if (process.env.NODE_ENV === 'production') {
 
 // 错误处理
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  console.error('API Error:', err);
+
+  // 业务逻辑错误
+  if (err instanceof Error) {
+    if (err.message.includes('not found')) {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message.includes('required') || err.message.includes('invalid')) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  res.status(500).json({ error: err.message || 'Something went wrong!' });
 });
 
 // 启动服务器

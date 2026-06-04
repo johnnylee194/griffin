@@ -181,14 +181,24 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-primary text-base">加载中...</div>
+      <div className="h-full max-w-6xl mx-auto px-3 pt-2 animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+        <div className="h-32 bg-gray-200 rounded-xl mb-4"></div>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="h-24 bg-gray-200 rounded-xl"></div>
+          <div className="h-24 bg-gray-200 rounded-xl"></div>
+        </div>
+        <div className="h-8 bg-gray-200 rounded w-1/4 mb-2"></div>
+        <div className="space-y-2">
+          <div className="h-20 bg-gray-200 rounded-xl"></div>
+          <div className="h-20 bg-gray-200 rounded-xl"></div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full max-w-6xl mx-auto px-3 pb-32">
+    <div className="h-full max-w-6xl mx-auto px-3 pb-32 transition-opacity duration-300 opacity-100">
       <div className="space-y-3 pt-2">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-primary">

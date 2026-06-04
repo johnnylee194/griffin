@@ -1,0 +1,233 @@
+import db from '../database';
+import { Lunar } from 'lunar-javascript';
+
+export interface MonthlyStats {
+  month: string;
+  availableLocations: Array<{ id: string; name: string }>;
+  earliestMonth: { year: number; month: number } | null;
+  overall: StatSummary;
+  afternoon: StatSummary;
+  evening: StatSummary;
+  byGameType: Record<string, GameTypeStat>;
+}
+
+export interface StatSummary {
+  totalIncome: number;
+  totalExpense: number;
+  profit: number;
+  totalGames: number;
+  winGames: number;
+  loseGames: number;
+  winRate: number;
+}
+
+export interface GameTypeStat extends StatSummary {
+  name: string;
+}
+
+export class StatsService {
+  static getMonthlyStats(userId: string, year: number, month: number, locationId?: string): MonthlyStats {
+    const firstDayOfMonth = new Date(year, month - 1, 1);
+    const firstDayOfNextMonth = new Date(year, month, 1);
+
+    const startDate = firstDayOfMonth.toISOString();
+    const endDate = firstDayOfNextMonth.toISOString();
+
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
+    if (!mePlayer) {
+      throw new Error('Current user not found, please create "我" player first');
+    }
+
+    let query = `
+      SELECT
+        pr.chips,
+        g.created_at as createdAt,
+        g.game_type_id as gameTypeId,
+        gt.name as gameTypeName
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      LEFT JOIN game_types gt ON g.game_type_id = gt.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND g.created_at >= ?
+        AND g.created_at < ?
+    `;
+    const params: any[] = [mePlayer.id, userId, startDate, endDate];
+
+    if (locationId) {
+      query += ` AND g.location_id = ?`;
+      params.push(locationId);
+    }
+
+    query += ` ORDER BY g.created_at ASC`;
+    const records = db.prepare(query).all(...params) as any[];
+
+    // Get available locations
+    const locationQuery = `
+      SELECT DISTINCT g.location_id, l.name
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      JOIN locations l ON g.location_id = l.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND g.created_at >= ?
+        AND g.created_at < ?
+      ORDER BY l.name
+    `;
+    const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, startDate, endDate) as any[];
+
+    // Get earliest month
+    const earliestDateQuery = `
+      SELECT MIN(g.created_at) as earliest_date
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND pr.chips IS NOT NULL
+    `;
+    const earliestDateResult = db.prepare(earliestDateQuery).get(mePlayer.id, userId) as any;
+    let earliestMonth = null;
+    if (earliestDateResult && earliestDateResult.earliest_date) {
+      const date = new Date(earliestDateResult.earliest_date);
+      earliestMonth = {
+        year: date.getFullYear(),
+        month: date.getMonth() + 1
+      };
+    }
+
+    const initialStat = (): StatSummary => ({
+      totalIncome: 0,
+      totalExpense: 0,
+      profit: 0,
+      totalGames: 0,
+      winGames: 0,
+      loseGames: 0,
+      winRate: 0
+    });
+
+    const overall = initialStat();
+    const afternoon = initialStat();
+    const evening = initialStat();
+    const byGameType: Record<string, GameTypeStat> = {};
+
+    records.forEach(record => {
+      const chips = record.chips || 0;
+      const gameTime = new Date(record.createdAt);
+      const hour = gameTime.getHours();
+
+      const updateStat = (stat: StatSummary) => {
+        stat.totalGames++;
+        if (chips > 0) {
+          stat.totalIncome += chips;
+          stat.winGames++;
+        } else if (chips < 0) {
+          stat.totalExpense += Math.abs(chips);
+          stat.loseGames++;
+        }
+      };
+
+      updateStat(overall);
+      if (hour < 20) {
+        updateStat(afternoon);
+      } else {
+        updateStat(evening);
+      }
+
+      const gtId = record.gameTypeId || 'unknown';
+      if (!byGameType[gtId]) {
+        byGameType[gtId] = { ...initialStat(), name: record.gameTypeName || '未知玩法' };
+      }
+      updateStat(byGameType[gtId]);
+    });
+
+    const finalizeStat = (stat: StatSummary) => {
+      stat.profit = stat.totalIncome - stat.totalExpense;
+      stat.winRate = stat.totalGames > 0 ? Math.round((stat.winGames / stat.totalGames) * 100) : 0;
+    };
+
+    finalizeStat(overall);
+    finalizeStat(afternoon);
+    finalizeStat(evening);
+    Object.values(byGameType).forEach(finalizeStat);
+
+    return {
+      month: `${year}-${String(month).padStart(2, '0')}`,
+      availableLocations: availableLocations.map(loc => ({ id: loc.location_id, name: loc.name })),
+      earliestMonth,
+      overall,
+      afternoon,
+      evening,
+      byGameType
+    };
+  }
+
+  static getAnnualStats(userId: string, year: number, useLunar: boolean = false) {
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
+    if (!mePlayer) {
+      throw new Error('Current user not found');
+    }
+
+    let startDate: string;
+    let endDate: string;
+    let resultYear: number;
+
+    if (useLunar) {
+      // Use lunar-javascript to get the solar date range of the lunar year
+      const lunar = (Lunar as any).fromYmd(year, 1, 1);
+      const solarStart = lunar.getSolar();
+
+      // Get the last day of this lunar year (day before next lunar year's first day)
+      const nextLunar = (Lunar as any).fromYmd(year + 1, 1, 1);
+      const solarEnd = nextLunar.getSolar();
+
+      startDate = `${solarStart.toYmd()}T00:00:00`;
+      endDate = `${solarEnd.toYmd()}T00:00:00`;
+      resultYear = year;
+    } else {
+      startDate = `${year}-01-01T00:00:00`;
+      endDate = `${year + 1}-01-01T00:00:00`;
+      resultYear = year;
+    }
+
+    const records = db.prepare(`
+      SELECT pr.chips, pr.score
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND g.created_at >= ?
+        AND g.created_at < ?
+    `).all(mePlayer.id, userId, startDate, endDate) as any[];
+
+    let income = 0;
+    let expense = 0;
+    let wins = 0;
+    let losses = 0;
+
+    records.forEach(r => {
+      if (r.chips > 0) {
+        income += r.chips;
+        wins++;
+      } else if (r.chips < 0) {
+        expense += Math.abs(r.chips);
+        losses++;
+      }
+    });
+
+    const totalGames = wins + losses;
+    return {
+      year: resultYear,
+      startDate: startDate.split('T')[0],
+      endDate: endDate.split('T')[0],
+      overall: {
+        income,
+        expense,
+        profit: income - expense,
+        wins,
+        losses,
+        totalGames,
+        winRate: totalGames > 0 ? parseFloat(((wins / totalGames) * 100).toFixed(2)) : 0
+      }
+    };
+  }
+}

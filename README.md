@@ -87,6 +87,7 @@ griffin/
 │   │   ├── index.ts     # 入口，路由和中间件
 │   │   ├── database.ts  # SQLite 建表和迁移
 │   │   ├── routes/      # API 路由（auth, players, games, stats 等）
+│   │   ├── services/    # 业务逻辑层（对局处理、统计计算等）
 │   │   ├── middleware/   # JWT 认证中间件
 │   │   └── utils/       # 运势、农历、时间工具
 │   └── data/            # SQLite 数据库文件
