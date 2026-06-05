@@ -7,6 +7,7 @@ import NewGamePage from './pages/NewGamePage'
 import EditGamePage from './pages/EditGamePage'
 import HistoryPage from './pages/HistoryPage'
 import StatsPage from './pages/StatsPage'
+import PlayerStatsArchivePage from './pages/PlayerStatsArchivePage'
 import SettingsPage from './pages/SettingsPage'
 import HoroscopePage from './pages/HoroscopePage'
 import { FilterConfigPage } from './pages/FilterConfigPage'
@@ -108,6 +109,7 @@ function AppContent() {
           <Route path="/edit-game/:id" element={<ProtectedRoute><EditGamePage /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
           <Route path="/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
+          <Route path="/stats/archive" element={<ProtectedRoute><PlayerStatsArchivePage /></ProtectedRoute>} />
           <Route path="/horoscope" element={<ProtectedRoute><HoroscopePage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/filter/new" element={<ProtectedRoute><FilterConfigPage /></ProtectedRoute>} />

@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { gamesApi, Game } from '../api/client'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { gamesApi, Game, locationsApi, Location } from '../api/client'
 import { format } from 'date-fns'
 
 export default function HistoryPage() {
   const navigate = useNavigate()
+  const locationState = useLocation()
   const [games, setGames] = useState<Game[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'win' | 'lose'>('all')
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
   const [selectedDay, setSelectedDay] = useState<string>('all')
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(
+    (locationState.state as any)?.locationId || ''
+  )
 
   const handleMonthChange = (month: number) => {
     setSelectedMonth(month)
@@ -33,13 +38,17 @@ export default function HistoryPage() {
   }
 
   useEffect(() => {
-    loadGames()
+    loadData()
   }, [])
 
-  const loadGames = async () => {
+  const loadData = async () => {
     try {
-      const res = await gamesApi.getAll()
-      setGames(res.data)
+      const [gamesRes, locationsRes] = await Promise.all([
+        gamesApi.getAll(),
+        locationsApi.getAll()
+      ])
+      setGames(gamesRes.data)
+      setLocations(locationsRes.data)
     } catch (error) {
       console.error('Failed to load games:', error)
     } finally {
@@ -120,6 +129,10 @@ export default function HistoryPage() {
       }
 
       if (selectedDay !== 'all' && gameDay !== parseInt(selectedDay)) {
+        return false
+      }
+
+      if (selectedLocationId && game.locationId !== selectedLocationId) {
         return false
       }
 
@@ -210,9 +223,19 @@ export default function HistoryPage() {
             onChange={(e) => setSelectedDay(e.target.value)}
             className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
           >
-            <option value="all">全部</option>
+            <option value="all">全部日期</option>
             {getDayOptions().slice(1).map(day => (
               <option key={day} value={day}>{day}日</option>
+            ))}
+          </select>
+          <select
+            value={selectedLocationId}
+            onChange={(e) => setSelectedLocationId(e.target.value)}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+          >
+            <option value="">全部地点</option>
+            {locations.map(loc => (
+              <option key={loc.id} value={loc.id}>{loc.name}</option>
             ))}
           </select>
           <select
@@ -220,7 +243,7 @@ export default function HistoryPage() {
             onChange={(e) => setFilter(e.target.value as 'all' | 'win' | 'lose')}
             className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
           >
-            <option value="all">全部</option>
+            <option value="all">全部输赢</option>
             <option value="win">盈利</option>
             <option value="lose">亏损</option>
           </select>

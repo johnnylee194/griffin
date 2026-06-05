@@ -100,7 +100,10 @@ export default function HomePage() {
   const loadData = async () => {
     try {
       const [gamesRes, statsRes] = await Promise.all([
-        gamesApi.getAll({ limit: 5 }),
+        gamesApi.getAll({
+          limit: 5,
+          locationId: selectedLocationId || undefined
+        } as any),
         apiClient.get('/games/stats/monthly', {
           params: { 
             year: selectedYear, 
@@ -366,6 +369,10 @@ export default function HomePage() {
                   {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
                 </div>
                 <div className="text-xs text-text-secondary mt-1">总利润</div>
+                <div className="flex items-center justify-center gap-3 mt-1.5">
+                  <span className="text-[10px] text-text-light">共 {monthlyStats.overall.totalGames} 场</span>
+                  <span className="text-[10px] text-text-light">胜率 {monthlyStats.overall.winRate}%</span>
+                </div>
               </div>
               <div className="flex justify-between">
                 <div className="text-center">
@@ -404,98 +411,49 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌅</span>
-                    <span className="text-xs font-semibold text-text">上午场</span>
-                  </div>
-                  <span className={`${monthlyStats.morning.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.morning.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.morning.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.morning.profit >= 0 ? '+' : ''}{monthlyStats.morning.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.morning.totalGames}场</div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌆</span>
-                    <span className="text-xs font-semibold text-text">下午场</span>
-                  </div>
-                  <span className={`${monthlyStats.afternoon.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.afternoon.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.afternoon.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.afternoon.profit >= 0 ? '+' : ''}{monthlyStats.afternoon.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.afternoon.totalGames}场</div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌙</span>
-                    <span className="text-xs font-semibold text-text">晚上场</span>
-                  </div>
-                  <span className={`${monthlyStats.evening.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.evening.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.evening.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.evening.profit >= 0 ? '+' : ''}{monthlyStats.evening.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.evening.totalGames}场</div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌌</span>
-                    <span className="text-xs font-semibold text-text">凌晨场</span>
-                  </div>
-                  <span className={`${monthlyStats.lateNight.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.lateNight.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.lateNight.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.lateNight.profit >= 0 ? '+' : ''}{monthlyStats.lateNight.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.lateNight.totalGames}场</div>
-              </div>
-
-              {Object.values(monthlyStats.byGameType || {}).map((gt, index) => (
-                <div key={`gt-${index}`} className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm">🀄️</span>
-                      <span className="text-xs font-semibold text-text truncate">{gt.name}</span>
+            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: '上午场', icon: '🌅', ...monthlyStats.morning },
+                  { label: '下午场', icon: '🌆', ...monthlyStats.afternoon },
+                  { label: '晚上场', icon: '🌙', ...monthlyStats.evening },
+                  { label: '凌晨场', icon: '🌌', ...monthlyStats.lateNight }
+                ].map((item, index) => (
+                  <div key={`time-${index}`} className="flex flex-col p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold text-text truncate max-w-[70%]">
+                        {item.icon} {item.label}
+                      </span>
+                      <span className="text-[8px] text-text-light">{item.winRate}%</span>
                     </div>
-                    <span className={`${gt.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                      {gt.winRate}%
-                    </span>
+                    <div className={`text-sm font-bold ${item.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                      {item.profit >= 0 ? '+' : ''}{item.profit.toLocaleString()}
+                    </div>
+                    <div className="text-[8px] text-text-light">共{item.totalGames}场</div>
                   </div>
-                  <div className={`text-xl font-bold mb-2 ${
-                    gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                  }`}>
-                    {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
+                ))}
+              </div>
+
+              {Object.values(monthlyStats.byGameType || {}).length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.values(monthlyStats.byGameType)
+                      .sort((a, b) => b.profit - a.profit)
+                      .map((gt, index) => (
+                        <div key={`gt-${index}`} className="flex flex-col p-2 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold text-text truncate max-w-[70%]">🀄️ {gt.name}</span>
+                            <span className="text-[8px] text-text-light">{gt.winRate}%</span>
+                          </div>
+                          <div className={`text-sm font-bold ${gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                            {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
+                          </div>
+                          <div className="text-[8px] text-text-light">共{gt.totalGames}场</div>
+                        </div>
+                      ))}
                   </div>
-                  <div className="text-xs text-text-light">共{gt.totalGames}场</div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
@@ -503,7 +461,11 @@ export default function HomePage() {
         <div className="pb-2">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-text">最近对局</h3>
-            <Link to="/history" className="text-primary text-xs hover:underline">
+            <Link
+              to="/history"
+              state={{ locationId: selectedLocationId }}
+              className="text-primary text-xs hover:underline"
+            >
               查看全部 →
             </Link>
           </div>

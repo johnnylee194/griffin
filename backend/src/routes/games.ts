@@ -12,7 +12,7 @@ router.use(authMiddleware);
 router.get('/', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { limit, offset } = req.query;
+    const { limit, offset, locationId } = req.query;
     
     let query = `
       SELECT 
@@ -26,10 +26,17 @@ router.get('/', (req: AuthRequest, res) => {
         g.updated_at as updatedAt
       FROM games g
       WHERE g.user_id = ?
-      ORDER BY g.created_at DESC
     `;
     
     const params: any[] = [userId];
+
+    if (locationId) {
+      query += ' AND g.location_id = ?';
+      params.push(locationId);
+    }
+
+    query += ' ORDER BY g.created_at DESC';
+
     if (limit) {
       query += ' LIMIT ?';
       params.push(parseInt(limit as string));
