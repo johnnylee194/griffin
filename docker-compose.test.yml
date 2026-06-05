@@ -14,7 +14,11 @@ services:
       - PORT=3000
       - DATABASE_URL=file:./data/griffin.db
       # VPS代理服务配置（如果.env文件不存在，可以在这里直接配置）
-      # - VPS_PROXY_URL=http://us-proxy.januslab.cn:8080
-      # - API_SECRET=your-secret-key-here
-      # - JWT_SECRET=griffin-secret-key-2025
+      - JWT_SECRET=${JWT_SECRET}
+      - AMAP_API_KEY=${AMAP_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - MINIMAX_API_URL=${MINIMAX_API_URL}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_API_URL=${DEEPSEEK_API_URL}
 

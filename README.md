@@ -105,7 +105,6 @@ griffin/
 | [SETUP.md](SETUP.md) | 快速上手 + 部署指南 ⭐ |
 | [USER_GUIDE.md](USER_GUIDE.md) | 终端用户使用手册 |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | 私密运维笔记 |
-| [docs/IRIS-INTEGRATION.md](docs/IRIS-INTEGRATION.md) | AI 运势功能接入 |
 
 ## 开源协议
 

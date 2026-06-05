@@ -5,7 +5,7 @@ echo "=== Griffin 手动部署 ==="
 echo ""
 
 # 连接到服务器并执行部署
-ssh jlee@januslab.cn << 'ENDSSH'
+ssh your-user@example.com << 'ENDSSH'
     # 进入项目目录
     cd ~/griffin || exit 1
     

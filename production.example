@@ -2,8 +2,8 @@
 # 此文件用于记录您的生产环境配置
 
 ## 服务器信息
-- 域名: januslab.cn
-- 用户名: jlee
+- 域名: example.com
+- 用户名: your-user
 - SSH 端口: 22
 - 项目路径: ~/griffin
 
@@ -12,8 +12,8 @@
 
 | Secret 名称 | 值 | 说明 |
 |------------|-----|------|
-| SERVER_HOST | januslab.cn | 服务器域名 |
-| SERVER_USER | jlee | SSH 用户名 |
+| SERVER_HOST | example.com | 服务器域名 |
+| SERVER_USER | your-user | SSH 用户名 |
 | SSH_PRIVATE_KEY | (私钥内容) | SSH 私钥完整内容 |
 | SERVER_PORT | 22 | SSH 端口（可选） |
 
@@ -22,6 +22,5 @@
 - POSTGRES_PASSWORD: 使用强密码替换默认密码
 
 ## 访问地址
-- HTTP: http://januslab.cn
-- HTTPS: https://januslab.cn（配置 SSL 后）
-
+- HTTP: http://example.com
+- HTTPS: https://example.com（配置 SSL 后）

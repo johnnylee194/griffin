@@ -18,6 +18,10 @@
 git clone https://github.com/YOUR_USERNAME/griffin.git
 cd griffin
 
+# 复制并配置环境变量
+cp backend/env.example backend/.env
+# 修改 backend/.env 中的配置，特别是 JWT_SECRET, AMAP_API_KEY 等
+
 docker-compose up -d --build
 ```
 
@@ -93,7 +97,7 @@ Internet → Nginx → Griffin 容器 (:3000)
 
 ```bash
 # SSH 到服务器
-ssh jlee@januslab.cn
+ssh your-user@example.com
 
 # 安装 Docker
 curl -fsSL https://get.docker.com -o get-docker.sh
@@ -116,6 +120,11 @@ cd griffin
 ### 3. 配置并启动
 
 ```bash
+# 准备环境变量
+cp backend/env.example backend/.env
+# 使用编辑器修改 backend/.env
+# nano backend/.env
+
 # 启动服务
 docker-compose up -d --build
 
@@ -143,7 +152,7 @@ cd scripts && node add-user.js
 ```nginx
 server {
     listen 80;
-    server_name griffin.januslab.cn;
+    server_name griffin.example.com;
 
     location / {
         proxy_pass http://127.0.0.1:10020;
@@ -177,14 +186,14 @@ sudo systemctl reload nginx
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d griffin.januslab.cn
+sudo certbot --nginx -d griffin.example.com
 sudo certbot renew --dry-run
 ```
 
 ### 访问地址
 
-- HTTP：http://griffin.januslab.cn
-- HTTPS：https://griffin.januslab.cn
+- HTTP：http://griffin.example.com
+- HTTPS：https://griffin.example.com
 
 ---
 
@@ -195,10 +204,10 @@ sudo certbot renew --dry-run
 ```bash
 # 在服务器生成 SSH 密钥对
 ssh-keygen -t ed25519 -C "github-actions"
-ssh-copy-id -i ~/.ssh/id_ed25519.pub jlee@januslab.cn
+ssh-copy-id -i ~/.ssh/id_ed25519.pub your-user@example.com
 
 # 验证连接
-ssh -i ~/.ssh/id_ed25519 jlee@januslab.cn
+ssh -i ~/.ssh/id_ed25519 your-user@example.com
 ```
 
 ### 2. 在 GitHub 添加 Secrets
@@ -207,8 +216,8 @@ ssh -i ~/.ssh/id_ed25519 jlee@januslab.cn
 
 | 名称 | 值 |
 |------|-----|
-| `SERVER_HOST` | `januslab.cn` |
-| `SERVER_USER` | `jlee` |
+| `SERVER_HOST` | `example.com` |
+| `SERVER_USER` | `your-user` |
 | `SSH_PRIVATE_KEY` | 完整私钥内容（包括 BEGIN/END 行） |
 | `SERVER_PORT` | `22` |
 
