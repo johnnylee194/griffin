@@ -361,41 +361,42 @@ export default function HomePage() {
               </div>
             )}
             
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-              <div className="text-center mb-3">
-                <div className={`text-4xl font-bold ${
+            <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+              <div className="text-center mb-4">
+                <div className={`text-4xl font-bold tracking-tight mb-1 ${
                   monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
                 }`}>
                   {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
                 </div>
-                <div className="text-xs text-text-secondary mt-1">总利润</div>
-                <div className="flex items-center justify-center gap-3 mt-1.5">
-                  <span className="text-[10px] text-text-light">共 {monthlyStats.overall.totalGames} 场</span>
-                  <span className="text-[10px] text-text-light">胜率 {monthlyStats.overall.winRate}%</span>
-                </div>
-              </div>
-              <div className="flex justify-between">
-                <div className="text-center">
-                  <div className="text-sm font-semibold text-accent-red">
-                    +{monthlyStats.overall.totalIncome.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-400">总赢</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm font-semibold text-accent-green">
-                    -{monthlyStats.overall.totalExpense.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-400">总输</div>
+                <div className="text-xs font-medium text-text-secondary">总利润</div>
+                <div className="flex items-center justify-center gap-3 mt-1.5 text-[10px] text-text-light">
+                  <span className="bg-gray-50 px-2 py-0.5 rounded">共 {monthlyStats.overall.totalGames} 场</span>
+                  <span className="bg-gray-50 px-2 py-0.5 rounded">胜率 {monthlyStats.overall.winRate}%</span>
                 </div>
               </div>
 
-              {selectedLocationId === '' && monthlyStats.byLocation && Object.keys(monthlyStats.byLocation).length > 1 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex justify-between px-2 mb-4">
+                <div className="text-left">
+                  <div className="text-base font-bold text-accent-red">
+                    +{monthlyStats.overall.totalIncome.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-text-light">总赢</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-base font-bold text-accent-green">
+                    -{monthlyStats.overall.totalExpense.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-text-light">总输</div>
+                </div>
+              </div>
+
+              {selectedLocationId === '' && monthlyStats.byLocation && Object.keys(monthlyStats.byLocation).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-50">
                   <div className="grid grid-cols-2 gap-2">
                     {Object.values(monthlyStats.byLocation)
                       .sort((a, b) => b.profit - a.profit)
                       .map((loc, index) => (
-                        <div key={`loc-${index}`} className="flex flex-col p-2 bg-gray-50 rounded-lg">
+                        <div key={`loc-${index}`} className="flex flex-col p-2 bg-gray-50/50 rounded-lg border border-gray-100/30">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[10px] font-bold text-text truncate max-w-[70%]">{loc.name}</span>
                             <span className="text-[8px] text-text-light">{loc.winRate}%</span>
@@ -403,7 +404,6 @@ export default function HomePage() {
                           <div className={`text-sm font-bold ${loc.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                             {loc.profit >= 0 ? '+' : ''}{loc.profit.toLocaleString()}
                           </div>
-                          <div className="text-[8px] text-text-light">共{loc.totalGames}场</div>
                         </div>
                       ))}
                   </div>
@@ -411,7 +411,7 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+            <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { label: '上午场', icon: '🌅', ...monthlyStats.morning },
@@ -419,7 +419,7 @@ export default function HomePage() {
                   { label: '晚上场', icon: '🌙', ...monthlyStats.evening },
                   { label: '凌晨场', icon: '🌌', ...monthlyStats.lateNight }
                 ].map((item, index) => (
-                  <div key={`time-${index}`} className="flex flex-col p-2 bg-gray-50 rounded-lg">
+                  <div key={`time-${index}`} className="flex flex-col p-2 bg-gray-50/50 rounded-lg border border-gray-100/30">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] font-bold text-text truncate max-w-[70%]">
                         {item.icon} {item.label}
@@ -429,18 +429,17 @@ export default function HomePage() {
                     <div className={`text-sm font-bold ${item.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                       {item.profit >= 0 ? '+' : ''}{item.profit.toLocaleString()}
                     </div>
-                    <div className="text-[8px] text-text-light">共{item.totalGames}场</div>
                   </div>
                 ))}
               </div>
 
               {Object.values(monthlyStats.byGameType || {}).length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="mt-3 pt-3 border-t border-gray-50">
                   <div className="grid grid-cols-2 gap-2">
                     {Object.values(monthlyStats.byGameType)
                       .sort((a, b) => b.profit - a.profit)
                       .map((gt, index) => (
-                        <div key={`gt-${index}`} className="flex flex-col p-2 bg-gray-50 rounded-lg">
+                        <div key={`gt-${index}`} className="flex flex-col p-2 bg-gray-50/50 rounded-lg border border-gray-100/30">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[10px] font-bold text-text truncate max-w-[70%]">🀄️ {gt.name}</span>
                             <span className="text-[8px] text-text-light">{gt.winRate}%</span>
@@ -448,7 +447,6 @@ export default function HomePage() {
                           <div className={`text-sm font-bold ${gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                             {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
                           </div>
-                          <div className="text-[8px] text-text-light">共{gt.totalGames}场</div>
                         </div>
                       ))}
                   </div>
