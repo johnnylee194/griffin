@@ -8,8 +8,8 @@
 
 | 项目 | 值 |
 |------|-----|
-| 服务器域名 | januslab.cn |
-| 用户名 | jlee |
+| 服务器域名 | example.com |
+| 用户名 | your-user |
 | 项目路径 | ~/griffin |
 | SSH 端口 | 22 |
 
@@ -87,8 +87,8 @@ cat ~/.ssh/id_ed25519
 
 | 名称 | 值 |
 |------|-----|
-| `SERVER_HOST` | `januslab.cn` |
-| `SERVER_USER` | `jlee` |
+| `SERVER_HOST` | `example.com` |
+| `SERVER_USER` | `your-user` |
 | `SSH_PRIVATE_KEY` | 完整私钥内容 |
 | `SERVER_PORT` | `22` |
 
@@ -193,10 +193,10 @@ docker-compose up -d --build
 
 ```bash
 # 测试 SSH
-ssh jlee@januslab.cn
+ssh your-user@example.com
 
 # 检查密钥
-ssh -i ~/.ssh/id_ed25519 jlee@januslab.cn
+ssh -i ~/.ssh/id_ed25519 your-user@example.com
 ```
 
 ### GitHub Actions 失败

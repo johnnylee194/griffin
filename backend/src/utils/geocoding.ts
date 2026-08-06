@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const AMAP_URL = 'https://restapi.amap.com/v3/geocode/geo';
-const AMAP_KEY = process.env.AMAP_API_KEY || '';
+const AMAP_KEY = process.env.AMAP_API_KEY;
 
 // Memory cache for geocoding results
 const cache = new Map<string, { latitude: number; longitude: number }>();

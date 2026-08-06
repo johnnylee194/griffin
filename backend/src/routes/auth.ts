@@ -6,7 +6,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { geocode } from '../utils/geocoding';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'griffin-secret-key-2025';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // 登录
 router.post('/login', (req, res) => {
@@ -33,6 +33,11 @@ router.post('/login', (req, res) => {
     }
 
     // 生成 JWT token
+    if (!JWT_SECRET) {
+      console.error('JWT_SECRET is not defined in environment variables');
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+
     const token = jwt.sign(
       { id: user.id, username: user.username },
       JWT_SECRET,
@@ -75,6 +80,11 @@ router.get('/verify', (req, res) => {
 
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
+    }
+
+    if (!JWT_SECRET) {
+      console.error('JWT_SECRET is not defined in environment variables');
+      return res.status(500).json({ error: 'Internal server error' });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as any;

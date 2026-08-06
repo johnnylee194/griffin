@@ -30,7 +30,7 @@ const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
     name: 'MiniMax',
     model: 'MiniMax-M2.7',
     apiKey: () => process.env.MINIMAX_API_KEY || '',
-    apiUrl: () => process.env.MINIMAX_API_URL || 'https://api.minimaxi.com/anthropic/v1/messages',
+    apiUrl: () => process.env.MINIMAX_API_URL || '',
     buildHeaders: (apiKey) => ({
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -55,7 +55,7 @@ const PROVIDERS: Record<LLMProvider, ProviderConfig> = {
     name: 'DeepSeek',
     model: 'deepseek-v4-flash',
     apiKey: () => process.env.DEEPSEEK_API_KEY || '',
-    apiUrl: () => process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions',
+    apiUrl: () => process.env.DEEPSEEK_API_URL || '',
     buildHeaders: (apiKey) => ({
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
@@ -668,12 +668,14 @@ async function callLLM(prompt: string, maxTokens: number = 8192): Promise<string
   const apiUrl = provider.apiUrl();
 
   console.log(`[DEBUG] LLM_PROVIDER env = ${process.env.LLM_PROVIDER}`);
-  console.log(`[DEBUG] DEEPSEEK_API_KEY env = ${process.env.DEEPSEEK_API_KEY ? 'SET' : 'NOT SET'}`);
   console.log(`[DEBUG] callLLM - Provider: ${provider.name}, Model: ${provider.model}`);
-  console.log(`[DEBUG] Full prompt:\n${prompt}\n--- END OF PROMPT ---`);
 
   if (!apiKey) {
     throw new Error(`${provider.name}_API_KEY 未配置`);
+  }
+
+  if (!apiUrl) {
+    throw new Error(`${provider.name}_API_URL 未配置`);
   }
 
   const promptLabel = prompt.split('\n')[0].substring(0, 60);

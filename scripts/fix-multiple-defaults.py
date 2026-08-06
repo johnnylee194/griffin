@@ -60,7 +60,7 @@ print(f'连接数据库: {DB_PATH}')
 if not os.path.exists(DB_PATH):
     print('[ERROR] 数据库文件不存在！')
     print('请先从服务器下载数据库：')
-    print('  scp jlee@januslab.cn:~/griffin/data/griffin.db backend/data/griffin.db')
+    print('  scp your-user@example.com:~/griffin/data/griffin.db backend/data/griffin.db')
     sys.exit(1)
 
 conn = sqlite3.connect(DB_PATH)

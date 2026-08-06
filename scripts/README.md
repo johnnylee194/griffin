@@ -40,12 +40,12 @@
 
 1. **上传文件到服务器**：
    ```bash
-   scp myMoney.xls jlee@januslab.cn:~/griffin/
+   scp myMoney.xls your-user@example.com:~/griffin/
    ```
 
 2. **SSH 连接服务器**：
    ```bash
-   ssh jlee@januslab.cn
+   ssh your-user@example.com
    cd ~/griffin
    ```
 
@@ -153,6 +153,6 @@ rm myMoney.xls
 git rm scripts/import-mymoney.ts scripts/README.md
 
 # 服务器
-ssh jlee@januslab.cn "rm ~/griffin/myMoney.xls"
+ssh your-user@example.com "rm ~/griffin/myMoney.xls"
 ```
 
