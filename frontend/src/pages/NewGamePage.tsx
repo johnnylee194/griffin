@@ -34,7 +34,9 @@ export default function NewGamePage() {
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
-    setGameTime(`${year}-${month}-${day}T18:00`)
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    setGameTime(`${year}-${month}-${day}T${hours}:${minutes}`)
   }, [])
 
   const loadPlayers = async (locationId?: string) => {
@@ -371,17 +373,30 @@ export default function NewGamePage() {
       </div>
 
       <div className="card">
-        <label className="block text-text font-semibold mb-3">
-          👥 玩家 ({selectedPlayerIds.length}/4)
-        </label>
+        <div
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setShowPlayerList(!showPlayerList)}
+        >
+          <label className="text-text font-semibold cursor-pointer">
+            👥 玩家 ({selectedPlayerIds.length})
+          </label>
+          <div className="flex items-center gap-2">
+            {!showPlayerList && (
+              <div className="text-xs text-text-secondary truncate max-w-[150px]">
+                {selectedPlayerIds.map(id => players.find(p => p.id === id)?.name).filter(Boolean).join(', ')}
+              </div>
+            )}
+            <span className="text-xs text-text-secondary">{showPlayerList ? '收起 ▲' : '修改玩家 ▼'}</span>
+          </div>
+        </div>
 
-        {showPlayerList ? (
-          <>
+        {showPlayerList && (
+          <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
             {selectedLocation ? (
               // 有地点：分组显示，有记录的排前，无记录的放"显示全部"后面
               <>
                 {/* 有记录的玩家（该地点历史出现次数 > 0 或 isMe） */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {players
                     .filter(p => p.isMe || (p.appearanceCount !== undefined && p.appearanceCount > 0))
                     .map(player => {
@@ -409,14 +424,14 @@ export default function NewGamePage() {
                     {!showAllPlayers ? (
                       <button
                         onClick={() => setShowAllPlayers(true)}
-                        className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors mb-3"
+                        className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors"
                       >
                         显示全部 ({players.filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0)).length})
                       </button>
                     ) : (
                       <>
-                        <div className="text-xs text-text-secondary mb-2 px-1">以下玩家在该地点暂无记录</div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                        <div className="text-xs text-text-secondary px-1">以下玩家在该地点暂无记录</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                           {players
                             .filter(p => !p.isMe && (p.appearanceCount === undefined || p.appearanceCount === 0))
                             .map(player => {
@@ -443,7 +458,7 @@ export default function NewGamePage() {
               </>
             ) : (
               // 无地点：平铺显示全部玩家
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {players.map(player => {
                   const isSelected = player.isMe ? true : selectedPlayerIds.includes(player.id)
                   return (
@@ -463,22 +478,15 @@ export default function NewGamePage() {
                 })}
               </div>
             )}
-          </>
-        ) : (
-          <button
-            onClick={() => setShowPlayerList(true)}
-            className="w-full py-3 px-4 rounded-lg border border-gray-300 bg-white text-text font-semibold hover:bg-gray-50 transition-colors mb-3"
-          >
-            显示玩家
-          </button>
-        )}
 
-        <button
-          onClick={() => setShowNewPlayerModal(true)}
-          className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors"
-        >
-          + 新建玩家
-        </button>
+            <button
+              onClick={() => setShowNewPlayerModal(true)}
+              className="w-full py-2 px-4 rounded-lg border-2 border-dashed border-gray-300 text-text-light hover:border-primary hover:text-primary transition-colors"
+            >
+              + 新建玩家
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -506,29 +514,6 @@ export default function NewGamePage() {
         )}
       </div>
 
-      {selectedPlayerIds.length > 1 && (
-        <div className="card">
-          <label className="block text-text font-semibold mb-3">👥 参与玩家</label>
-          <div className="flex flex-wrap gap-2">
-            {selectedPlayerIds.map(playerId => {
-              const player = players.find(p => p.id === playerId)
-              if (!player) return null
-              return (
-                <div
-                  key={player.id}
-                  className={`px-3 py-2 rounded-lg ${
-                    player.isMe
-                      ? 'bg-primary/10 text-primary font-semibold'
-                      : 'bg-gray-100 text-text'
-                  }`}
-                >
-                  {player.name}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="card">
         <label className="block text-text font-semibold mb-2">🕐 对局时间</label>

@@ -100,7 +100,10 @@ export default function HomePage() {
   const loadData = async () => {
     try {
       const [gamesRes, statsRes] = await Promise.all([
-        gamesApi.getAll({ limit: 5 }),
+        gamesApi.getAll({
+          limit: 5,
+          locationId: selectedLocationId || undefined
+        } as any),
         apiClient.get('/games/stats/monthly', {
           params: { 
             year: selectedYear, 
@@ -200,20 +203,20 @@ export default function HomePage() {
   return (
     <div className="h-full max-w-6xl mx-auto px-3 pb-32 transition-opacity duration-300 opacity-100">
       <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <h2 className="text-base font-bold text-primary">
             Hi, {user?.name || '用户'}
           </h2>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setShowFilterModal(true)}
-              className="p-1.5 text-text-secondary hover:text-primary border border-gray-200 rounded-lg"
+              className="p-1 text-text-secondary hover:text-primary"
             >
               👁️
             </button>
             <button
               onClick={() => window.location.href = '/settings'}
-              className="p-1.5 text-text-secondary hover:text-primary border border-gray-200 rounded-lg"
+              className="p-1 text-text-secondary hover:text-primary"
             >
               ⚙️
             </button>
@@ -358,144 +361,93 @@ export default function HomePage() {
               </div>
             )}
             
-            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-              <div className="text-center mb-3">
-                <div className={`text-4xl font-bold ${
+            <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+              <div className="text-center mb-2">
+                <div className={`text-4xl font-bold tracking-tight ${
                   monthlyStats.overall.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
                 }`}>
                   {monthlyStats.overall.profit >= 0 ? '+' : ''}{monthlyStats.overall.profit.toLocaleString()}
                 </div>
-                <div className="text-xs text-text-secondary mt-1">总利润</div>
+                <div className="text-[10px] font-medium text-text-light uppercase tracking-wider">总利润</div>
+                <div className="flex items-center justify-center gap-2 mt-1 text-[10px] text-text-light font-medium">
+                  <span>共 {monthlyStats.overall.totalGames} 场</span>
+                  <span className="text-gray-300">|</span>
+                  <span>胜率 {monthlyStats.overall.winRate}%</span>
+                </div>
               </div>
-              <div className="flex justify-between">
+
+              <div className="flex justify-between items-center px-6 py-2 bg-gray-50/50 rounded-xl mt-3">
                 <div className="text-center">
-                  <div className="text-sm font-semibold text-accent-red">
+                  <div className="text-sm font-bold text-accent-red">
                     +{monthlyStats.overall.totalIncome.toLocaleString()}
                   </div>
-                  <div className="text-xs text-gray-400">总赢</div>
+                  <div className="text-[9px] text-text-light font-medium">总赢</div>
                 </div>
+                <div className="h-6 w-px bg-gray-200"></div>
                 <div className="text-center">
-                  <div className="text-sm font-semibold text-accent-green">
+                  <div className="text-sm font-bold text-accent-green">
                     -{monthlyStats.overall.totalExpense.toLocaleString()}
                   </div>
-                  <div className="text-xs text-gray-400">总输</div>
+                  <div className="text-[9px] text-text-light font-medium">总输</div>
                 </div>
               </div>
 
-              {selectedLocationId === '' && monthlyStats.byLocation && Object.keys(monthlyStats.byLocation).length > 1 && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.values(monthlyStats.byLocation)
+              <div className="mt-4 overflow-hidden border border-gray-100 rounded-xl">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-gray-50/80 border-b border-gray-100">
+                    <tr>
+                      <th className="px-3 py-1.5 text-[9px] font-bold text-text-light uppercase tracking-wider">统计维度</th>
+                      <th className="px-3 py-1.5 text-[9px] font-bold text-text-light uppercase tracking-wider text-center">场次/胜率</th>
+                      <th className="px-3 py-1.5 text-[9px] font-bold text-text-light uppercase tracking-wider text-right">损益额度</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {/* Location Stats */}
+                    {selectedLocationId === '' && monthlyStats.byLocation && Object.values(monthlyStats.byLocation)
                       .sort((a, b) => b.profit - a.profit)
                       .map((loc, index) => (
-                        <div key={`loc-${index}`} className="flex flex-col p-2 bg-gray-50 rounded-lg">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-bold text-text truncate max-w-[70%]">{loc.name}</span>
-                            <span className="text-[8px] text-text-light">{loc.winRate}%</span>
-                          </div>
-                          <div className={`text-sm font-bold ${loc.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                        <tr key={`loc-${index}`} className={loc.totalGames === 0 ? 'opacity-30' : ''}>
+                          <td className="px-3 py-2 text-[11px] font-bold text-text truncate max-w-[100px]">{loc.name}</td>
+                          <td className="px-3 py-2 text-[10px] text-text-secondary text-center font-medium">{loc.totalGames}场 / {loc.winRate}%</td>
+                          <td className={`px-3 py-2 text-[11px] font-bold text-right ${loc.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                             {loc.profit >= 0 ? '+' : ''}{loc.profit.toLocaleString()}
-                          </div>
-                          <div className="text-[8px] text-text-light">共{loc.totalGames}场</div>
-                        </div>
+                          </td>
+                        </tr>
                       ))}
-                  </div>
-                </div>
-              )}
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌅</span>
-                    <span className="text-xs font-semibold text-text">上午场</span>
-                  </div>
-                  <span className={`${monthlyStats.morning.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.morning.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.morning.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.morning.profit >= 0 ? '+' : ''}{monthlyStats.morning.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.morning.totalGames}场</div>
+                    {/* Time Slot Stats */}
+                    {[
+                      { label: '上午场', icon: '🌅', ...monthlyStats.morning },
+                      { label: '下午场', icon: '🌆', ...monthlyStats.afternoon },
+                      { label: '晚上场', icon: '🌙', ...monthlyStats.evening },
+                      { label: '凌晨场', icon: '🌌', ...monthlyStats.lateNight }
+                    ].map((item, index) => (
+                      <tr key={`time-${index}`} className={item.totalGames === 0 ? 'opacity-30' : ''}>
+                        <td className="px-3 py-2 text-[11px] font-bold text-text">
+                          <span className="mr-1">{item.icon}</span>{item.label}
+                        </td>
+                        <td className="px-3 py-2 text-[10px] text-text-secondary text-center font-medium">{item.totalGames}场 / {item.winRate}%</td>
+                        <td className={`px-3 py-2 text-[11px] font-bold text-right ${item.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {item.profit >= 0 ? '+' : ''}{item.profit.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Game Type Stats */}
+                    {Object.values(monthlyStats.byGameType || {})
+                      .sort((a, b) => b.profit - a.profit)
+                      .map((gt, index) => (
+                        <tr key={`gt-${index}`} className={gt.totalGames === 0 ? 'opacity-30' : ''}>
+                          <td className="px-3 py-2 text-[11px] font-bold text-text truncate max-w-[100px]">🀄️ {gt.name}</td>
+                          <td className="px-3 py-2 text-[10px] text-text-secondary text-center font-medium">{gt.totalGames}场 / {gt.winRate}%</td>
+                          <td className={`px-3 py-2 text-[11px] font-bold text-right ${gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                            {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌆</span>
-                    <span className="text-xs font-semibold text-text">下午场</span>
-                  </div>
-                  <span className={`${monthlyStats.afternoon.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.afternoon.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.afternoon.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.afternoon.profit >= 0 ? '+' : ''}{monthlyStats.afternoon.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.afternoon.totalGames}场</div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌙</span>
-                    <span className="text-xs font-semibold text-text">晚上场</span>
-                  </div>
-                  <span className={`${monthlyStats.evening.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.evening.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.evening.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.evening.profit >= 0 ? '+' : ''}{monthlyStats.evening.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.evening.totalGames}场</div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm">🌌</span>
-                    <span className="text-xs font-semibold text-text">凌晨场</span>
-                  </div>
-                  <span className={`${monthlyStats.lateNight.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                    {monthlyStats.lateNight.winRate}%
-                  </span>
-                </div>
-                <div className={`text-xl font-bold mb-2 ${
-                  monthlyStats.lateNight.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                }`}>
-                  {monthlyStats.lateNight.profit >= 0 ? '+' : ''}{monthlyStats.lateNight.profit.toLocaleString()}
-                </div>
-                <div className="text-xs text-text-light">共{monthlyStats.lateNight.totalGames}场</div>
-              </div>
-
-              {Object.values(monthlyStats.byGameType || {}).map((gt, index) => (
-                <div key={`gt-${index}`} className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm">🀄️</span>
-                      <span className="text-xs font-semibold text-text truncate">{gt.name}</span>
-                    </div>
-                    <span className={`${gt.winRate >= 50 ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'} text-xs py-1 px-2 rounded-full`}>
-                      {gt.winRate}%
-                    </span>
-                  </div>
-                  <div className={`text-xl font-bold mb-2 ${
-                    gt.profit >= 0 ? 'text-accent-red' : 'text-accent-green'
-                  }`}>
-                    {gt.profit >= 0 ? '+' : ''}{gt.profit.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-text-light">共{gt.totalGames}场</div>
-                </div>
-              ))}
             </div>
           </div>
         )}
@@ -503,23 +455,30 @@ export default function HomePage() {
         <div className="pb-2">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-text">最近对局</h3>
-            <Link to="/history" className="text-primary text-xs hover:underline">
+            <Link
+              to="/history"
+              state={{ locationId: selectedLocationId }}
+              className="text-primary text-xs hover:underline"
+            >
               查看全部 →
             </Link>
           </div>
           
           {recentGames.length === 0 ? (
-            <div className="card text-center text-text-light py-4 text-xs">
+            <div className="bg-white rounded-2xl p-6 text-center text-text-light text-xs border border-gray-100">
               还没有对局记录，<Link to="/new-game" className="text-primary hover:underline">开始记录第一局</Link>
             </div>
           ) : (
-            <div className="space-y-1.5">
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
               {recentGames.map(game => (
                 <GameCard key={game.id} game={game} />
               ))}
             </div>
           )}
         </div>
+
+        {/* Bottom padding to prevent FAB from covering list content */}
+        <div className="h-20" />
       </div>
 
       <div className="fixed bottom-20 left-4 right-4 mx-auto max-w-lg">
@@ -544,38 +503,37 @@ function GameCard({ game }: { game: Game }) {
   const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
   const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 
+  const myRecord = game.records.find(r => r.player.isMe)
+  const profit = myRecord?.chips || 0
+
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-primary font-semibold">
-          {dateStr} {timeStr}
-        </span>
-        <span className="text-xs text-text-light">
-          {game.location.name} · {game.chipRate}
-        </span>
+    <div className="px-4 py-3 active:bg-gray-50 transition-colors">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-text-light">{dateStr} {timeStr}</span>
+            <span className="text-[10px] text-primary bg-primary/5 px-1.5 py-0.5 rounded-md font-bold">{game.chipRate}</span>
+          </div>
+          <span className="text-sm font-bold text-text mt-0.5">
+            {game.location.name}
+          </span>
+        </div>
+
+        <div className={`text-lg font-black ${profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+          {profit >= 0 ? '+' : ''}{profit.toLocaleString()}
+        </div>
       </div>
       
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {game.records.map(record => {
-          if (record.chips === null) {
-            return (
-              <div key={record.id} className="flex items-center justify-between text-sm">
-                <span className="text-text-secondary">{record.player.name}</span>
-                <span className="text-text-light">-</span>
-              </div>
-            )
-          }
-          return (
-            <div key={record.id} className="flex items-center justify-between text-sm">
-              <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
-                {record.player.name}
-              </span>
-              <span className={record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
-                {record.chips >= 0 ? '+' : ''}{record.chips}
-              </span>
-            </div>
-          )
-        })}
+      {/* Mini preview of other players */}
+      <div className="flex flex-wrap gap-x-3 mt-1.5 opacity-60">
+        {game.records.filter(r => !r.player.isMe).map(record => (
+          <div key={record.id} className="flex items-center gap-1">
+            <span className="text-[9px] font-medium text-text-secondary">{record.player.name}</span>
+            <span className={`text-[9px] font-bold ${record.chips !== null && record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+              {record.chips === null ? '-' : (record.chips >= 0 ? '+' : '') + record.chips}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )

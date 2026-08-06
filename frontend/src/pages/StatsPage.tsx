@@ -2,15 +2,14 @@ import { useEffect, useState } from 'react'
 import { playersApi, statsApi, locationsApi, Player, Location } from '../api/client'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } from 'recharts'
 
+import { Link } from 'react-router-dom'
+
 export default function StatsPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
   const [stats, setStats] = useState<any>(null)
   const [annualStats, setAnnualStats] = useState<any>(null)
   const [lunarAnnualStats, setLunarAnnualStats] = useState<any>(null)
-  const [playerPerformance, setPlayerPerformance] = useState<any[]>([])
-  const [doubleCombination, setDoubleCombination] = useState<any[]>([])
-  const [tripleCombination, setTripleCombination] = useState<any[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [correlationLocationId, setCorrelationLocationId] = useState<string>('')
   const [correlationScore, setCorrelationScore] = useState<string>('')
@@ -29,9 +28,6 @@ export default function StatsPage() {
   const [selectedLunarYear, setSelectedLunarYear] = useState<number>(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
   const [showPlayerSelect, setShowPlayerSelect] = useState(false)
-  const [expandedPlayerPerf, setExpandedPlayerPerf] = useState(false)
-  const [expandedDoubleComb, setExpandedDoubleComb] = useState(false)
-  const [expandedTripleComb, setExpandedTripleComb] = useState(false)
   const [expandedLosingStreaks, setExpandedLosingStreaks] = useState(false)
 
   useEffect(() => {
@@ -45,9 +41,6 @@ export default function StatsPage() {
     }
   }, [selectedPlayer, selectedYear, selectedLunarYear, trendLocationId])
 
-  useEffect(() => {
-    loadPlayerStats()
-  }, [])
 
   useEffect(() => {
     loadLosingStreakStats()
@@ -116,20 +109,6 @@ export default function StatsPage() {
     }
   }
 
-  const loadPlayerStats = async () => {
-    try {
-      const [playerPerfRes, doubleRes, tripleRes] = await Promise.all([
-        statsApi.getPlayerPerformance(),
-        statsApi.getDoubleCombination(),
-        statsApi.getTripleCombination()
-      ])
-      setPlayerPerformance(playerPerfRes.data)
-      setDoubleCombination(doubleRes.data)
-      setTripleCombination(tripleRes.data)
-    } catch (error) {
-      console.error('Failed to load player stats:', error)
-    }
-  }
 
   const loadCorrelationStats = async () => {
     if (!correlationLocationId || !correlationScore) {
@@ -336,32 +315,39 @@ export default function StatsPage() {
     <div className="max-w-6xl mx-auto px-4 py-3 sm:py-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-base sm:text-2xl font-bold text-text">数据统计</h2>
-        {/* 玩家选择按钮 - 移到右上角 */}
-        <div className="relative">
-          <button
-            onClick={() => setShowPlayerSelect(!showPlayerSelect)}
+        <div className="flex items-center gap-2">
+          <Link
+            to="/stats/archive"
             className="text-sm text-text-secondary hover:text-primary px-2 py-1 rounded border border-gray-300"
           >
-            {players.find(p => p.id === selectedPlayer)?.name || '选择玩家'}
-          </button>
-          {showPlayerSelect && (
-            <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
-              {players.map(player => (
-                <button
-                  key={player.id}
-                  onClick={() => {
-                    setSelectedPlayer(player.id)
-                    setShowPlayerSelect(false)
-                  }}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-                    selectedPlayer === player.id ? 'bg-blue-50 text-blue-600' : 'text-text'
-                  }`}
-                >
-                  {player.name} {player.isMe && '(我)'}
-                </button>
-              ))}
-            </div>
-          )}
+            更多
+          </Link>
+          <div className="relative">
+            <button
+              onClick={() => setShowPlayerSelect(!showPlayerSelect)}
+              className="text-sm text-text-secondary hover:text-primary px-2 py-1 rounded border border-gray-300"
+            >
+              {players.find(p => p.id === selectedPlayer)?.name || '选择玩家'}
+            </button>
+            {showPlayerSelect && (
+              <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                {players.map(player => (
+                  <button
+                    key={player.id}
+                    onClick={() => {
+                      setSelectedPlayer(player.id)
+                      setShowPlayerSelect(false)
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
+                      selectedPlayer === player.id ? 'bg-blue-50 text-blue-600' : 'text-text'
+                    }`}
+                  >
+                    {player.name} {player.isMe && '(我)'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -469,203 +455,6 @@ export default function StatsPage() {
           )}
 
 
-          {/* 2. 玩家维度统计 */}
-          <div className="space-y-4">
-            {/* 单个玩家胜率统计 */}
-            {playerPerformance.length > 0 && (
-              <div className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg sm:text-xl font-semibold text-text">单个玩家胜率统计</h3>
-                  {playerPerformance.length > 5 && (
-                    <button
-                      onClick={() => setExpandedPlayerPerf(!expandedPlayerPerf)}
-                      className="text-xs sm:text-sm text-primary hover:text-primary/80"
-                    >
-                      {expandedPlayerPerf ? '收起' : `展开全部 (${playerPerformance.length})`}
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {(expandedPlayerPerf ? playerPerformance : playerPerformance.slice(0, 5)).map((item: any, index: number) => (
-                    <div key={item.playerId} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2 sm:space-x-3">
-                          <span className="text-xs sm:text-sm font-semibold text-text-secondary w-5 sm:w-6">
-                            #{index + 1}
-                          </span>
-                          <span className="text-xs sm:text-base font-semibold text-text">{item.playerName}</span>
-                        </div>
-                        <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
-                          <span className="text-text-light">
-                            {item.wins}胜 {item.losses}负
-                          </span>
-                          <span className="text-text-light">
-                            共{item.totalGames}场
-                          </span>
-                          <span className={`font-bold ${
-                            item.winRate >= 50 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {item.winRate}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4 text-xs text-gray-600 ml-7 sm:ml-9">
-                        <span>
-                          总分: <span className={item.totalScore >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.totalScore >= 0 ? '+' : ''}{item.totalScore}
-                          </span>
-                        </span>
-                        <span>
-                          总金额: <span className={item.totalChips >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.totalChips >= 0 ? '+' : ''}¥{item.totalChips}
-                          </span>
-                        </span>
-                        <span>
-                          平均: <span className={item.avgChipsPerGame >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.avgChipsPerGame >= 0 ? '+' : ''}¥{item.avgChipsPerGame}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 两个玩家组合胜率统计 */}
-            {doubleCombination.length > 0 && (
-              <div className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg sm:text-xl font-semibold text-text">两个玩家组合胜率统计</h3>
-                  {doubleCombination.length > 5 && (
-                    <button
-                      onClick={() => setExpandedDoubleComb(!expandedDoubleComb)}
-                      className="text-xs sm:text-sm text-primary hover:text-primary/80"
-                    >
-                      {expandedDoubleComb ? '收起' : `展开全部 (${doubleCombination.length})`}
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {(expandedDoubleComb ? doubleCombination : doubleCombination.slice(0, 5)).map((item: any, index: number) => (
-                    <div key={item.playerIds.join(',')} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2 sm:space-x-3 flex-1">
-                          <span className="text-xs sm:text-sm font-semibold text-text-secondary w-5 sm:w-6">
-                            #{index + 1}
-                          </span>
-                          <div className="flex flex-wrap gap-1">
-                            {item.playerNames.map((name: string) => (
-                              <span key={name} className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-primary/10 text-primary rounded text-xs font-semibold">
-                                {name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
-                          <span className="text-text-light">
-                            {item.wins}胜 {item.losses}负
-                          </span>
-                          <span className="text-text-light">
-                            共{item.totalGames}场
-                          </span>
-                          <span className={`font-bold ${
-                            item.winRate >= 50 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {item.winRate}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4 text-xs text-gray-600 ml-7 sm:ml-9">
-                        <span>
-                          总分: <span className={item.totalScore >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.totalScore >= 0 ? '+' : ''}{item.totalScore}
-                          </span>
-                        </span>
-                        <span>
-                          总金额: <span className={item.totalChips >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.totalChips >= 0 ? '+' : ''}¥{item.totalChips}
-                          </span>
-                        </span>
-                        <span>
-                          平均: <span className={item.avgChipsPerGame >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.avgChipsPerGame >= 0 ? '+' : ''}¥{item.avgChipsPerGame}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 三个玩家组合胜率统计 */}
-            {tripleCombination.length > 0 && (
-              <div className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg sm:text-xl font-semibold text-text">三个玩家组合胜率统计</h3>
-                  {tripleCombination.length > 5 && (
-                    <button
-                      onClick={() => setExpandedTripleComb(!expandedTripleComb)}
-                      className="text-xs sm:text-sm text-primary hover:text-primary/80"
-                    >
-                      {expandedTripleComb ? '收起' : `展开全部 (${tripleCombination.length})`}
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {(expandedTripleComb ? tripleCombination : tripleCombination.slice(0, 5)).map((item: any, index: number) => (
-                    <div key={item.playerIds.join(',')} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2 sm:space-x-3 flex-1">
-                          <span className="text-xs sm:text-sm font-semibold text-text-secondary w-5 sm:w-6">
-                            #{index + 1}
-                          </span>
-                          <div className="flex flex-wrap gap-1">
-                            {item.playerNames.map((name: string) => (
-                              <span key={name} className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-primary/10 text-primary rounded text-xs font-semibold">
-                                {name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm">
-                          <span className="text-text-light">
-                            {item.wins}胜 {item.losses}负
-                          </span>
-                          <span className="text-text-light">
-                            共{item.totalGames}场
-                          </span>
-                          <span className={`font-bold ${
-                            item.winRate >= 50 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {item.winRate}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4 text-xs text-gray-600 ml-7 sm:ml-9">
-                        <span>
-                          总分: <span className={item.totalScore >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.totalScore >= 0 ? '+' : ''}{item.totalScore}
-                          </span>
-                        </span>
-                        <span>
-                          总金额: <span className={item.totalChips >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.totalChips >= 0 ? '+' : ''}¥{item.totalChips}
-                          </span>
-                        </span>
-                        <span>
-                          平均: <span className={item.avgChipsPerGame >= 0 ? 'text-green-600' : 'text-red-600'}>
-                            {item.avgChipsPerGame >= 0 ? '+' : ''}¥{item.avgChipsPerGame}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* 3. 下午晚上关联统计 */}
           <div className="card">
