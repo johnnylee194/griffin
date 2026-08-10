@@ -8,21 +8,16 @@ import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
 import gameRoutes from './routes/games';
 import statsRoutes from './routes/stats';
-import horoscopeRoutes from './routes/horoscope';
 import chipRateRoutes from './routes/chip-rates';
 import gameTypeRoutes from './routes/game-types';
 import customFilterRoutes from './routes/custom-filters';
 import { authMiddleware } from './middleware/auth';
-import { initLunisolar } from './utils/horoscope';
 
 // 加载环境变量
 dotenv.config();
 
 // 初始化数据库
 initDatabase();
-
-// 预加载 lunisolar（异步初始化）
-initLunisolar().then(() => console.log('✅ Lunisolar initialized')).catch(console.error);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -44,7 +39,6 @@ app.use('/api/players', authMiddleware, playerRoutes);
 app.use('/api/locations', authMiddleware, locationRoutes);
 app.use('/api/games', authMiddleware, gameRoutes);
 app.use('/api/stats', authMiddleware, statsRoutes);
-app.use('/api/horoscope', horoscopeRoutes);
 app.use('/api/chip-rates', authMiddleware, chipRateRoutes);
 app.use('/api/game-types', authMiddleware, gameTypeRoutes);
 app.use('/api/custom-filters', customFilterRoutes);

@@ -19,14 +19,6 @@ export default function SettingsPage() {
   const { user, updateUser } = useAuth()
   const [editingUserName, setEditingUserName] = useState('')
   const [isEditingName, setIsEditingName] = useState(false)
-  const [birthDate, setBirthDate] = useState('')
-  const [isEditingBirthDate, setIsEditingBirthDate] = useState(false)
-  const [birthTime, setBirthTime] = useState('')
-  const [isEditingBirthTime, setIsEditingBirthTime] = useState(false)
-  const [birthLocation, setBirthLocation] = useState('')
-  const [isEditingBirthLocation, setIsEditingBirthLocation] = useState(false)
-  const [gender, setGender] = useState<0 | 1 | undefined>(undefined)
-  const [isEditingGender, setIsEditingGender] = useState(false)
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -54,10 +46,6 @@ export default function SettingsPage() {
       const res = await authApi.getProfile()
       if (res.data.user) {
         setEditingUserName(res.data.user.name || res.data.user.username)
-        setBirthDate(res.data.user.birthDate || '')
-        setBirthTime(res.data.user.birthTime || '')
-        setBirthLocation(res.data.user.birthLocation || '')
-        setGender(res.data.user.gender as 0 | 1 | undefined)
       }
     } catch (error) {
       console.error('Failed to load user profile:', error)
@@ -444,80 +432,6 @@ export default function SettingsPage() {
     }
   }
 
-  const handleSaveBirthDate = async () => {
-    if (!birthDate) {
-      alert('请选择出生日期')
-      return
-    }
-
-    try {
-      const res = await authApi.updateProfile({ birthDate })
-      updateUser(res.data.user)
-      setIsEditingBirthDate(false)
-      alert('修改成功')
-    } catch (error: any) {
-      console.error('Failed to update birth date:', error)
-      alert(error.response?.data?.error || '修改失败')
-    }
-  }
-
-  const handleSaveBirthTime = async () => {
-    if (!birthTime) {
-      alert('请选择出生时辰')
-      return
-    }
-
-    // Validate HH:mm format
-    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(birthTime)) {
-      alert('请输入正确的时间格式（HH:mm）')
-      return
-    }
-
-    try {
-      const res = await authApi.updateProfile({ birthTime })
-      updateUser(res.data.user)
-      setIsEditingBirthTime(false)
-      alert('修改成功')
-    } catch (error: any) {
-      console.error('Failed to update birth time:', error)
-      alert(error.response?.data?.error || '修改失败')
-    }
-  }
-
-  const handleSaveBirthLocation = async () => {
-    if (!birthLocation.trim()) {
-      alert('请输入出生地点')
-      return
-    }
-
-    try {
-      const res = await authApi.updateProfile({ birthLocation: birthLocation.trim() })
-      updateUser(res.data.user)
-      setIsEditingBirthLocation(false)
-      alert('修改成功（经纬度将自动更新）')
-    } catch (error: any) {
-      console.error('Failed to update birth location:', error)
-      alert(error.response?.data?.error || '修改失败')
-    }
-  }
-
-  const handleSaveGender = async () => {
-    if (gender === undefined) {
-      alert('请选择性别')
-      return
-    }
-
-    try {
-      const res = await authApi.updateProfile({ gender })
-      updateUser(res.data.user)
-      setIsEditingGender(false)
-      alert('修改成功')
-    } catch (error: any) {
-      console.error('Failed to update gender:', error)
-      alert(error.response?.data?.error || '修改失败')
-    }
-  }
-
   const handleChangePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
       alert('请填写所有密码字段')
@@ -582,12 +496,6 @@ export default function SettingsPage() {
                   setOldPassword('')
                   setNewPassword('')
                   setConfirmPassword('')
-                  setIsEditingBirthTime(false)
-                  setIsEditingBirthLocation(false)
-                  setIsEditingGender(false)
-                  setBirthTime(user?.birthTime || '')
-                  setBirthLocation(user?.birthLocation || '')
-                  setGender(user?.gender as 0 | 1 | undefined)
                 }}
                 className="text-text-secondary hover:text-text text-xl"
               >
@@ -654,206 +562,6 @@ export default function SettingsPage() {
                 ) : (
                   <div className="text-text font-semibold">
                     {user?.name || user?.username || '-'}
-                  </div>
-                )}
-              </div>
-
-              {/* 出生日期编辑 */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-text-secondary">出生日期：</span>
-                  {!isEditingBirthDate ? (
-                    <button
-                      onClick={() => setIsEditingBirthDate(true)}
-                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                    >
-                      编辑
-                    </button>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={handleSaveBirthDate}
-                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsEditingBirthDate(false)
-                          setBirthDate(user?.birthDate || '')
-                        }}
-                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {isEditingBirthDate ? (
-                  <input
-                    type="date"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    className="input w-full text-sm"
-                    max={new Date().toISOString().split('T')[0]}
-                  />
-                ) : (
-                  <div className="text-text font-semibold">
-                    {user?.birthDate ? new Date(user.birthDate).toLocaleDateString('zh-CN') : '未设置'}
-                  </div>
-                )}
-              </div>
-
-              {/* 出生时辰编辑 */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-text-secondary">出生时辰：</span>
-                  {!isEditingBirthTime ? (
-                    <button
-                      onClick={() => setIsEditingBirthTime(true)}
-                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                    >
-                      编辑
-                    </button>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={handleSaveBirthTime}
-                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsEditingBirthTime(false)
-                          setBirthTime(user?.birthTime || '')
-                        }}
-                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {isEditingBirthTime ? (
-                  <input
-                    type="time"
-                    value={birthTime}
-                    onChange={(e) => setBirthTime(e.target.value)}
-                    className="input w-full text-sm"
-                  />
-                ) : (
-                  <div className="text-text font-semibold">
-                    {user?.birthTime ? user.birthTime : '未设置'}
-                  </div>
-                )}
-              </div>
-
-              {/* 出生地点编辑 */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-text-secondary">出生地点：</span>
-                  {!isEditingBirthLocation ? (
-                    <button
-                      onClick={() => setIsEditingBirthLocation(true)}
-                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                    >
-                      编辑
-                    </button>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={handleSaveBirthLocation}
-                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsEditingBirthLocation(false)
-                          setBirthLocation(user?.birthLocation || '')
-                        }}
-                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {isEditingBirthLocation ? (
-                  <input
-                    type="text"
-                    value={birthLocation}
-                    onChange={(e) => setBirthLocation(e.target.value)}
-                    placeholder="输入城市名，如：成都"
-                    className="input w-full text-sm"
-                  />
-                ) : (
-                  <div className="text-text font-semibold">
-                    {user?.birthLocation || '未设置'}
-                  </div>
-                )}
-              </div>
-
-              {/* 性别编辑 */}
-              <div className="bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-text-secondary">性别：</span>
-                  {!isEditingGender ? (
-                    <button
-                      onClick={() => setIsEditingGender(true)}
-                      className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                    >
-                      编辑
-                    </button>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={handleSaveGender}
-                        className="text-primary hover:text-primary-light text-sm px-3 py-1 border border-primary/30 rounded"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsEditingGender(false)
-                          setGender(user?.gender as 0 | 1 | undefined)
-                        }}
-                        className="text-text-secondary hover:text-text text-sm px-3 py-1 border border-gray-300 rounded"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {isEditingGender ? (
-                  <div className="flex space-x-4">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="gender"
-                        value={1}
-                        checked={gender === 1}
-                        onChange={() => setGender(1)}
-                        className="w-4 h-4 text-primary"
-                      />
-                      <span className="text-text">男（乾造）</span>
-                    </label>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="gender"
-                        value={0}
-                        checked={gender === 0}
-                        onChange={() => setGender(0)}
-                        className="w-4 h-4 text-primary"
-                      />
-                      <span className="text-text">女（坤造）</span>
-                    </label>
-                  </div>
-                ) : (
-                  <div className="text-text font-semibold">
-                    {user?.gender === 1 ? '男（乾造）' : user?.gender === 0 ? '女（坤造）' : '未设置'}
                   </div>
                 )}
               </div>

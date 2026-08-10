@@ -9,7 +9,6 @@ import HistoryPage from './pages/HistoryPage'
 import StatsPage from './pages/StatsPage'
 import PlayerStatsArchivePage from './pages/PlayerStatsArchivePage'
 import SettingsPage from './pages/SettingsPage'
-import HoroscopePage from './pages/HoroscopePage'
 import { FilterConfigPage } from './pages/FilterConfigPage'
 import { FilterStatsPage } from './pages/FilterStatsPage'
 
@@ -62,7 +61,6 @@ function AppContent() {
     const path = location.pathname;
     if (path === '/') setActiveTab('home');
     else if (path === '/stats') setActiveTab('stats');
-    else if (path === '/horoscope') setActiveTab('horoscope');
     else if (path === '/settings') setActiveTab('settings');
   }, [location.pathname]);
 
@@ -126,7 +124,6 @@ function AppContent() {
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
           <Route path="/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
           <Route path="/stats/archive" element={<ProtectedRoute><PlayerStatsArchivePage /></ProtectedRoute>} />
-          <Route path="/horoscope" element={<ProtectedRoute><HoroscopePage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/filter/new" element={<ProtectedRoute><FilterConfigPage /></ProtectedRoute>} />
           <Route path="/filter/edit/:id" element={<ProtectedRoute><FilterConfigPage /></ProtectedRoute>} />
@@ -139,7 +136,6 @@ function AppContent() {
         <div className="max-w-6xl mx-auto flex justify-around">
           <NavButton to="/" icon="🏠" label="首页" active={activeTab === 'home'} onClick={() => setActiveTab('home')} />
           <NavButton to="/stats" icon="📊" label="统计" active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
-          <NavButton to="/horoscope" icon="🔮" label="运势" active={activeTab === 'horoscope'} onClick={() => setActiveTab('horoscope')} />
         </div>
       </nav>
     </div>
