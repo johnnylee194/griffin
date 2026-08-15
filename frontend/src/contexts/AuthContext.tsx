@@ -5,13 +5,6 @@ interface User {
   id: string;
   username: string;
   name?: string;
-  birthDate?: string;
-  birthTime?: string;
-  birthLocation?: string;
-  gender?: number;
-  birthLatitude?: number;
-  birthLongitude?: number;
-  hasCompleteProfile?: boolean;
 }
 
 interface AuthContextType {

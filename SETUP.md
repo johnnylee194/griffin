@@ -20,7 +20,7 @@ cd griffin
 
 # 复制并配置环境变量
 cp backend/env.example backend/.env
-# 修改 backend/.env 中的配置，特别是 JWT_SECRET, AMAP_API_KEY 等
+# 修改 backend/.env 中的配置，特别是 JWT_SECRET 等
 
 docker-compose up -d --build
 ```

@@ -22,9 +22,8 @@ function columnExists(tableName: string, columnName: string): boolean {
 }
 
 export const initDatabase = () => {
-  // ──────────────────────────────────────────────────────────
-  // 表结构定义（用于 CREATE TABLE IF NOT EXISTS + 后续迁移检测）
-  // ──────────────────────────────────────────────────────────
+  // ───────────────  // 表结构定义（用于 CREATE TABLE IF NOT EXISTS + 后续迁移检测）
+  // ───────────────
 
   // 创建用户表
   // 原始 commit: 121adc3 — replace Prisma with better-sqlite3
@@ -35,12 +34,6 @@ export const initDatabase = () => {
       username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       name TEXT,
-      birth_date TEXT,
-      birth_time TEXT,
-      birth_location TEXT,
-      birth_latitude REAL,
-      birth_longitude REAL,
-      gender INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
@@ -53,123 +46,7 @@ export const initDatabase = () => {
     console.log('✅ Added name column to users table');
   }
 
-  // 迁移：users.birth_date
-  // 来源: f500e7f — 添加每日运势功能（使用Gemini AI生成中式和西式运势）
-  // 原因: 运势功能需要用户的出生日期（birth_date）来计算生肖和星座
-  if (!columnExists('users', 'birth_date')) {
-    db.exec(`ALTER TABLE users ADD COLUMN birth_date TEXT`);
-    console.log('✅ Added birth_date column to users table');
-  }
 
-  // 迁移：users.birth_time
-  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
-  // 原因: 运势功能需要用户的出生时辰（birth_time）来计算八字
-  if (!columnExists('users', 'birth_time')) {
-    db.exec(`ALTER TABLE users ADD COLUMN birth_time TEXT`);
-    console.log('✅ Added birth_time column to users table');
-  }
-
-  // 迁移：users.birth_location
-  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
-  // 原因: 运势功能需要用户的出生地点（birth_location）来计算真太阳时
-  if (!columnExists('users', 'birth_location')) {
-    db.exec(`ALTER TABLE users ADD COLUMN birth_location TEXT`);
-    console.log('✅ Added birth_location column to users table');
-  }
-
-  // 迁移：users.birth_latitude
-  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
-  // 原因: 存储出生地纬度，用于真太阳时计算（由 geocoding 自动填充）
-  if (!columnExists('users', 'birth_latitude')) {
-    db.exec(`ALTER TABLE users ADD COLUMN birth_latitude REAL`);
-    console.log('✅ Added birth_latitude column to users table');
-  }
-
-  // 迁移：users.birth_longitude
-  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
-  // 原因: 存储出生地经度，用于真太阳时计算（由 geocoding 自动填充）
-  if (!columnExists('users', 'birth_longitude')) {
-    db.exec(`ALTER TABLE users ADD COLUMN birth_longitude REAL`);
-    console.log('✅ Added birth_longitude column to users table');
-  }
-
-  // 迁移：users.gender
-  // 来源: HOROSCOPE-PHASE1 — 运势功能数据基础设施
-  // 原因: 运势功能需要性别（gender）来区分乾造/坤造
-  if (!columnExists('users', 'gender')) {
-    db.exec(`ALTER TABLE users ADD COLUMN gender INTEGER`);
-    console.log('✅ Added gender column to users table');
-  }
-
-  // ─── 运势缓存表 ───────────────────────────────────────────
-  // 原始 commit: f500e7f — 添加每日运势功能
-  // 表结构经历了两次迁移：
-  //   v1: id, user_id, date, chinese_horoscope, western_horoscope, combined_advice, created_at
-  //   v2: +result_json  （追加新列，保留旧列）
-  //   v3: -chinese/western/combined  （重建表，移除旧列，统一存 result_json）
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS horoscope_cache (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      date TEXT NOT NULL,
-      result_json TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      UNIQUE(user_id, date)
-    )
-  `);
-
-  // 迁移：horoscope_cache.result_json
-  // 来源: 7ae94e4 — 重构运势AI调用 - 直连MiniMax M2.7 + 单次LLM调用
-  // 原因: 运势数据改为存储AI返回的完整JSON（result_json），而不是分字段存储
-  // 注意: 这个迁移在 horoscope_cache old cols 迁移之前执行。
-  //       如果旧表结构（v1/v2）存在，这个 ALTER 会成功追加 result_json。
-  //       如果已经是 v3 表结构，result_json 已存在，迁移跳过。
-  if (!columnExists('horoscope_cache', 'result_json')) {
-    db.exec(`ALTER TABLE horoscope_cache ADD COLUMN result_json TEXT`);
-    console.log('✅ Added result_json column to horoscope_cache table');
-  }
-
-  // 迁移：horoscope_cache 旧字段移除（chinese_horoscope/western_horoscope/combined_advice）
-  // 来源: 7ae94e4 — 重构运势AI调用
-  // 原因: v1 版本的分字段存储废弃，改用单一 result_json 存储完整AI响应。
-  //       SQLite 不支持 DROP COLUMN，需要重建表。
-  // 触发条件: 三个旧列任一存在 → 说明是 v1/v2 表结构，需要迁移到 v3。
-  const horoscopeCols = db.prepare(`PRAGMA table_info(horoscope_cache)`).all() as any[];
-  const hasOldHoroscopeCols = horoscopeCols.some((c: any) =>
-    ['chinese_horoscope', 'western_horoscope', 'combined_advice'].includes(c.name)
-  );
-
-  if (hasOldHoroscopeCols) {
-    console.log('🔄 Migrating horoscope_cache table: removing deprecated columns (chinese_horoscope/western_horoscope/combined_advice)...');
-    const hasData = db.prepare('SELECT COUNT(*) as count FROM horoscope_cache').get() as { count: number };
-    db.exec(`DROP TABLE IF EXISTS horoscope_cache_new`);
-    db.exec(`
-      CREATE TABLE horoscope_cache_new (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        date TEXT NOT NULL,
-        result_json TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        UNIQUE(user_id, date)
-      )
-    `);
-    db.exec(`
-      INSERT INTO horoscope_cache_new (id, user_id, date, result_json, created_at)
-      SELECT id, user_id, date, result_json, created_at FROM horoscope_cache
-    `);
-    db.exec(`DROP TABLE horoscope_cache`);
-    db.exec(`ALTER TABLE horoscope_cache_new RENAME TO horoscope_cache`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_horoscope_user_date ON horoscope_cache(user_id, date)`);
-    console.log('✅ Migrated horoscope_cache table: removed old columns, preserved ' + hasData.count + ' rows');
-  }
-
-  // 创建索引（horoscope_cache 迁移后重建）
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_horoscope_user_date ON horoscope_cache(user_id, date)`);
-
-  // ─── 玩家表 ──────────────────────────────────────────────
   // 原始 commit: 121adc3 — replace Prisma with better-sqlite3
   db.exec(`
     CREATE TABLE IF NOT EXISTS players (
@@ -192,7 +69,7 @@ export const initDatabase = () => {
     console.log('✅ Added user_id column to players table');
   }
 
-  // ─── 地点表 ──────────────────────────────────────────────
+  // ─── 地点表 ───
   // 原始 commit: 121adc3，后被 9f597f3 添加 user_id
   // DDL 层面定义 UNIQUE(user_id, name)（用户下唯一），但历史数据库可能是 name 全局唯一
   db.exec(`
@@ -304,7 +181,7 @@ export const initDatabase = () => {
     )
   `);
 
-  // ─── 对局表 ──────────────────────────────────────────────
+  // ─── 对局表 ───
   // 原始 commit: 121adc3，后被 9f597f3/db4f722 重构
   db.exec(`
     CREATE TABLE IF NOT EXISTS games (
@@ -368,7 +245,7 @@ export const initDatabase = () => {
     console.log('✅ Added game_type_ids column to custom_filters table');
   }
 
-  // ─── 索引 ───────────────────────────────────────────────
+  // ─── 索引 ────
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_players_user ON players(user_id);
     CREATE INDEX IF NOT EXISTS idx_locations_user ON locations(user_id);
