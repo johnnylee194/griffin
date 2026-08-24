@@ -15,6 +15,7 @@
     "@lunisolar/plugin-char8ex": "^0.2.5",
     "@lunisolar/plugin-takesound": "^0.1.2",
     "@lunisolar/plugin-thegods": "^0.1.4",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.2.2",
@@ -24,16 +25,17 @@
     "jsonwebtoken": "^9.0.2",
     "lunar-javascript": "^1.7.0",
     "lunisolar": "^2.6.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.8",
     "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
+    "@types/express": "^4.17.25",
     "@types/jsonwebtoken": "^9.0.5",
-    "@types/node": "^20.10.5",
+    "@types/node": "^20.19.43",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.9.3"
   }
 }
