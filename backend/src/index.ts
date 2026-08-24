@@ -11,6 +11,7 @@ import statsRoutes from './routes/stats';
 import chipRateRoutes from './routes/chip-rates';
 import gameTypeRoutes from './routes/game-types';
 import customFilterRoutes from './routes/custom-filters';
+import mcpRoutes from './routes/mcp';
 import { authMiddleware } from './middleware/auth';
 
 // 加载环境变量
@@ -24,6 +25,9 @@ const port = process.env.PORT || 3000;
 
 // 中间件
 app.use(cors());
+// MCP Server is mounted before express.json() because MCP SDK consumes the raw stream
+app.use('/mcp', mcpRoutes);
+
 app.use(express.json());
 
 // 公开路由（不需要认证）
@@ -42,6 +46,7 @@ app.use('/api/stats', authMiddleware, statsRoutes);
 app.use('/api/chip-rates', authMiddleware, chipRateRoutes);
 app.use('/api/game-types', authMiddleware, gameTypeRoutes);
 app.use('/api/custom-filters', customFilterRoutes);
+
 
 // 静态文件服务（生产环境）
 if (process.env.NODE_ENV === 'production') {
