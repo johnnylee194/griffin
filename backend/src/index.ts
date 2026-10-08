@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -12,6 +12,8 @@ import chipRateRoutes from './routes/chip-rates';
 import gameTypeRoutes from './routes/game-types';
 import customFilterRoutes from './routes/custom-filters';
 import { authMiddleware } from './middleware/auth';
+
+dotenv.config({ override: true });
 
 // 初始化数据库
 initDatabase();

@@ -85,7 +85,7 @@ export class StatsService {
     const chinaTime = getLocalDate();
     const isCurrentMonth = chinaTime.getUTCFullYear() === year && (chinaTime.getUTCMonth() + 1) === month;
     const isPastMonth = chinaTime.getUTCFullYear() > year || (chinaTime.getUTCFullYear() === year && (chinaTime.getUTCMonth() + 1) > month);
-    const todayDateStr = getLocalDateString(chinaTime);
+    const todayDateStr = getLocalDateString();
 
     // Get number of days in the requested month
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -98,7 +98,7 @@ export class StatsService {
 
     records.forEach(record => {
       // Group by East 8 timezone date
-      const recordDateStr = getLocalDateString(record.createdAt);
+      const recordDateStr = String(record.createdAt).slice(0, 10);
 
       if (dailyData[recordDateStr]) {
         dailyData[recordDateStr].profit += (record.chips || 0);

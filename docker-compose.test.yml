@@ -14,5 +14,5 @@ services:
       - PORT=3000
       - DATABASE_URL=file:./data/griffin.db
       # VPS代理服务配置（如果.env文件不存在，可以在这里直接配置）
-      - JWT_SECRET=${JWT_SECRET}
+      # - JWT_SECRET=${JWT_SECRET}
 
