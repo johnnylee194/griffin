@@ -1,6 +1,6 @@
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
 import { initDatabase } from './database';
 import authRoutes from './routes/auth';
@@ -13,8 +13,7 @@ import gameTypeRoutes from './routes/game-types';
 import customFilterRoutes from './routes/custom-filters';
 import { authMiddleware } from './middleware/auth';
 
-// 加载环境变量
-dotenv.config();
+dotenv.config({ override: true });
 
 // 初始化数据库
 initDatabase();

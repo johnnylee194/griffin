@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
 export interface AuthRequest extends Request {
   user?: {
     id: string;
@@ -19,12 +17,12 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!JWT_SECRET) {
+    if (!process.env.JWT_SECRET) {
       console.error('JWT_SECRET is not defined in environment variables');
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
     req.user = {
       id: decoded.id,
       username: decoded.username

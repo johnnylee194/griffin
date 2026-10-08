@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { gamesApi, apiClient, Game } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { FilterListModal } from '../components/FilterListModal'
+import { MonthlyCumulativeChart, DailyCumulativeStat } from '../components/MonthlyCumulativeChart'
 
 interface GameTypeStats {
   name: string
@@ -75,6 +76,7 @@ interface MonthlyStats {
     totalExpense: number
     profit: number
   }>
+  dailyCumulative: DailyCumulativeStat[]
 }
 
 export default function HomePage() {
@@ -92,6 +94,7 @@ export default function HomePage() {
   const [earliestYear, setEarliestYear] = useState<number | null>(null)
   const [earliestMonth, setEarliestMonth] = useState<number | null>(null)
   const [showFilterModal, setShowFilterModal] = useState(false)
+  const [hideAmounts, setHideAmounts] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -213,6 +216,12 @@ export default function HomePage() {
               className="p-1 text-text-secondary hover:text-primary"
             >
               👁️
+            </button>
+            <button
+              onClick={() => setHideAmounts(!hideAmounts)}
+              className="p-1 text-text-secondary hover:text-primary"
+            >
+              {hideAmounts ? '💰' : '💸'}
             </button>
             <button
               onClick={() => window.location.href = '/settings'}
@@ -391,6 +400,13 @@ export default function HomePage() {
                   <div className="text-[9px] text-text-light font-medium">总输</div>
                 </div>
               </div>
+
+              {/* Daily Cumulative Chart */}
+              {monthlyStats.dailyCumulative && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <MonthlyCumulativeChart data={monthlyStats.dailyCumulative} hideAmounts={hideAmounts} />
+                </div>
+              )}
 
               <div className="mt-4 overflow-hidden border border-gray-100 rounded-xl">
                 <table className="w-full text-left border-collapse">

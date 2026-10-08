@@ -11,3 +11,13 @@ export function getLocalTimestamp(): string {
   
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
+
+export function getLocalDate(date?: Date | string | number): Date {
+  const d = date ? new Date(date) : new Date();
+  return new Date(d.getTime() + (8 * 60 * 60 * 1000));
+}
+
+export function getLocalDateString(date?: Date | string | number): string {
+  const localDate = getLocalDate(date);
+  return `${localDate.getUTCFullYear()}-${String(localDate.getUTCMonth() + 1).padStart(2, '0')}-${String(localDate.getUTCDate()).padStart(2, '0')}`;
+}

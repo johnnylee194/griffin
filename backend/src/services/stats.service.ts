@@ -1,5 +1,13 @@
 import db from '../database';
 import { Lunar } from 'lunar-javascript';
+import { getLocalDate, getLocalDateString } from '../utils/time';
+
+export interface DailyCumulativeStat {
+  date: string;
+  dailyProfit: number;
+  gameCount: number;
+  cumulativeProfit: number | null;
+}
 
 export interface MonthlyStats {
   month: string;
@@ -12,6 +20,7 @@ export interface MonthlyStats {
   evening: StatSummary;
   byGameType: Record<string, GameTypeStat>;
   byLocation: Record<string, LocationStat>;
+  dailyCumulative: DailyCumulativeStat[];
 }
 
 export interface StatSummary {
@@ -71,6 +80,65 @@ export class StatsService {
 
     query += ` ORDER BY g.created_at ASC`;
     const records = db.prepare(query).all(...params) as any[];
+
+    // Calculate daily cumulative stats
+    const chinaTime = getLocalDate();
+    const isCurrentMonth = chinaTime.getUTCFullYear() === year && (chinaTime.getUTCMonth() + 1) === month;
+    const isPastMonth = chinaTime.getUTCFullYear() > year || (chinaTime.getUTCFullYear() === year && (chinaTime.getUTCMonth() + 1) > month);
+    const todayDateStr = getLocalDateString();
+
+    // Get number of days in the requested month
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const dailyData: Record<string, { profit: number; games: number }> = {};
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      dailyData[dateStr] = { profit: 0, games: 0 };
+    }
+
+    records.forEach(record => {
+      // Group by East 8 timezone date
+      const recordDateStr = String(record.createdAt).slice(0, 10);
+
+      if (dailyData[recordDateStr]) {
+        dailyData[recordDateStr].profit += (record.chips || 0);
+        dailyData[recordDateStr].games += 1;
+      }
+    });
+
+    const dailyCumulative: DailyCumulativeStat[] = [];
+    let currentCumulative = 0;
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+
+      let shouldCalculate = false;
+      if (isPastMonth) {
+        shouldCalculate = true;
+      } else if (isCurrentMonth) {
+        if (dateStr <= todayDateStr) {
+          shouldCalculate = true;
+        }
+      } // isFutureMonth -> shouldCalculate = false
+
+      if (shouldCalculate) {
+        const dailyProfit = dailyData[dateStr].profit;
+        currentCumulative += dailyProfit;
+        dailyCumulative.push({
+          date: dateStr,
+          dailyProfit,
+          gameCount: dailyData[dateStr].games,
+          cumulativeProfit: currentCumulative
+        });
+      } else {
+        dailyCumulative.push({
+          date: dateStr,
+          dailyProfit: 0,
+          gameCount: 0,
+          cumulativeProfit: null
+        });
+      }
+    }
 
     // Get available locations
     const locationQuery = `
@@ -192,7 +260,8 @@ export class StatsService {
       afternoon,
       evening,
       byGameType,
-      byLocation
+      byLocation,
+      dailyCumulative
     };
   }
 

@@ -5,7 +5,6 @@ import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET;
 
 // 登录
 router.post('/login', (req, res) => {
@@ -32,14 +31,14 @@ router.post('/login', (req, res) => {
     }
 
     // 生成 JWT token
-    if (!JWT_SECRET) {
+    if (!process.env.JWT_SECRET) {
       console.error('JWT_SECRET is not defined in environment variables');
       return res.status(500).json({ error: 'Internal server error' });
     }
 
     const token = jwt.sign(
       { id: user.id, username: user.username },
-      JWT_SECRET,
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
@@ -66,12 +65,12 @@ router.get('/verify', (req, res) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    if (!JWT_SECRET) {
+    if (!process.env.JWT_SECRET) {
       console.error('JWT_SECRET is not defined in environment variables');
       return res.status(500).json({ error: 'Internal server error' });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
     
     // 查找用户确认存在
     const user = db.prepare(`
