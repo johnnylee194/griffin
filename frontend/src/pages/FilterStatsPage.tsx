@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -11,7 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { customFiltersApi, locationsApi, playersApi, CustomFilter, FilterStats, Location, Player } from '../api/client';
+import { customFiltersApi, statsApi, locationsApi, playersApi, CustomFilter, FilterStats, Location, Player } from '../api/client';
 
 ChartJS.register(
   CategoryScale,
@@ -26,6 +26,11 @@ ChartJS.register(
 export const FilterStatsPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const type = searchParams.get('type');
+  const threshold = searchParams.get('threshold');
+  const locationId = searchParams.get('locationId');
+  const scoreType = searchParams.get('scoreType');
 
   const [filter, setFilter] = useState<CustomFilter | null>(null);
   const [stats, setStats] = useState<FilterStats | null>(null);
@@ -40,30 +45,55 @@ export const FilterStatsPage: React.FC = () => {
   const [chartLocationFilter, setChartLocationFilter] = useState<string>('');
 
   useEffect(() => {
-    if (id) {
+    if (id || type === 'correlation') {
       loadData();
     }
-  }, [id]);
+  }, [id, type, threshold, locationId, scoreType]);
 
   const loadData = async () => {
-    if (!id) return;
-
     try {
       setLoading(true);
 
-      const [filterRes, statsRes, locationsRes, playersRes] = await Promise.all([
-        customFiltersApi.getOne(id),
-        customFiltersApi.getStats(id),
+      const [locationsRes, playersRes] = await Promise.all([
         locationsApi.getAll(),
         playersApi.getAll(),
       ]);
-
-      setFilter(filterRes.data);
-      setStats(statsRes.data);
       setLocations(locationsRes.data);
       setPlayers(playersRes.data);
+
+      if (type === 'correlation') {
+        const thresholdNum = parseInt(threshold || '0');
+        const locId = locationId || undefined;
+        const sType = (scoreType === 'win' || scoreType === 'lose') ? scoreType : 'win';
+
+        const statsRes = await statsApi.getCorrelationDetails({
+          threshold: thresholdNum,
+          locationId: locId,
+          scoreType: sType,
+        });
+        setStats(statsRes.data);
+        setFilter({
+          id: 'correlation',
+          name: '关联统计详情',
+          userId: '0',
+          startDate: undefined,
+          endDate: undefined,
+          locationIds: locId ? [locId] : [],
+          playerIds: [],
+          gameTypeIds: [],
+          createdAt: '',
+          updatedAt: ''
+        });
+      } else if (id) {
+        const [filterRes, statsRes] = await Promise.all([
+          customFiltersApi.getOne(id),
+          customFiltersApi.getStats(id),
+        ]);
+        setFilter(filterRes.data);
+        setStats(statsRes.data);
+      }
     } catch (error) {
-      console.error('Failed to load filter stats:', error);
+      console.error('Failed to load stats:', error);
       alert('加载数据失败');
     } finally {
       setLoading(false);
@@ -314,22 +344,26 @@ export const FilterStatsPage: React.FC = () => {
             ← 返回
           </button>
           <h1 className="text-lg sm:text-xl font-bold text-text truncate mx-4">
-            {filter.name}
+            {type === 'correlation' ? '关联统计详情' : filter.name}
           </h1>
-          <button
-            onClick={handleEdit}
-            className="text-primary hover:text-primary/80"
-          >
-            编辑
-          </button>
+          {type !== 'correlation' && (
+            <button
+              onClick={handleEdit}
+              className="text-primary hover:text-primary/80"
+            >
+              编辑
+            </button>
+          )}
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         {/* 筛选条件摘要 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="text-sm text-blue-900">{getFilterSummary()}</div>
-        </div>
+        {type !== 'correlation' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="text-sm text-blue-900">{getFilterSummary()}</div>
+          </div>
+        )}
 
         {/* 提示：非统计时段对局 */}
         {stats.hasOtherTimeGames && (
@@ -602,12 +636,14 @@ export const FilterStatsPage: React.FC = () => {
         {stats.overall.totalGames === 0 && (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <div className="text-gray-500 mb-4">暂无符合条件的对局数据</div>
-            <button
-              onClick={handleEdit}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-            >
-              调整筛选条件
-            </button>
+            {type !== 'correlation' && (
+              <button
+                onClick={handleEdit}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+              >
+                调整筛选条件
+              </button>
+            )}
           </div>
         )}
       </div>

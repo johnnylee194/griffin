@@ -185,6 +185,8 @@ export const statsApi = {
   getTripleCombination: () => apiClient.get('/stats/triple-combination'),
   getAfternoonEveningCorrelation: (locationId: string, score: number, scoreType: 'win' | 'lose') =>
     apiClient.get('/stats/afternoon-evening-correlation', { params: { locationId, score, scoreType } }),
+  getCorrelationDetails: (params: { threshold: number; locationId?: string; scoreType: 'win' | 'lose' }) =>
+    apiClient.get<FilterStats>('/stats/correlation/details', { params }),
   getLosingStreaks: (params?: { locationId?: string }) => apiClient.get('/stats/losing-streaks', { params }),
 };
 
