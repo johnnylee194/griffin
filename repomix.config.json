@@ -28,12 +28,46 @@
       "includeLogsCount": 50
     }
   },
-  "include": [],
+  "include": [
+    "backend/src/**/*",
+    "frontend/src/**/*"
+  ],
   "ignore": {
     "useGitignore": true,
     "useDotIgnore": true,
     "useDefaultPatterns": true,
-    "customPatterns": []
+    "customPatterns": [
+      "**/*lock*",
+      "package-lock.json",
+      "pnpm-lock.yaml",
+      "yarn.lock",
+      "go.sum",
+      "**/dist/**",
+      "**/build/**",
+      "**/*.min.*",
+      "**/.next/**",
+      "**/.nuxt/**",
+      "**/out/**",
+      "**/*.map",
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/__tests__/**",
+      "**/mocks/**",
+      "**/*.svg",
+      "**/*.png",
+      "**/*.jpg",
+      "**/*.jpeg",
+      "**/*.gif",
+      "**/*.ico",
+      "**/*.webp",
+      "**/*.woff*",
+      "**/*.ttf",
+      "**/public/**",
+      "**/*.md",
+      "**/docs/**",
+      "**/*.private.config.json",
+      "**/project.private.config.json"
+    ]
   },
   "security": {
     "enableSecurityCheck": true
