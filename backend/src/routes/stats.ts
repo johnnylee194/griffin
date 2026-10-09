@@ -856,4 +856,330 @@ router.get('/losing-streaks', (req: AuthRequest, res) => {
   }
 });
 
+
+// 获取关联统计详情数据
+router.get('/correlation/details', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { locationId, threshold, scoreType } = req.query;
+
+    if (threshold === undefined || !scoreType) {
+      return res.status(400).json({ error: 'threshold 和 scoreType 参数必填' });
+    }
+
+    const scoreValue = parseInt(threshold as string);
+    const isWin = scoreType === 'win';
+
+    // 获取"我"的玩家ID
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
+    if (!mePlayer) {
+      return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
+    }
+
+    let allRecordsQuery = `
+      SELECT
+        pr.score,
+        pr.chips,
+        g.created_at as createdAt,
+        DATE(g.created_at) as gameDate,
+        CAST(strftime('%H', g.created_at) AS INTEGER) as hour
+      FROM player_records pr
+      JOIN games g ON pr.game_id = g.id
+      WHERE pr.player_id = ?
+        AND g.user_id = ?
+        AND pr.score IS NOT NULL
+    `;
+    const params1: any[] = [mePlayer.id, userId];
+
+    if (locationId) {
+      allRecordsQuery += ` AND g.location_id = ?`;
+      params1.push(locationId);
+    }
+    allRecordsQuery += ` ORDER BY g.created_at ASC`;
+
+    const allRecords = db.prepare(allRecordsQuery).all(...params1) as any[];
+
+    const gamesByDate: Record<string, { afternoon: any[]; evening: any[] }> = {};
+
+    allRecords.forEach(record => {
+      const date = record.gameDate;
+      if (!gamesByDate[date]) {
+        gamesByDate[date] = { afternoon: [], evening: [] };
+      }
+
+      const gameTime = new Date(record.createdAt);
+      const h = gameTime.getHours();
+      const m = gameTime.getMinutes();
+      const s = gameTime.getSeconds();
+      const ts = h * 3600 + m * 60 + s;
+
+      let timeSlot: 'afternoon' | 'evening' | 'other' = 'other';
+      if (ts > 12 * 3600 && ts <= 18 * 3600) {
+        timeSlot = 'afternoon';
+      } else if (ts > 18 * 3600 || ts === 0) {
+        timeSlot = 'evening';
+      }
+
+      if (timeSlot === 'afternoon') {
+        gamesByDate[date].afternoon.push(record);
+      } else if (timeSlot === 'evening') {
+        gamesByDate[date].evening.push(record);
+      }
+    });
+
+    const validDates: string[] = [];
+    Object.entries(gamesByDate).forEach(([date, games]) => {
+      if (games.afternoon.length > 0 && games.evening.length > 0) {
+        const hasValidAfternoon = games.afternoon.some(record => {
+          const afternoonScore = Math.abs(record.score);
+          const afternoonIsWin = record.score > 0;
+
+          if (isWin && afternoonIsWin && afternoonScore >= scoreValue) {
+            return true;
+          } else if (!isWin && !afternoonIsWin && afternoonScore >= scoreValue) {
+            return true;
+          }
+          return false;
+        });
+
+        if (hasValidAfternoon) {
+          validDates.push(date);
+        }
+      }
+    });
+
+    let gamesWhereConditions = ['g.user_id = ?'];
+    let gamesParams: any[] = [userId];
+
+    if (validDates.length > 0) {
+      gamesWhereConditions.push(`DATE(g.created_at) IN (${validDates.map(() => '?').join(',')})`);
+      gamesParams.push(...validDates);
+    } else {
+      gamesWhereConditions.push('1=0');
+    }
+
+    if (locationId) {
+      gamesWhereConditions.push(`g.location_id = ?`);
+      gamesParams.push(locationId);
+    }
+
+    const gamesQuery = `
+      SELECT g.id, g.created_at, g.location_id, g.chip_rate_id
+      FROM games g
+      WHERE ${gamesWhereConditions.join(' AND ')}
+      AND g.id IN (
+        SELECT game_id FROM player_records WHERE player_id = ?
+      )
+      ORDER BY g.created_at
+    `;
+    gamesParams.push(mePlayer.id);
+
+    const games = db.prepare(gamesQuery).all(...gamesParams) as any[];
+
+    if (games.length === 0) {
+      return res.json({
+        overall: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0, maxDayWinScore: 0, maxDayLossScore: 0, maxDayWinChips: 0, maxDayLossChips: 0 },
+        lateNight: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
+        morning: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
+        afternoon: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
+        evening: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
+        dailyStats: [],
+        hasOtherTimeGames: false,
+        games: [],
+      });
+    }
+
+    const gameDetails = games.map(game => {
+      const myRecord = db.prepare(`
+        SELECT pr.score, pr.chips, lcr.chip_rate
+        FROM player_records pr
+        LEFT JOIN location_chip_rates lcr ON ? = lcr.id
+        WHERE pr.game_id = ? AND pr.player_id = ?
+      `).get(game.chip_rate_id, game.id, mePlayer.id) as any;
+
+      const gameDate = new Date(game.created_at);
+      const hour = gameDate.getHours();
+      const minute = gameDate.getMinutes();
+      const second = gameDate.getSeconds();
+      const ts = hour * 3600 + minute * 60 + second;
+
+      let timeSlot = 'other';
+      if (ts > 0 && ts <= 8 * 3600) {
+        timeSlot = 'lateNight';
+      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
+        timeSlot = 'morning';
+      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
+        timeSlot = 'afternoon';
+      } else {
+        timeSlot = 'evening';
+      }
+
+      const year = gameDate.getFullYear();
+      const month = String(gameDate.getMonth() + 1).padStart(2, '0');
+      const day = String(gameDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      return {
+        ...game,
+        score: myRecord?.score || 0,
+        chips: myRecord?.chips || 0,
+        chipRate: myRecord?.chip_rate || 0,
+        date: dateStr,
+        timeSlot,
+      };
+    });
+
+    const hasOtherTimeGames = gameDetails.some(g => g.timeSlot === 'other');
+
+    const calculateStats = (games: any[]) => {
+      const totalGames = games.length;
+      const wins = games.filter(g => g.score > 0).length;
+      const losses = games.filter(g => g.score < 0).length;
+      const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
+      const totalScore = games.reduce((sum, g) => sum + g.score, 0);
+      const totalChips = games.reduce((sum, g) => sum + g.chips, 0);
+      const avgScorePerGame = totalGames > 0 ? totalScore / totalGames : 0;
+      const avgChipsPerGame = totalGames > 0 ? totalChips / totalGames : 0;
+
+      const winGames = games.filter(g => g.score > 0);
+      const lossGames = games.filter(g => g.score < 0);
+
+      const maxWinScore = winGames.length > 0 ? Math.max(...winGames.map(g => g.score)) : 0;
+      const maxLossScore = lossGames.length > 0 ? Math.min(...lossGames.map(g => g.score)) : 0;
+      const maxWinChips = winGames.length > 0 ? Math.max(...winGames.map(g => g.chips)) : 0;
+      const maxLossChips = lossGames.length > 0 ? Math.min(...lossGames.map(g => g.chips)) : 0;
+
+      return {
+        totalGames,
+        wins,
+        losses,
+        winRate: Math.round(winRate * 100) / 100,
+        totalScore,
+        totalChips,
+        avgScorePerGame: Math.round(avgScorePerGame * 100) / 100,
+        avgChipsPerGame: Math.round(avgChipsPerGame * 100) / 100,
+        maxWinScore,
+        maxLossScore,
+        maxWinChips,
+        maxLossChips,
+        maxDayWinScore: 0,
+        maxDayLossScore: 0,
+        maxDayWinChips: 0,
+        maxDayLossChips: 0,
+      };
+    };
+
+    const overall: any = calculateStats(gameDetails);
+    const lateNightGames = gameDetails.filter(g => g.timeSlot === 'lateNight');
+    const morningGames = gameDetails.filter(g => g.timeSlot === 'morning');
+    const afternoonGames = gameDetails.filter(g => g.timeSlot === 'afternoon');
+    const eveningGames = gameDetails.filter(g => g.timeSlot === 'evening');
+
+    const lateNight = calculateStats(lateNightGames);
+    const morning = calculateStats(morningGames);
+    const afternoon = calculateStats(afternoonGames);
+    const evening = calculateStats(eveningGames);
+
+    const dailyMap = new Map<string, any>();
+    gameDetails.forEach(game => {
+      if (!dailyMap.has(game.date)) {
+        dailyMap.set(game.date, {
+          date: game.date,
+          totalScore: 0,
+          totalChips: 0,
+          lateNightScore: 0,
+          lateNightChips: 0,
+          morningScore: 0,
+          morningChips: 0,
+          afternoonScore: 0,
+          afternoonChips: 0,
+          eveningScore: 0,
+          eveningChips: 0,
+          totalGames: 0,
+          lateNightGames: 0,
+          morningGames: 0,
+          afternoonGames: 0,
+          eveningGames: 0,
+        });
+      }
+
+      const stat = dailyMap.get(game.date);
+      stat.totalScore += game.score;
+      stat.totalChips += game.chips;
+      stat.totalGames += 1;
+
+      if (game.timeSlot === 'lateNight') {
+        stat.lateNightScore += game.score;
+        stat.lateNightChips += game.chips;
+        stat.lateNightGames += 1;
+      } else if (game.timeSlot === 'morning') {
+        stat.morningScore += game.score;
+        stat.morningChips += game.chips;
+        stat.morningGames += 1;
+      } else if (game.timeSlot === 'afternoon') {
+        stat.afternoonScore += game.score;
+        stat.afternoonChips += game.chips;
+        stat.afternoonGames += 1;
+      } else if (game.timeSlot === 'evening') {
+        stat.eveningScore += game.score;
+        stat.eveningChips += game.chips;
+        stat.eveningGames += 1;
+      }
+    });
+
+    const dailyStats = Array.from(dailyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+
+    const dailyScores = dailyStats.map(d => d.totalScore);
+    const dailyChips = dailyStats.map(d => d.totalChips);
+
+    overall.maxDayWinScore = dailyScores.length > 0 ? Math.max(...dailyScores.filter(s => s > 0)) : 0;
+    overall.maxDayLossScore = dailyScores.length > 0 ? Math.min(...dailyScores.filter(s => s < 0)) : 0;
+    overall.maxDayWinChips = dailyChips.length > 0 ? Math.max(...dailyChips.filter(c => c > 0)) : 0;
+    overall.maxDayLossChips = dailyChips.length > 0 ? Math.min(...dailyChips.filter(c => c < 0)) : 0;
+
+    const gamesWithDetails = games.map(game => {
+      const location = db.prepare('SELECT id, name FROM locations WHERE id = ?').get(game.location_id) as any;
+      const chipRateInfo = db.prepare('SELECT chip_rate FROM location_chip_rates WHERE id = ?').get(game.chip_rate_id) as any;
+      const records = db.prepare(`
+        SELECT pr.id, pr.player_id, pr.score, pr.chips, p.name as player_name, p.is_me
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id = ?
+        ORDER BY p.is_me DESC
+      `).all(game.id) as any[];
+
+      return {
+        id: game.id,
+        createdAt: game.created_at,
+        location: location || { id: game.location_id, name: '未知' },
+        chipRate: chipRateInfo?.chip_rate || 0,
+        records: records.map(r => ({
+          id: r.id,
+          playerId: r.player_id,
+          score: r.score,
+          chips: r.chips,
+          player: {
+            name: r.player_name,
+            isMe: r.is_me === 1,
+          },
+        })),
+      };
+    });
+
+    res.json({
+      overall,
+      lateNight,
+      morning,
+      afternoon,
+      evening,
+      dailyStats,
+      hasOtherTimeGames,
+      games: gamesWithDetails,
+    });
+  } catch (error) {
+    console.error('Failed to fetch correlation details stats:', error);
+    res.status(500).json({ error: 'Failed to fetch correlation details stats' });
+  }
+});
+
 export default router;

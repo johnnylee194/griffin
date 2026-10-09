@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { playersApi, statsApi, locationsApi, Player, Location } from '../api/client'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } from 'recharts'
 
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export default function StatsPage() {
+  const navigate = useNavigate()
   const [players, setPlayers] = useState<Player[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
   const [stats, setStats] = useState<any>(null)
@@ -548,6 +549,12 @@ export default function StatsPage() {
                       <div className="text-xs text-text-light mt-1">晚上战绩</div>
                     </div>
                   </div>
+                  <button
+                    className="btn-primary w-full mt-4 py-2 text-sm"
+                    onClick={() => navigate(`/dynamic-stats?type=correlation&threshold=${correlationStats.threshold}&locationId=${correlationLocationId || ''}&scoreType=${correlationScoreType}`)}
+                  >
+                    查看详细记录
+                  </button>
                 </div>
               )}
             </div>

@@ -128,6 +128,7 @@ function AppContent() {
           <Route path="/filter/new" element={<ProtectedRoute><FilterConfigPage /></ProtectedRoute>} />
           <Route path="/filter/edit/:id" element={<ProtectedRoute><FilterConfigPage /></ProtectedRoute>} />
           <Route path="/filter/:id" element={<ProtectedRoute><FilterStatsPage /></ProtectedRoute>} />
+          <Route path="/dynamic-stats" element={<ProtectedRoute><FilterStatsPage /></ProtectedRoute>} />
         </Routes>
       </main>
 
