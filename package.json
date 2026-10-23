@@ -10,8 +10,14 @@
     "build:frontend": "cd frontend && npm run build",
     "build:all": "npm run build:backend && npm run build:frontend"
   },
-  "keywords": ["mahjong", "scoring", "statistics"],
+  "keywords": [
+    "mahjong",
+    "scoring",
+    "statistics"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
 }
-
