@@ -56,3 +56,12 @@ __pycache__/
 
 # Trae IDE
 .trae/
+
+# Playwright Test Outputs
+test-results/
+playwright-report/
+playwright/.cache/
+blob-report/
+
+# E2E Test Outputs
+e2e/test-results/
