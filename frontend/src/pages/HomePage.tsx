@@ -118,7 +118,7 @@ export default function HomePage() {
         gamesApi.getAll({
           limit: 5,
           locationId: selectedLocationId || undefined,
-        } as any),
+        }),
         apiClient.get("/games/stats/monthly", {
           params: {
             year: selectedYear,

@@ -37,24 +37,28 @@ export default function HistoryPage() {
     }
   }
 
+  // 地点列表只需加载一次
   useEffect(() => {
-    loadData()
+    locationsApi.getAll()
+      .then(res => setLocations(res.data))
+      .catch(error => console.error('Failed to load locations:', error))
   }, [])
 
-  const loadData = async () => {
-    try {
-      const [gamesRes, locationsRes] = await Promise.all([
-        gamesApi.getAll(),
-        locationsApi.getAll()
-      ])
-      setGames(gamesRes.data)
-      setLocations(locationsRes.data)
-    } catch (error) {
-      console.error('Failed to load games:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // 按所选年月从服务端拉取对局，避免一次性加载全部历史记录
+  useEffect(() => {
+    let cancelled = false // 快速切换月份时丢弃过期响应
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear
+    const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1
+    gamesApi.getAll({
+      startDate: `${selectedYear}-${pad(selectedMonth)}-01T00:00:00`,
+      endDate: `${nextYear}-${pad(nextMonth)}-01T00:00:00`,
+    })
+      .then(res => { if (!cancelled) setGames(res.data) })
+      .catch(error => console.error('Failed to load games:', error))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedYear, selectedMonth])
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这条记录吗？')) return
@@ -195,7 +199,7 @@ export default function HistoryPage() {
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl sm:text-2xl font-bold text-text">对局历史</h2>
-        <div className="text-sm text-text-light">共 {games.length} 局</div>
+        <div className="text-sm text-text-light">当月共 {games.length} 局</div>
       </div>
 
       <div className="card">

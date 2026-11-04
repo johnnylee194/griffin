@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import db, { generateId } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { GameService } from '../services/game.service';
 
 const router = Router();
 
@@ -259,8 +260,11 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
     
     // 查询满足条件的对局
     const gamesQuery = `
-      SELECT g.id, g.created_at, g.location_id, g.chip_rate_id
+      SELECT g.id, g.created_at, g.location_id, g.chip_rate_id,
+        l.name as location_name, lcr.chip_rate
       FROM games g
+      LEFT JOIN locations l ON l.id = g.location_id
+      LEFT JOIN location_chip_rates lcr ON lcr.id = g.chip_rate_id
       WHERE ${whereConditions.join(' AND ')}
       AND g.id IN (
         SELECT game_id 
@@ -362,13 +366,12 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
     }
 
     // 获取所有对局的详细数据（我的分数和金额）
+    // 批量获取所有对局的玩家记录（一次查询），替代逐局查询
+    const recordsByGame = GameService.getRecordsByGameIds(games.map(g => g.id));
+
     const gameDetails = games.map(game => {
-      const myRecord = db.prepare(`
-        SELECT pr.score, pr.chips, lcr.chip_rate
-        FROM player_records pr
-        LEFT JOIN location_chip_rates lcr ON ? = lcr.id
-        WHERE pr.game_id = ? AND pr.player_id = ?
-      `).get(game.chip_rate_id, game.id, mePlayer.id) as any;
+      const myRow = (recordsByGame.get(game.id) || []).find(r => r.player_id === mePlayer.id);
+      const myRecord = myRow ? { score: myRow.score, chips: myRow.chips, chip_rate: game.chip_rate } : null;
 
       const gameDate = new Date(game.created_at);
       const hour = gameDate.getHours();
@@ -520,20 +523,9 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
 
     // 构建对局列表（包含完整信息）
     const gamesWithDetails = games.map(game => {
-      // 获取地点信息
-      const location = db.prepare('SELECT id, name FROM locations WHERE id = ?').get(game.location_id) as any;
-      
-      // 获取chip_rate信息
-      const chipRateInfo = db.prepare('SELECT chip_rate FROM location_chip_rates WHERE id = ?').get(game.chip_rate_id) as any;
-      
-      // 获取所有玩家记录
-      const records = db.prepare(`
-        SELECT pr.id, pr.player_id, pr.score, pr.chips, p.name as player_name, p.is_me
-        FROM player_records pr
-        JOIN players p ON pr.player_id = p.id
-        WHERE pr.game_id = ?
-        ORDER BY p.is_me DESC
-      `).all(game.id) as any[];
+      const location = game.location_name != null ? { id: game.location_id, name: game.location_name } : null;
+      const chipRateInfo = game.chip_rate != null ? { chip_rate: game.chip_rate } : null;
+      const records = recordsByGame.get(game.id) || [];
 
       return {
         id: game.id,

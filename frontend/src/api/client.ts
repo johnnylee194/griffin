@@ -149,7 +149,7 @@ export const chipRatesApi = {
 };
 
 export const gamesApi = {
-  getAll: (params?: { limit?: number; offset?: number }) => 
+  getAll: (params?: { limit?: number; offset?: number; locationId?: string; startDate?: string; endDate?: string }) => 
     apiClient.get<Game[]>('/games', { params }),
   getOne: (id: string) => apiClient.get<Game>(`/games/${id}`),
   create: (data: {
