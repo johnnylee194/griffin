@@ -12,6 +12,7 @@ import {
   Legend,
 } from 'chart.js';
 import { customFiltersApi, statsApi, locationsApi, playersApi, CustomFilter, FilterStats, Location, Player } from '../api/client';
+import { getTimeSlot } from '../utils/timeUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -274,19 +275,18 @@ export const FilterStatsPage: React.FC = () => {
       const score = myRecord?.score || 0;
       const chips = myRecord?.chips || 0;
 
-      const d = new Date(game.createdAt);
-      const ts = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+      const slot = getTimeSlot(game.createdAt);
 
       daily.totalScore += score;
       daily.totalChips += chips;
 
-      if (ts > 0 && ts <= 8 * 3600) {
+      if (slot === 'lateNight') {
         daily.lateNightScore += score;
         daily.lateNightChips += chips;
-      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
+      } else if (slot === 'morning') {
         daily.morningScore += score;
         daily.morningChips += chips;
-      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
+      } else if (slot === 'afternoon') {
         daily.afternoonScore += score;
         daily.afternoonChips += chips;
       } else {
@@ -582,15 +582,14 @@ export const FilterStatsPage: React.FC = () => {
                   dateGames.forEach(game => {
                     const myRecord = game.records.find(r => r.player.isMe);
                     if (myRecord && myRecord.chips !== null) {
-                      const date = new Date(game.createdAt);
-                      const totalSeconds = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+                      const slot = getTimeSlot(game.createdAt);
 
                       totalScore += myRecord.chips;
-                      if (totalSeconds > 0 && totalSeconds <= 8 * 3600) {
+                      if (slot === 'lateNight') {
                         lateNightScore += myRecord.chips;
-                      } else if (totalSeconds > 8 * 3600 && totalSeconds <= 12 * 3600) {
+                      } else if (slot === 'morning') {
                         morningScore += myRecord.chips;
-                      } else if (totalSeconds > 12 * 3600 && totalSeconds <= 18 * 3600) {
+                      } else if (slot === 'afternoon') {
                         afternoonScore += myRecord.chips;
                       } else {
                         eveningScore += myRecord.chips;

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './pages/LoginPage'
@@ -46,15 +46,16 @@ function AppContent() {
   const [showHeader, setShowHeader] = useState(true)
   const [lastScrollY, setLastScrollY] = useState(0)
   const location = useLocation()
+  const navigate = useNavigate()
   const { logout, token } = useAuth()
   const isLoginPage = location.pathname === '/login'
   
   // 如果已登录且在登录页，跳转到首页
   useEffect(() => {
     if (token && isLoginPage) {
-      window.location.href = '/';
+      navigate('/', { replace: true });
     }
-  }, [token, isLoginPage]);
+  }, [token, isLoginPage, navigate]);
 
   // 根据路径设置activeTab
   useEffect(() => {
