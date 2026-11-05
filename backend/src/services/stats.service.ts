@@ -43,11 +43,12 @@ export interface LocationStat extends StatSummary {
 
 export class StatsService {
   static getMonthlyStats(userId: string, year: number, month: number, locationId?: string): MonthlyStats {
-    const firstDayOfMonth = new Date(year, month - 1, 1);
-    const firstDayOfNextMonth = new Date(year, month, 1);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const nextYear = month === 12 ? year + 1 : year;
+    const nextMonth = month === 12 ? 1 : month + 1;
 
-    const startDate = firstDayOfMonth.toISOString();
-    const endDate = firstDayOfNextMonth.toISOString();
+    const startDate = `${year}-${pad(month)}-01T00:00:00`;
+    const endDate = `${nextYear}-${pad(nextMonth)}-01T00:00:00`;
 
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {

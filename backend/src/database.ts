@@ -9,6 +9,7 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const db = new Database(path.join(dbDir, 'griffin.db'));
+db.pragma('foreign_keys = ON');
 
 // Generate CUID-like ID
 export function generateId(): string {

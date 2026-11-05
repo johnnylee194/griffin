@@ -145,20 +145,24 @@ router.post('/', (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    // 如果是创建本人，先将其他玩家的isMe设为false（同一用户下）
-    if (isMe) {
-      db.prepare(`
-        UPDATE players SET is_me = 0 WHERE is_me = 1 AND user_id = ?
-      `).run(userId);
-    }
-
     const id = generateId();
     const now = getLocalTimestamp();
-    
-    db.prepare(`
-      INSERT INTO players (id, user_id, name, avatar, is_me, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, userId, name, avatar || null, isMe ? 1 : 0, now, now);
+
+    const createTx = db.transaction(() => {
+      // 如果是创建本人，先将其他玩家的isMe设为false（同一用户下）
+      if (isMe) {
+        db.prepare(`
+          UPDATE players SET is_me = 0 WHERE is_me = 1 AND user_id = ?
+        `).run(userId);
+      }
+
+      db.prepare(`
+        INSERT INTO players (id, user_id, name, avatar, is_me, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(id, userId, name, avatar || null, isMe ? 1 : 0, now, now);
+    });
+
+    createTx();
 
     const player = db.prepare(`
       SELECT 
@@ -198,13 +202,6 @@ router.put('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Player not found' });
     }
     
-    // 如果要设置为本人，先将其他玩家的isMe设为false（同一用户下）
-    if (isMe) {
-      db.prepare(`
-        UPDATE players SET is_me = 0 WHERE is_me = 1 AND id != ? AND user_id = ?
-      `).run(id, userId);
-    }
-
     const now = getLocalTimestamp();
     
     const updateFields: string[] = [];
@@ -227,9 +224,20 @@ router.put('/:id', (req: AuthRequest, res) => {
     values.push(now);
     values.push(id);
 
-    db.prepare(`
-      UPDATE players SET ${updateFields.join(', ')} WHERE id = ?
-    `).run(...values);
+    const updateTx = db.transaction(() => {
+      // 如果要设置为本人，先将其他玩家的isMe设为false（同一用户下）
+      if (isMe) {
+        db.prepare(`
+          UPDATE players SET is_me = 0 WHERE is_me = 1 AND id != ? AND user_id = ?
+        `).run(id, userId);
+      }
+
+      db.prepare(`
+        UPDATE players SET ${updateFields.join(', ')} WHERE id = ?
+      `).run(...values);
+    });
+
+    updateTx();
 
     const updated = db.prepare(`
       SELECT 

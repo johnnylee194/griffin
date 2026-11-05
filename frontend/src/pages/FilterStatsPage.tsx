@@ -234,11 +234,68 @@ export const FilterStatsPage: React.FC = () => {
   };
 
   const getChartData = () => {
-    if (!stats || !stats.dailyStats || stats.dailyStats.length === 0) {
+    if (!stats || !stats.games || stats.games.length === 0) {
       return null;
     }
 
-    let dailyData = [...stats.dailyStats];
+    // 根据地点筛选过滤对局
+    const filteredGames = chartLocationFilter
+      ? stats.games.filter(g => g.location?.id === chartLocationFilter)
+      : stats.games;
+
+    if (filteredGames.length === 0) {
+      return null;
+    }
+
+    // 重新按日汇总数据
+    const dailyMap = new Map<string, any>();
+    filteredGames.forEach(game => {
+      const dateStr = typeof game.createdAt === 'string' ? game.createdAt : String(game.createdAt);
+      const date = dateStr.includes(' ') ? dateStr.split(' ')[0] : dateStr.split('T')[0];
+
+      if (!dailyMap.has(date)) {
+        dailyMap.set(date, {
+          date,
+          totalScore: 0,
+          totalChips: 0,
+          lateNightScore: 0,
+          lateNightChips: 0,
+          morningScore: 0,
+          morningChips: 0,
+          afternoonScore: 0,
+          afternoonChips: 0,
+          eveningScore: 0,
+          eveningChips: 0,
+        });
+      }
+
+      const daily = dailyMap.get(date);
+      const myRecord = game.records.find(r => r.player.isMe);
+      const score = myRecord?.score || 0;
+      const chips = myRecord?.chips || 0;
+
+      const d = new Date(game.createdAt);
+      const ts = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+
+      daily.totalScore += score;
+      daily.totalChips += chips;
+
+      if (ts > 0 && ts <= 8 * 3600) {
+        daily.lateNightScore += score;
+        daily.lateNightChips += chips;
+      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
+        daily.morningScore += score;
+        daily.morningChips += chips;
+      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
+        daily.afternoonScore += score;
+        daily.afternoonChips += chips;
+      } else {
+        daily.eveningScore += score;
+        daily.eveningChips += chips;
+      }
+    });
+
+    let dailyData = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     // 应用天数筛选
     if (chartDays !== 'all') {
@@ -248,7 +305,6 @@ export const FilterStatsPage: React.FC = () => {
     // 格式化日期标签为 MM-DD
     const labels = dailyData.map(d => {
       const dateStr = typeof d.date === 'string' ? d.date : String(d.date);
-      // 如果是 YYYY-MM-DD 格式，取后5位
       if (dateStr.includes('-') && dateStr.length >= 10) {
         return dateStr.substring(5, 10); // MM-DD
       }

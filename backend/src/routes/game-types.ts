@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db, { generateId } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { getLocalTimestamp } from '../utils/time';
 
 const router = Router();
 
@@ -46,7 +47,7 @@ router.post('/', (req: AuthRequest, res) => {
     }
 
     const id = generateId();
-    const now = new Date().toISOString().split('T')[0] + 'T' + new Date().toTimeString().split(' ')[0];
+    const now = getLocalTimestamp();
 
     db.prepare(`
       INSERT INTO game_types (id, user_id, name, created_at)
@@ -243,21 +244,25 @@ router.post('/location/:locationId', (req: AuthRequest, res) => {
     `).get(locationId) as { count: number };
     const shouldBeDefault = locationGameTypeCount.count === 0 || isDefault;
 
-    if (shouldBeDefault) {
-      db.prepare(`
-        UPDATE location_game_types 
-        SET is_default = 0 
-        WHERE location_id = ?
-      `).run(locationId);
-    }
-
     const id = generateId();
-    const now = new Date().toISOString().split('T')[0] + 'T' + new Date().toTimeString().split(' ')[0];
+    const now = getLocalTimestamp();
 
-    db.prepare(`
-      INSERT INTO location_game_types (id, location_id, game_type_id, is_default, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, locationId, gameTypeId, shouldBeDefault ? 1 : 0, now);
+    const createLocationGameTypeTx = db.transaction(() => {
+      if (shouldBeDefault) {
+        db.prepare(`
+          UPDATE location_game_types 
+          SET is_default = 0 
+          WHERE location_id = ?
+        `).run(locationId);
+      }
+
+      db.prepare(`
+        INSERT INTO location_game_types (id, location_id, game_type_id, is_default, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(id, locationId, gameTypeId, shouldBeDefault ? 1 : 0, now);
+    });
+
+    createLocationGameTypeTx();
 
     const locationGameType = db.prepare(`
       SELECT 
