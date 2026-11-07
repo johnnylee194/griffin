@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import db, { generateId } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { GameService } from '../services/game.service';
+import { StatsService } from '../services/stats.service';
 
 const router = Router();
 
@@ -259,8 +261,11 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
     
     // 查询满足条件的对局
     const gamesQuery = `
-      SELECT g.id, g.created_at, g.location_id, g.chip_rate_id
+      SELECT g.id, g.created_at, g.location_id, g.chip_rate_id,
+        l.name as location_name, lcr.chip_rate
       FROM games g
+      LEFT JOIN locations l ON l.id = g.location_id
+      LEFT JOIN location_chip_rates lcr ON lcr.id = g.chip_rate_id
       WHERE ${whereConditions.join(' AND ')}
       AND g.id IN (
         SELECT game_id 
@@ -278,291 +283,11 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
       requiredPlayerIds.length
     ) as any[];
 
-    // 如果没有对局，返回空统计
-    if (games.length === 0) {
-      return res.json({
-        overall: {
-          totalGames: 0,
-          wins: 0,
-          losses: 0,
-          winRate: 0,
-          totalScore: 0,
-          totalChips: 0,
-          avgScorePerGame: 0,
-          avgChipsPerGame: 0,
-          maxWinScore: 0,
-          maxLossScore: 0,
-          maxWinChips: 0,
-          maxLossChips: 0,
-          maxDayWinScore: 0,
-          maxDayLossScore: 0,
-          maxDayWinChips: 0,
-          maxDayLossChips: 0,
-        },
-        lateNight: {
-          totalGames: 0,
-          wins: 0,
-          losses: 0,
-          winRate: 0,
-          totalScore: 0,
-          totalChips: 0,
-          avgScorePerGame: 0,
-          avgChipsPerGame: 0,
-          maxWinScore: 0,
-          maxLossScore: 0,
-          maxWinChips: 0,
-          maxLossChips: 0,
-        },
-        morning: {
-          totalGames: 0,
-          wins: 0,
-          losses: 0,
-          winRate: 0,
-          totalScore: 0,
-          totalChips: 0,
-          avgScorePerGame: 0,
-          avgChipsPerGame: 0,
-          maxWinScore: 0,
-          maxLossScore: 0,
-          maxWinChips: 0,
-          maxLossChips: 0,
-        },
-        afternoon: {
-          totalGames: 0,
-          wins: 0,
-          losses: 0,
-          winRate: 0,
-          totalScore: 0,
-          totalChips: 0,
-          avgScorePerGame: 0,
-          avgChipsPerGame: 0,
-          maxWinScore: 0,
-          maxLossScore: 0,
-          maxWinChips: 0,
-          maxLossChips: 0,
-        },
-        evening: {
-          totalGames: 0,
-          wins: 0,
-          losses: 0,
-          winRate: 0,
-          totalScore: 0,
-          totalChips: 0,
-          avgScorePerGame: 0,
-          avgChipsPerGame: 0,
-          maxWinScore: 0,
-          maxLossScore: 0,
-          maxWinChips: 0,
-          maxLossChips: 0,
-        },
-        dailyStats: [],
-        hasOtherTimeGames: false,
-        games: [],
-      });
-    }
+    // 批量获取所有对局的玩家记录并执行详细统计分析
+    const recordsByGame = GameService.getRecordsByGameIds(games.map(g => g.id));
+    const analysis = StatsService.computeDetailedAnalysis(games, recordsByGame, mePlayer.id);
 
-    // 获取所有对局的详细数据（我的分数和金额）
-    const gameDetails = games.map(game => {
-      const myRecord = db.prepare(`
-        SELECT pr.score, pr.chips, lcr.chip_rate
-        FROM player_records pr
-        LEFT JOIN location_chip_rates lcr ON ? = lcr.id
-        WHERE pr.game_id = ? AND pr.player_id = ?
-      `).get(game.chip_rate_id, game.id, mePlayer.id) as any;
-
-      const gameDate = new Date(game.created_at);
-      const hour = gameDate.getHours();
-      const minute = gameDate.getMinutes();
-      const second = gameDate.getSeconds();
-      const ts = hour * 3600 + minute * 60 + second;
-
-      let timeSlot = 'other';
-      if (ts > 0 && ts <= 8 * 3600) {
-        timeSlot = 'lateNight';
-      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
-        timeSlot = 'morning';
-      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
-        timeSlot = 'afternoon';
-      } else {
-        // 晚上包括 18:00:01-23:59:59 和正好 00:00:00
-        timeSlot = 'evening';
-      }
-
-      // 确保日期格式为 YYYY-MM-DD
-      const year = gameDate.getFullYear();
-      const month = String(gameDate.getMonth() + 1).padStart(2, '0');
-      const day = String(gameDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-
-      return {
-        ...game,
-        score: myRecord?.score || 0,
-        chips: myRecord?.chips || 0,
-        chipRate: myRecord?.chip_rate || 0,
-        date: dateStr,
-        timeSlot,
-      };
-    });
-
-    // 检查是否有非统计时段的对局
-    const hasOtherTimeGames = gameDetails.some(g => g.timeSlot === 'other');
-
-    // 计算汇总统计
-    const calculateStats = (games: any[]) => {
-      const totalGames = games.length;
-      const wins = games.filter(g => g.score > 0).length;
-      const losses = games.filter(g => g.score < 0).length;
-      const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
-      const totalScore = games.reduce((sum, g) => sum + g.score, 0);
-      const totalChips = games.reduce((sum, g) => sum + g.chips, 0);
-      const avgScorePerGame = totalGames > 0 ? totalScore / totalGames : 0;
-      const avgChipsPerGame = totalGames > 0 ? totalChips / totalGames : 0;
-      
-      const winGames = games.filter(g => g.score > 0);
-      const lossGames = games.filter(g => g.score < 0);
-      
-      const maxWinScore = winGames.length > 0 ? Math.max(...winGames.map(g => g.score)) : 0;
-      const maxLossScore = lossGames.length > 0 ? Math.min(...lossGames.map(g => g.score)) : 0;
-      const maxWinChips = winGames.length > 0 ? Math.max(...winGames.map(g => g.chips)) : 0;
-      const maxLossChips = lossGames.length > 0 ? Math.min(...lossGames.map(g => g.chips)) : 0;
-
-      return {
-        totalGames,
-        wins,
-        losses,
-        winRate: Math.round(winRate * 100) / 100,
-        totalScore,
-        totalChips,
-        avgScorePerGame: Math.round(avgScorePerGame * 100) / 100,
-        avgChipsPerGame: Math.round(avgChipsPerGame * 100) / 100,
-        maxWinScore,
-        maxLossScore,
-        maxWinChips,
-        maxLossChips,
-        maxDayWinScore: 0,
-        maxDayLossScore: 0,
-        maxDayWinChips: 0,
-        maxDayLossChips: 0,
-      };
-    };
-
-    // 总体统计
-    const overall: any = calculateStats(gameDetails);
-
-    // 分时段统计
-    const lateNightGames = gameDetails.filter(g => g.timeSlot === 'lateNight');
-    const morningGames = gameDetails.filter(g => g.timeSlot === 'morning');
-    const afternoonGames = gameDetails.filter(g => g.timeSlot === 'afternoon');
-    const eveningGames = gameDetails.filter(g => g.timeSlot === 'evening');
-    
-    const lateNight = calculateStats(lateNightGames);
-    const morning = calculateStats(morningGames);
-    const afternoon = calculateStats(afternoonGames);
-    const evening = calculateStats(eveningGames);
-
-    // 按日统计
-    const dailyMap = new Map<string, any>();
-    gameDetails.forEach(game => {
-      if (!dailyMap.has(game.date)) {
-        dailyMap.set(game.date, {
-          date: game.date,
-          totalScore: 0,
-          totalChips: 0,
-          lateNightScore: 0,
-          lateNightChips: 0,
-          morningScore: 0,
-          morningChips: 0,
-          afternoonScore: 0,
-          afternoonChips: 0,
-          eveningScore: 0,
-          eveningChips: 0,
-          totalGames: 0,
-          lateNightGames: 0,
-          morningGames: 0,
-          afternoonGames: 0,
-          eveningGames: 0,
-        });
-      }
-      const daily = dailyMap.get(game.date);
-      daily.totalScore += game.score;
-      daily.totalChips += game.chips;
-      daily.totalGames += 1;
-      
-      if (game.timeSlot === 'lateNight') {
-        daily.lateNightScore += game.score;
-        daily.lateNightChips += game.chips;
-        daily.lateNightGames += 1;
-      } else if (game.timeSlot === 'morning') {
-        daily.morningScore += game.score;
-        daily.morningChips += game.chips;
-        daily.morningGames += 1;
-      } else if (game.timeSlot === 'afternoon') {
-        daily.afternoonScore += game.score;
-        daily.afternoonChips += game.chips;
-        daily.afternoonGames += 1;
-      } else if (game.timeSlot === 'evening') {
-        daily.eveningScore += game.score;
-        daily.eveningChips += game.chips;
-        daily.eveningGames += 1;
-      }
-    });
-
-    const dailyStats = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-    // 计算单日最大盈亏
-    const dailyScores = dailyStats.map(d => d.totalScore);
-    const dailyChips = dailyStats.map(d => d.totalChips);
-    
-    overall.maxDayWinScore = dailyScores.length > 0 ? Math.max(...dailyScores.filter(s => s > 0)) : 0;
-    overall.maxDayLossScore = dailyScores.length > 0 ? Math.min(...dailyScores.filter(s => s < 0)) : 0;
-    overall.maxDayWinChips = dailyChips.length > 0 ? Math.max(...dailyChips.filter(c => c > 0)) : 0;
-    overall.maxDayLossChips = dailyChips.length > 0 ? Math.min(...dailyChips.filter(c => c < 0)) : 0;
-
-    // 构建对局列表（包含完整信息）
-    const gamesWithDetails = games.map(game => {
-      // 获取地点信息
-      const location = db.prepare('SELECT id, name FROM locations WHERE id = ?').get(game.location_id) as any;
-      
-      // 获取chip_rate信息
-      const chipRateInfo = db.prepare('SELECT chip_rate FROM location_chip_rates WHERE id = ?').get(game.chip_rate_id) as any;
-      
-      // 获取所有玩家记录
-      const records = db.prepare(`
-        SELECT pr.id, pr.player_id, pr.score, pr.chips, p.name as player_name, p.is_me
-        FROM player_records pr
-        JOIN players p ON pr.player_id = p.id
-        WHERE pr.game_id = ?
-        ORDER BY p.is_me DESC
-      `).all(game.id) as any[];
-
-      return {
-        id: game.id,
-        createdAt: game.created_at,
-        location: location || { id: game.location_id, name: '未知' },
-        chipRate: chipRateInfo?.chip_rate || 0,
-        records: records.map(r => ({
-          id: r.id,
-          playerId: r.player_id,
-          score: r.score,
-          chips: r.chips,
-          player: {
-            name: r.player_name,
-            isMe: r.is_me === 1,
-          },
-        })),
-      };
-    });
-
-    res.json({
-      overall,
-      lateNight,
-      morning,
-      afternoon,
-      evening,
-      dailyStats,
-      hasOtherTimeGames,
-      games: gamesWithDetails,
-    });
+    res.json(analysis);
   } catch (error) {
     console.error('Error calculating filter stats:', error);
     res.status(500).json({ error: 'Failed to calculate stats' });

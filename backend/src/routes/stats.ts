@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { GameService } from '../services/game.service';
 import { StatsService } from '../services/stats.service';
+import { getTimeSlot } from '../utils/time';
 
 const router = Router();
 
@@ -176,57 +178,6 @@ router.get('/overview', (req: AuthRequest, res) => {
   }
 });
 
-// 辅助函数：获取农历年（简化版，使用春节日期判断）
-// 返回格式：{ year: 2025, startDate: '2025-01-29', endDate: '2026-02-16' }
-function getLunarYear(date: Date): { year: number; startDate: string; endDate: string } {
-  const year = date.getFullYear();
-  // 简化版：使用近几年的春节日期（公历）
-  // 2024年春节：2024-02-10
-  // 2025年春节：2025-01-29
-  // 2026年春节：2026-02-17
-  // 2027年春节：2027-02-06
-  const springFestivalDates: { [key: number]: string } = {
-    2024: '2024-02-10',
-    2025: '2025-01-29',
-    2026: '2026-02-17',
-    2027: '2027-02-06',
-    2028: '2028-01-26',
-    2029: '2029-02-13',
-    2030: '2030-02-03'
-  };
-
-  const currentDateStr = date.toISOString().split('T')[0];
-  let lunarYear = year;
-  let startDate = `${year}-01-01`;
-  let endDate = `${year + 1}-01-01`;
-
-  // 检查是否在当前年的春节之前
-  const currentYearSpringFestival = springFestivalDates[year];
-  if (currentYearSpringFestival && currentDateStr < currentYearSpringFestival) {
-    // 属于上一个农历年
-    lunarYear = year - 1;
-    const prevYearSpringFestival = springFestivalDates[year - 1];
-    if (prevYearSpringFestival) {
-      startDate = prevYearSpringFestival;
-      endDate = currentYearSpringFestival;
-    } else {
-      startDate = `${year - 1}-01-01`;
-      endDate = currentYearSpringFestival;
-    }
-  } else {
-    // 属于当前农历年
-    const nextYearSpringFestival = springFestivalDates[year + 1];
-    if (currentYearSpringFestival) {
-      startDate = currentYearSpringFestival;
-    }
-    if (nextYearSpringFestival) {
-      endDate = nextYearSpringFestival;
-    }
-  }
-
-  return { year: lunarYear, startDate, endDate };
-}
-
 // 获取年度统计（支持年份参数）
 router.get('/annual', (req: AuthRequest, res) => {
   try {
@@ -255,6 +206,42 @@ router.get('/lunar-annual', (req: AuthRequest, res) => {
   }
 });
 
+// 一次性加载当前用户所有完整对局（is_complete = 1）的玩家记录，按对局分组。
+// 替代"先查对局列表，再逐局查询 player_records"的 N+1 查询。
+// 对局顺序：created_at DESC；局内记录保持插入顺序。
+interface CompleteGameRecord {
+  player_id: string;
+  chips: number | null;
+  score: number | null;
+  name: string;
+  is_me: number;
+}
+
+function loadCompleteGamesWithRecords(userId: string): CompleteGameRecord[][] {
+  const rows = db.prepare(`
+    SELECT pr.game_id, pr.player_id, pr.chips, pr.score, p.name, p.is_me
+    FROM games g
+    JOIN player_records pr ON pr.game_id = g.id
+    JOIN players p ON pr.player_id = p.id
+    WHERE g.is_complete = 1 AND g.user_id = ?
+    ORDER BY g.created_at DESC, g.rowid ASC, pr.rowid ASC
+  `).all(userId) as (CompleteGameRecord & { game_id: string })[];
+
+  const games: CompleteGameRecord[][] = [];
+  let currentGameId: string | null = null;
+  let current: CompleteGameRecord[] = [];
+  for (const row of rows) {
+    if (row.game_id !== currentGameId) {
+      if (currentGameId !== null) games.push(current);
+      currentGameId = row.game_id;
+      current = [];
+    }
+    current.push(row);
+  }
+  if (currentGameId !== null) games.push(current);
+  return games;
+}
+
 // 获取单个玩家在场时我的胜率统计
 router.get('/player-performance', (req: AuthRequest, res) => {
   try {
@@ -265,31 +252,19 @@ router.get('/player-performance', (req: AuthRequest, res) => {
       return res.status(404).json({ error: '当前用户未找到，请先创建"我"这个玩家' });
     }
 
-    // 获取所有四人局（is_complete = 1）的对局（只查询当前用户的）
-    const games = db.prepare(`
-      SELECT g.id, g.created_at
-      FROM games g
-      WHERE g.is_complete = 1 AND g.user_id = ?
-      ORDER BY g.created_at DESC
-    `).all(userId) as any[];
+    // 一次查询获取所有完整对局及其玩家记录
+    const games = loadCompleteGamesWithRecords(userId);
 
-    // 统计每个玩家在场时我的胜率
+    // 统计每个玩家在场时我的胜率与盈亏（单次遍历）
     const playerStatsMap: Record<string, { wins: number; total: number; winRate: number; playerName: string }> = {};
+    const playerChipsMap: Record<string, { totalScore: number; totalChips: number }> = {};
 
-    for (const game of games) {
-      // 获取该对局的所有玩家记录
-      const records = db.prepare(`
-        SELECT pr.player_id, pr.chips, p.name, p.is_me
-        FROM player_records pr
-        JOIN players p ON pr.player_id = p.id
-        WHERE pr.game_id = ?
-      `).all(game.id) as any[];
-
+    for (const records of games) {
       // 获取我的记录（判断是否赢）
       const myRecord = records.find(r => r.is_me === 1);
       if (!myRecord) continue;
 
-      const isWin = myRecord.chips > 0;
+      const isWin = (myRecord.chips ?? 0) > 0;
 
       // 遍历其他玩家（不计分的玩家也在场）
       for (const record of records) {
@@ -303,33 +278,12 @@ router.get('/player-performance', (req: AuthRequest, res) => {
             winRate: 0,
             playerName: record.name
           };
+          playerChipsMap[playerId] = { totalScore: 0, totalChips: 0 };
         }
 
         playerStatsMap[playerId].total++;
         if (isWin) {
           playerStatsMap[playerId].wins++;
-        }
-      }
-    }
-
-    // 计算每个玩家的总盈亏
-    const playerChipsMap: Record<string, { totalScore: number; totalChips: number }> = {};
-    for (const game of games) {
-      const records = db.prepare(`
-        SELECT pr.player_id, pr.chips, pr.score, p.is_me
-        FROM player_records pr
-        JOIN players p ON pr.player_id = p.id
-        WHERE pr.game_id = ?
-      `).all(game.id) as any[];
-
-      const myRecord = records.find(r => r.is_me === 1);
-      if (!myRecord) continue;
-
-      for (const record of records) {
-        if (record.is_me === 1) continue;
-        const playerId = record.player_id;
-        if (!playerChipsMap[playerId]) {
-          playerChipsMap[playerId] = { totalScore: 0, totalChips: 0 };
         }
         playerChipsMap[playerId].totalScore += myRecord.score || 0;
         playerChipsMap[playerId].totalChips += myRecord.chips || 0;
@@ -373,30 +327,19 @@ router.get('/double-combination', (req: AuthRequest, res) => {
     }
 
     // 获取所有对局（只查询当前用户的）
-    const games = db.prepare(`
-      SELECT g.id, g.created_at
-      FROM games g
-      WHERE g.is_complete = 1 AND g.user_id = ?
-      ORDER BY g.created_at DESC
-    `).all(userId) as any[];
+    // 一次查询获取所有完整对局及其玩家记录
+    const games = loadCompleteGamesWithRecords(userId);
 
     // 统计每个两个玩家组合的胜率
     const combinationStatsMap: Record<string, { wins: number; total: number; playerNames: string[]; totalScore: number; totalChips: number }> = {};
 
-    for (const game of games) {
-      // 获取该对局的所有玩家记录
-      const records = db.prepare(`
-        SELECT pr.player_id, pr.chips, pr.score, p.name, p.is_me
-        FROM player_records pr
-        JOIN players p ON pr.player_id = p.id
-        WHERE pr.game_id = ?
-      `).all(game.id) as any[];
+    for (const records of games) {
 
       // 获取我的记录（判断是否赢）
       const myRecord = records.find(r => r.is_me === 1);
       if (!myRecord) continue;
 
-      const isWin = myRecord.chips > 0;
+      const isWin = (myRecord.chips ?? 0) > 0;
 
       // 获取其他玩家（排除我）
       const otherPlayers = records
@@ -472,30 +415,19 @@ router.get('/triple-combination', (req: AuthRequest, res) => {
     }
 
     // 获取所有四人局（is_complete = 1）的对局（只查询当前用户的）
-    const games = db.prepare(`
-      SELECT g.id, g.created_at
-      FROM games g
-      WHERE g.is_complete = 1 AND g.user_id = ?
-      ORDER BY g.created_at DESC
-    `).all(userId) as any[];
+    // 一次查询获取所有完整对局及其玩家记录
+    const games = loadCompleteGamesWithRecords(userId);
 
     // 统计每个三个玩家组合的胜率
     const combinationStatsMap: Record<string, { wins: number; total: number; playerNames: string[]; totalScore: number; totalChips: number }> = {};
 
-    for (const game of games) {
-      // 获取该对局的所有玩家记录
-      const records = db.prepare(`
-        SELECT pr.player_id, pr.chips, pr.score, p.name, p.is_me
-        FROM player_records pr
-        JOIN players p ON pr.player_id = p.id
-        WHERE pr.game_id = ?
-      `).all(game.id) as any[];
+    for (const records of games) {
 
       // 获取我的记录（判断是否赢）
       const myRecord = records.find(r => r.is_me === 1);
       if (!myRecord) continue;
 
-      const isWin = myRecord.chips > 0;
+      const isWin = (myRecord.chips ?? 0) > 0;
 
       // 获取其他三个玩家（排除我）
       const otherPlayers = records
@@ -607,22 +539,10 @@ router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
         gamesByDate[date] = { afternoon: [], evening: [] };
       }
       
-      const gameTime = new Date(record.createdAt);
-      const h = gameTime.getHours();
-      const m = gameTime.getMinutes();
-      const s = gameTime.getSeconds();
-      const ts = h * 3600 + m * 60 + s;
-
-      let timeSlot: 'afternoon' | 'evening' | 'other' = 'other';
-      if (ts > 12 * 3600 && ts <= 18 * 3600) {
-        timeSlot = 'afternoon';
-      } else if (ts > 18 * 3600 || ts === 0) {
-        timeSlot = 'evening';
-      }
-
-      if (timeSlot === 'afternoon') {
+      const slot = getTimeSlot(record.createdAt);
+      if (slot === 'afternoon') {
         gamesByDate[date].afternoon.push(record);
-      } else if (timeSlot === 'evening') {
+      } else if (slot === 'evening') {
         gamesByDate[date].evening.push(record);
       }
     });
@@ -907,22 +827,10 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
         gamesByDate[date] = { afternoon: [], evening: [] };
       }
 
-      const gameTime = new Date(record.createdAt);
-      const h = gameTime.getHours();
-      const m = gameTime.getMinutes();
-      const s = gameTime.getSeconds();
-      const ts = h * 3600 + m * 60 + s;
-
-      let timeSlot: 'afternoon' | 'evening' | 'other' = 'other';
-      if (ts > 12 * 3600 && ts <= 18 * 3600) {
-        timeSlot = 'afternoon';
-      } else if (ts > 18 * 3600 || ts === 0) {
-        timeSlot = 'evening';
-      }
-
-      if (timeSlot === 'afternoon') {
+      const slot = getTimeSlot(record.createdAt);
+      if (slot === 'afternoon') {
         gamesByDate[date].afternoon.push(record);
-      } else if (timeSlot === 'evening') {
+      } else if (slot === 'evening') {
         gamesByDate[date].evening.push(record);
       }
     });
@@ -964,8 +872,11 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
     }
 
     const gamesQuery = `
-      SELECT g.id, g.created_at, g.location_id, g.chip_rate_id
+      SELECT g.id, g.created_at, g.location_id, g.chip_rate_id,
+        l.name as location_name, lcr.chip_rate
       FROM games g
+      LEFT JOIN locations l ON l.id = g.location_id
+      LEFT JOIN location_chip_rates lcr ON lcr.id = g.chip_rate_id
       WHERE ${gamesWhereConditions.join(' AND ')}
       AND g.id IN (
         SELECT game_id FROM player_records WHERE player_id = ?
@@ -976,206 +887,11 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
 
     const games = db.prepare(gamesQuery).all(...gamesParams) as any[];
 
-    if (games.length === 0) {
-      return res.json({
-        overall: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0, maxDayWinScore: 0, maxDayLossScore: 0, maxDayWinChips: 0, maxDayLossChips: 0 },
-        lateNight: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
-        morning: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
-        afternoon: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
-        evening: { totalGames: 0, wins: 0, losses: 0, winRate: 0, totalScore: 0, totalChips: 0, avgScorePerGame: 0, avgChipsPerGame: 0, maxWinScore: 0, maxLossScore: 0, maxWinChips: 0, maxLossChips: 0 },
-        dailyStats: [],
-        hasOtherTimeGames: false,
-        games: [],
-      });
-    }
+    // 批量获取所有对局的玩家记录并执行详细统计分析
+    const recordsByGame = GameService.getRecordsByGameIds(games.map(g => g.id));
+    const analysis = StatsService.computeDetailedAnalysis(games, recordsByGame, mePlayer.id);
 
-    const gameDetails = games.map(game => {
-      const myRecord = db.prepare(`
-        SELECT pr.score, pr.chips, lcr.chip_rate
-        FROM player_records pr
-        LEFT JOIN location_chip_rates lcr ON ? = lcr.id
-        WHERE pr.game_id = ? AND pr.player_id = ?
-      `).get(game.chip_rate_id, game.id, mePlayer.id) as any;
-
-      const gameDate = new Date(game.created_at);
-      const hour = gameDate.getHours();
-      const minute = gameDate.getMinutes();
-      const second = gameDate.getSeconds();
-      const ts = hour * 3600 + minute * 60 + second;
-
-      let timeSlot = 'other';
-      if (ts > 0 && ts <= 8 * 3600) {
-        timeSlot = 'lateNight';
-      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
-        timeSlot = 'morning';
-      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
-        timeSlot = 'afternoon';
-      } else {
-        timeSlot = 'evening';
-      }
-
-      const year = gameDate.getFullYear();
-      const month = String(gameDate.getMonth() + 1).padStart(2, '0');
-      const day = String(gameDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-
-      return {
-        ...game,
-        score: myRecord?.score || 0,
-        chips: myRecord?.chips || 0,
-        chipRate: myRecord?.chip_rate || 0,
-        date: dateStr,
-        timeSlot,
-      };
-    });
-
-    const hasOtherTimeGames = gameDetails.some(g => g.timeSlot === 'other');
-
-    const calculateStats = (games: any[]) => {
-      const totalGames = games.length;
-      const wins = games.filter(g => g.score > 0).length;
-      const losses = games.filter(g => g.score < 0).length;
-      const winRate = totalGames > 0 ? (wins / totalGames) * 100 : 0;
-      const totalScore = games.reduce((sum, g) => sum + g.score, 0);
-      const totalChips = games.reduce((sum, g) => sum + g.chips, 0);
-      const avgScorePerGame = totalGames > 0 ? totalScore / totalGames : 0;
-      const avgChipsPerGame = totalGames > 0 ? totalChips / totalGames : 0;
-
-      const winGames = games.filter(g => g.score > 0);
-      const lossGames = games.filter(g => g.score < 0);
-
-      const maxWinScore = winGames.length > 0 ? Math.max(...winGames.map(g => g.score)) : 0;
-      const maxLossScore = lossGames.length > 0 ? Math.min(...lossGames.map(g => g.score)) : 0;
-      const maxWinChips = winGames.length > 0 ? Math.max(...winGames.map(g => g.chips)) : 0;
-      const maxLossChips = lossGames.length > 0 ? Math.min(...lossGames.map(g => g.chips)) : 0;
-
-      return {
-        totalGames,
-        wins,
-        losses,
-        winRate: Math.round(winRate * 100) / 100,
-        totalScore,
-        totalChips,
-        avgScorePerGame: Math.round(avgScorePerGame * 100) / 100,
-        avgChipsPerGame: Math.round(avgChipsPerGame * 100) / 100,
-        maxWinScore,
-        maxLossScore,
-        maxWinChips,
-        maxLossChips,
-        maxDayWinScore: 0,
-        maxDayLossScore: 0,
-        maxDayWinChips: 0,
-        maxDayLossChips: 0,
-      };
-    };
-
-    const overall: any = calculateStats(gameDetails);
-    const lateNightGames = gameDetails.filter(g => g.timeSlot === 'lateNight');
-    const morningGames = gameDetails.filter(g => g.timeSlot === 'morning');
-    const afternoonGames = gameDetails.filter(g => g.timeSlot === 'afternoon');
-    const eveningGames = gameDetails.filter(g => g.timeSlot === 'evening');
-
-    const lateNight = calculateStats(lateNightGames);
-    const morning = calculateStats(morningGames);
-    const afternoon = calculateStats(afternoonGames);
-    const evening = calculateStats(eveningGames);
-
-    const dailyMap = new Map<string, any>();
-    gameDetails.forEach(game => {
-      if (!dailyMap.has(game.date)) {
-        dailyMap.set(game.date, {
-          date: game.date,
-          totalScore: 0,
-          totalChips: 0,
-          lateNightScore: 0,
-          lateNightChips: 0,
-          morningScore: 0,
-          morningChips: 0,
-          afternoonScore: 0,
-          afternoonChips: 0,
-          eveningScore: 0,
-          eveningChips: 0,
-          totalGames: 0,
-          lateNightGames: 0,
-          morningGames: 0,
-          afternoonGames: 0,
-          eveningGames: 0,
-        });
-      }
-
-      const stat = dailyMap.get(game.date);
-      stat.totalScore += game.score;
-      stat.totalChips += game.chips;
-      stat.totalGames += 1;
-
-      if (game.timeSlot === 'lateNight') {
-        stat.lateNightScore += game.score;
-        stat.lateNightChips += game.chips;
-        stat.lateNightGames += 1;
-      } else if (game.timeSlot === 'morning') {
-        stat.morningScore += game.score;
-        stat.morningChips += game.chips;
-        stat.morningGames += 1;
-      } else if (game.timeSlot === 'afternoon') {
-        stat.afternoonScore += game.score;
-        stat.afternoonChips += game.chips;
-        stat.afternoonGames += 1;
-      } else if (game.timeSlot === 'evening') {
-        stat.eveningScore += game.score;
-        stat.eveningChips += game.chips;
-        stat.eveningGames += 1;
-      }
-    });
-
-    const dailyStats = Array.from(dailyMap.values()).sort((a, b) => b.date.localeCompare(a.date));
-
-    const dailyScores = dailyStats.map(d => d.totalScore);
-    const dailyChips = dailyStats.map(d => d.totalChips);
-
-    overall.maxDayWinScore = dailyScores.length > 0 ? Math.max(...dailyScores.filter(s => s > 0)) : 0;
-    overall.maxDayLossScore = dailyScores.length > 0 ? Math.min(...dailyScores.filter(s => s < 0)) : 0;
-    overall.maxDayWinChips = dailyChips.length > 0 ? Math.max(...dailyChips.filter(c => c > 0)) : 0;
-    overall.maxDayLossChips = dailyChips.length > 0 ? Math.min(...dailyChips.filter(c => c < 0)) : 0;
-
-    const gamesWithDetails = games.map(game => {
-      const location = db.prepare('SELECT id, name FROM locations WHERE id = ?').get(game.location_id) as any;
-      const chipRateInfo = db.prepare('SELECT chip_rate FROM location_chip_rates WHERE id = ?').get(game.chip_rate_id) as any;
-      const records = db.prepare(`
-        SELECT pr.id, pr.player_id, pr.score, pr.chips, p.name as player_name, p.is_me
-        FROM player_records pr
-        JOIN players p ON pr.player_id = p.id
-        WHERE pr.game_id = ?
-        ORDER BY p.is_me DESC
-      `).all(game.id) as any[];
-
-      return {
-        id: game.id,
-        createdAt: game.created_at,
-        location: location || { id: game.location_id, name: '未知' },
-        chipRate: chipRateInfo?.chip_rate || 0,
-        records: records.map(r => ({
-          id: r.id,
-          playerId: r.player_id,
-          score: r.score,
-          chips: r.chips,
-          player: {
-            name: r.player_name,
-            isMe: r.is_me === 1,
-          },
-        })),
-      };
-    });
-
-    res.json({
-      overall,
-      lateNight,
-      morning,
-      afternoon,
-      evening,
-      dailyStats,
-      hasOtherTimeGames,
-      games: gamesWithDetails,
-    });
+    res.json(analysis);
   } catch (error) {
     console.error('Failed to fetch correlation details stats:', error);
     res.status(500).json({ error: 'Failed to fetch correlation details stats' });

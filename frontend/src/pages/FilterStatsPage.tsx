@@ -12,6 +12,7 @@ import {
   Legend,
 } from 'chart.js';
 import { customFiltersApi, statsApi, locationsApi, playersApi, CustomFilter, FilterStats, Location, Player } from '../api/client';
+import { getTimeSlot } from '../utils/timeUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -234,11 +235,67 @@ export const FilterStatsPage: React.FC = () => {
   };
 
   const getChartData = () => {
-    if (!stats || !stats.dailyStats || stats.dailyStats.length === 0) {
+    if (!stats || !stats.games || stats.games.length === 0) {
       return null;
     }
 
-    let dailyData = [...stats.dailyStats];
+    // 根据地点筛选过滤对局
+    const filteredGames = chartLocationFilter
+      ? stats.games.filter(g => g.location?.id === chartLocationFilter)
+      : stats.games;
+
+    if (filteredGames.length === 0) {
+      return null;
+    }
+
+    // 重新按日汇总数据
+    const dailyMap = new Map<string, any>();
+    filteredGames.forEach(game => {
+      const dateStr = typeof game.createdAt === 'string' ? game.createdAt : String(game.createdAt);
+      const date = dateStr.includes(' ') ? dateStr.split(' ')[0] : dateStr.split('T')[0];
+
+      if (!dailyMap.has(date)) {
+        dailyMap.set(date, {
+          date,
+          totalScore: 0,
+          totalChips: 0,
+          lateNightScore: 0,
+          lateNightChips: 0,
+          morningScore: 0,
+          morningChips: 0,
+          afternoonScore: 0,
+          afternoonChips: 0,
+          eveningScore: 0,
+          eveningChips: 0,
+        });
+      }
+
+      const daily = dailyMap.get(date);
+      const myRecord = game.records.find(r => r.player.isMe);
+      const score = myRecord?.score || 0;
+      const chips = myRecord?.chips || 0;
+
+      const slot = getTimeSlot(game.createdAt);
+
+      daily.totalScore += score;
+      daily.totalChips += chips;
+
+      if (slot === 'lateNight') {
+        daily.lateNightScore += score;
+        daily.lateNightChips += chips;
+      } else if (slot === 'morning') {
+        daily.morningScore += score;
+        daily.morningChips += chips;
+      } else if (slot === 'afternoon') {
+        daily.afternoonScore += score;
+        daily.afternoonChips += chips;
+      } else {
+        daily.eveningScore += score;
+        daily.eveningChips += chips;
+      }
+    });
+
+    let dailyData = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     // 应用天数筛选
     if (chartDays !== 'all') {
@@ -248,7 +305,6 @@ export const FilterStatsPage: React.FC = () => {
     // 格式化日期标签为 MM-DD
     const labels = dailyData.map(d => {
       const dateStr = typeof d.date === 'string' ? d.date : String(d.date);
-      // 如果是 YYYY-MM-DD 格式，取后5位
       if (dateStr.includes('-') && dateStr.length >= 10) {
         return dateStr.substring(5, 10); // MM-DD
       }
@@ -526,15 +582,14 @@ export const FilterStatsPage: React.FC = () => {
                   dateGames.forEach(game => {
                     const myRecord = game.records.find(r => r.player.isMe);
                     if (myRecord && myRecord.chips !== null) {
-                      const date = new Date(game.createdAt);
-                      const totalSeconds = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+                      const slot = getTimeSlot(game.createdAt);
 
                       totalScore += myRecord.chips;
-                      if (totalSeconds > 0 && totalSeconds <= 8 * 3600) {
+                      if (slot === 'lateNight') {
                         lateNightScore += myRecord.chips;
-                      } else if (totalSeconds > 8 * 3600 && totalSeconds <= 12 * 3600) {
+                      } else if (slot === 'morning') {
                         morningScore += myRecord.chips;
-                      } else if (totalSeconds > 12 * 3600 && totalSeconds <= 18 * 3600) {
+                      } else if (slot === 'afternoon') {
                         afternoonScore += myRecord.chips;
                       } else {
                         eveningScore += myRecord.chips;

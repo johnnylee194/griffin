@@ -73,18 +73,22 @@ router.post('/', (req: AuthRequest, res) => {
     // 如果这是第一个地点，自动设置为默认
     const shouldBeDefault = locationCount.count === 0 || isDefault;
 
-    // 如果设置为默认地点，先将其他地点的isDefault设为false（同一用户下）
-    if (shouldBeDefault) {
-      db.prepare('UPDATE locations SET is_default = 0 WHERE is_default = 1 AND user_id = ?').run(userId);
-    }
-
     const id = generateId();
     const now = getLocalTimestamp();
     
-    db.prepare(`
-      INSERT INTO locations (id, user_id, name, is_default, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, userId, name, shouldBeDefault ? 1 : 0, now);
+    const createTx = db.transaction(() => {
+      // 如果设置为默认地点，先将其他地点的isDefault设为false（同一用户下）
+      if (shouldBeDefault) {
+        db.prepare('UPDATE locations SET is_default = 0 WHERE is_default = 1 AND user_id = ?').run(userId);
+      }
+
+      db.prepare(`
+        INSERT INTO locations (id, user_id, name, is_default, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(id, userId, name, shouldBeDefault ? 1 : 0, now);
+    });
+
+    createTx();
 
     const location = db.prepare(`
       SELECT 
@@ -122,13 +126,6 @@ router.put('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Location not found' });
     }
     
-    // 如果要设置为默认地点，先将其他地点的isDefault设为false（同一用户下）
-    if (isDefault) {
-      db.prepare(`
-        UPDATE locations SET is_default = 0 WHERE is_default = 1 AND id != ? AND user_id = ?
-      `).run(id, userId);
-    }
-
     const updateFields: string[] = [];
     const values: any[] = [];
     
@@ -145,12 +142,22 @@ router.put('/:id', (req: AuthRequest, res) => {
       updateFields.push('is_default = ?');
       values.push(isDefault ? 1 : 0);
     }
-    
+
     if (updateFields.length > 0) {
       values.push(id);
-      db.prepare(`
-        UPDATE locations SET ${updateFields.join(', ')} WHERE id = ?
-      `).run(...values);
+      const updateTx = db.transaction(() => {
+        // 如果要设置为默认地点，先将其他地点的isDefault设为false（同一用户下）
+        if (isDefault) {
+          db.prepare(`
+            UPDATE locations SET is_default = 0 WHERE is_default = 1 AND id != ? AND user_id = ?
+          `).run(id, userId);
+        }
+
+        db.prepare(`
+          UPDATE locations SET ${updateFields.join(', ')} WHERE id = ?
+        `).run(...values);
+      });
+      updateTx();
     }
 
     const updated = db.prepare(`

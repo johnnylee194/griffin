@@ -12,53 +12,134 @@ export interface CreateGameDto {
   createdAt?: string;
 }
 
+// SQLite 绑定参数数量上限保护：IN (...) 查询按批次拆分
+const IN_CHUNK_SIZE = 500;
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size));
+  }
+  return result;
+}
+
+export interface GameRecordRow {
+  id: string;
+  game_id: string;
+  player_id: string;
+  score: number | null;
+  chips: number | null;
+  player_name: string;
+  is_me: number;
+}
+
 export class GameService {
-  static getGameWithDetails(gameId: string, userId: string) {
-    const game = db.prepare(`
-      SELECT
-        g.id,
-        g.location_id as locationId,
-        g.game_type_id as gameTypeId,
-        g.chip_rate_id as chipRateId,
-        lcr.chip_rate as chipRate,
-        gt.name as gameTypeName,
-        g.is_complete as isComplete,
-        g.note,
-        g.created_at as createdAt,
-        g.updated_at as updatedAt,
-        l.id as "location.id",
-        l.name as "location.name",
-        l.is_default as "location.isDefault",
-        l.created_at as "location.createdAt"
-      FROM games g
-      JOIN locations l ON g.location_id = l.id
-      LEFT JOIN location_chip_rates lcr ON g.chip_rate_id = lcr.id
-      LEFT JOIN game_types gt ON g.game_type_id = gt.id
-      WHERE g.id = ? AND g.user_id = ?
-    `).get(gameId, userId) as any;
+  /**
+   * 批量获取多个对局的玩家记录，返回 Map<gameId, records[]>。
+   * 每个对局内的记录按 is_me DESC 排序（"我"在最前）。
+   */
+  static getRecordsByGameIds(gameIds: string[]): Map<string, GameRecordRow[]> {
+    const map = new Map<string, GameRecordRow[]>();
+    if (gameIds.length === 0) return map;
 
-    if (!game) return null;
+    for (const ids of chunk(gameIds, IN_CHUNK_SIZE)) {
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = db.prepare(`
+        SELECT pr.id, pr.game_id, pr.player_id, pr.score, pr.chips, p.name as player_name, p.is_me
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id IN (${placeholders})
+        ORDER BY pr.game_id, p.is_me DESC, pr.rowid ASC
+      `).all(...ids) as GameRecordRow[];
 
-    const records = db.prepare(`
-      SELECT
-        pr.id,
-        pr.game_id as gameId,
-        pr.player_id as playerId,
-        pr.score,
-        pr.chips,
-        pr.created_at as createdAt,
-        p.id as "player.id",
-        p.name as "player.name",
-        p.avatar as "player.avatar",
-        p.is_me as "player.isMe",
-        p.created_at as "player.createdAt",
-        p.updated_at as "player.updatedAt"
-      FROM player_records pr
-      JOIN players p ON pr.player_id = p.id
-      WHERE pr.game_id = ? AND p.user_id = ?
-      ORDER BY pr.created_at ASC
-    `).all(gameId, userId) as any[];
+      for (const row of rows) {
+        let list = map.get(row.game_id);
+        if (!list) {
+          list = [];
+          map.set(row.game_id, list);
+        }
+        list.push(row);
+      }
+    }
+    return map;
+  }
 
+  /**
+   * 批量获取对局详情（与 getGameWithDetails 返回结构一致），保持 gameIds 的顺序。
+   * 固定 2 次查询（按批次），避免逐条查询的 N+1 问题。
+   */
+  static getGamesWithDetails(gameIds: string[], userId: string) {
+    if (gameIds.length === 0) return [];
+
+    const gameMap = new Map<string, any>();
+    const recordsMap = new Map<string, any[]>();
+
+    for (const ids of chunk(gameIds, IN_CHUNK_SIZE)) {
+      const placeholders = ids.map(() => '?').join(',');
+
+      const games = db.prepare(`
+        SELECT
+          g.id,
+          g.location_id as locationId,
+          g.game_type_id as gameTypeId,
+          g.chip_rate_id as chipRateId,
+          lcr.chip_rate as chipRate,
+          gt.name as gameTypeName,
+          g.is_complete as isComplete,
+          g.note,
+          g.created_at as createdAt,
+          g.updated_at as updatedAt,
+          l.id as "location.id",
+          l.name as "location.name",
+          l.is_default as "location.isDefault",
+          l.created_at as "location.createdAt"
+        FROM games g
+        JOIN locations l ON g.location_id = l.id
+        LEFT JOIN location_chip_rates lcr ON g.chip_rate_id = lcr.id
+        LEFT JOIN game_types gt ON g.game_type_id = gt.id
+        WHERE g.id IN (${placeholders}) AND g.user_id = ?
+      `).all(...ids, userId) as any[];
+      for (const g of games) gameMap.set(g.id, g);
+
+      const records = db.prepare(`
+        SELECT
+          pr.id,
+          pr.game_id as gameId,
+          pr.player_id as playerId,
+          pr.score,
+          pr.chips,
+          pr.created_at as createdAt,
+          p.id as "player.id",
+          p.name as "player.name",
+          p.avatar as "player.avatar",
+          p.is_me as "player.isMe",
+          p.created_at as "player.createdAt",
+          p.updated_at as "player.updatedAt"
+        FROM player_records pr
+        JOIN players p ON pr.player_id = p.id
+        WHERE pr.game_id IN (${placeholders}) AND p.user_id = ?
+        ORDER BY pr.created_at ASC, pr.rowid ASC
+      `).all(...ids, userId) as any[];
+      for (const r of records) {
+        let list = recordsMap.get(r.gameId);
+        if (!list) {
+          list = [];
+          recordsMap.set(r.gameId, list);
+        }
+        list.push(r);
+      }
+    }
+
+    const result: any[] = [];
+    for (const id of gameIds) {
+      const game = gameMap.get(id);
+      if (!game) continue;
+      result.push(this.formatGame(game, recordsMap.get(id) || []));
+    }
+    return result;
+  }
+
+  private static formatGame(game: any, records: any[]) {
     return {
       id: game.id,
       locationId: game.locationId,
@@ -96,6 +177,11 @@ export class GameService {
         }
       }))
     };
+  }
+
+  static getGameWithDetails(gameId: string, userId: string) {
+    const [game] = this.getGamesWithDetails([gameId], userId);
+    return game ?? null;
   }
 
   static createGame(dto: CreateGameDto) {

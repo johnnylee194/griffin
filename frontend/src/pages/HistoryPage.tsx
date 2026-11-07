@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { gamesApi, Game, locationsApi, Location } from '../api/client'
 import { format } from 'date-fns'
+import { getTimeSlot } from '../utils/timeUtils'
 
 export default function HistoryPage() {
   const navigate = useNavigate()
@@ -37,24 +38,28 @@ export default function HistoryPage() {
     }
   }
 
+  // 地点列表只需加载一次
   useEffect(() => {
-    loadData()
+    locationsApi.getAll()
+      .then(res => setLocations(res.data))
+      .catch(error => console.error('Failed to load locations:', error))
   }, [])
 
-  const loadData = async () => {
-    try {
-      const [gamesRes, locationsRes] = await Promise.all([
-        gamesApi.getAll(),
-        locationsApi.getAll()
-      ])
-      setGames(gamesRes.data)
-      setLocations(locationsRes.data)
-    } catch (error) {
-      console.error('Failed to load games:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // 按所选年月从服务端拉取对局，避免一次性加载全部历史记录
+  useEffect(() => {
+    let cancelled = false // 快速切换月份时丢弃过期响应
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear
+    const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1
+    gamesApi.getAll({
+      startDate: `${selectedYear}-${pad(selectedMonth)}-01T00:00:00`,
+      endDate: `${nextYear}-${pad(nextMonth)}-01T00:00:00`,
+    })
+      .then(res => { if (!cancelled) setGames(res.data) })
+      .catch(error => console.error('Failed to load games:', error))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedYear, selectedMonth])
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这条记录吗？')) return
@@ -89,32 +94,6 @@ export default function HistoryPage() {
       days.push(String(i))
     }
     return days
-  }
-
-  const getTimeSlot = (dateTime: string) => {
-    const date = new Date(dateTime);
-    const hour = date.getHours();
-    const minute = date.getMinutes();
-    const second = date.getSeconds();
-
-    // 转换为自 00:00:00 以来的秒数，以完美处理边界判定
-    const ts = hour * 3600 + minute * 60 + second;
-
-    // 凌晨 (lateNight): 00:00:01 至 08:00:00
-    if (ts > 0 && ts <= 8 * 3600) {
-      return 'lateNight';
-    }
-    // 上午 (morning): 08:00:01 至 12:00:00
-    if (ts > 8 * 3600 && ts <= 12 * 3600) {
-      return 'morning';
-    }
-    // 下午 (afternoon): 12:00:01 至 18:00:00
-    if (ts > 12 * 3600 && ts <= 18 * 3600) {
-      return 'afternoon';
-    }
-
-    // 晚上 (evening): 18:00:01 至 23:59:59，以及正好等于 00:00:00
-    return 'evening';
   }
 
   const getFilteredAndGroupedGames = () => {
@@ -195,7 +174,7 @@ export default function HistoryPage() {
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl sm:text-2xl font-bold text-text">对局历史</h2>
-        <div className="text-sm text-text-light">共 {games.length} 局</div>
+        <div className="text-sm text-text-light">当月共 {games.length} 局</div>
       </div>
 
       <div className="card">

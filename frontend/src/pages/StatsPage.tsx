@@ -67,8 +67,7 @@ export default function StatsPage() {
     try {
       const res = await locationsApi.getAll()
       setLocations(res.data)
-      // 默认选择紫竹郡
-      const defaultLoc = res.data.find(l => l.name === '紫竹郡') || res.data.find(l => l.isDefault)
+      const defaultLoc = res.data.find(l => l.isDefault) || res.data[0]
       if (defaultLoc) {
         setCorrelationLocationId(defaultLoc.id)
         setLosingStreakLocationId(defaultLoc.id)
