@@ -148,9 +148,22 @@ export const chipRatesApi = {
   delete: (id: string) => apiClient.delete(`/chip-rates/${id}`),
 };
 
+export interface DailyBattleStats {
+  logicalDate: string;
+  totalGames: number;
+  totalProfit: number;
+  morningProfit: number;
+  afternoonProfit: number;
+  eveningProfit: number;
+  lateNightProfit: number;
+  games: Game[];
+}
+
 export const gamesApi = {
   getAll: (params?: { limit?: number; offset?: number }) => 
     apiClient.get<Game[]>('/games', { params }),
+  getDailyStats: (params?: { date?: string; locationId?: string }) =>
+    apiClient.get<DailyBattleStats>('/games/stats/daily', { params }),
   getOne: (id: string) => apiClient.get<Game>(`/games/${id}`),
   create: (data: {
     locationId: string;

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { playersApi, statsApi, locationsApi, Player, Location } from '../api/client'
+import { playersApi, statsApi, locationsApi, Location } from '../api/client'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, ReferenceLine } from 'recharts'
-
 import { Link, useNavigate } from 'react-router-dom'
+import { usePrivacyMode } from '../hooks/usePrivacyMode'
 
 export default function StatsPage() {
   const navigate = useNavigate()
-  const [players, setPlayers] = useState<Player[]>([])
+  const { hideAmounts, toggleHideAmounts, formatAmount } = usePrivacyMode()
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
   const [stats, setStats] = useState<any>(null)
   const [annualStats, setAnnualStats] = useState<any>(null)
@@ -28,12 +28,11 @@ export default function StatsPage() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [selectedLunarYear, setSelectedLunarYear] = useState<number>(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
-  const [showPlayerSelect, setShowPlayerSelect] = useState(false)
   const [expandedLosingStreaks, setExpandedLosingStreaks] = useState(false)
+  const [overviewTab, setOverviewTab] = useState<'overall' | 'annual' | 'lunar'>('overall')
 
   useEffect(() => {
-    loadPlayers()
-    loadLocations()
+    loadInitialData()
   }, [])
 
   useEffect(() => {
@@ -42,39 +41,31 @@ export default function StatsPage() {
     }
   }, [selectedPlayer, selectedYear, selectedLunarYear, trendLocationId])
 
-
   useEffect(() => {
     loadLosingStreakStats()
   }, [losingStreakLocationId])
 
-  const loadPlayers = async () => {
+  const loadInitialData = async () => {
     try {
-      const res = await playersApi.getAll()
-      setPlayers(res.data)
-      // 默认选择本人
-      const me = res.data.find(p => p.isMe)
+      const [playersRes, locsRes] = await Promise.all([
+        playersApi.getAll(),
+        locationsApi.getAll()
+      ])
+      const me = playersRes.data.find(p => p.isMe)
       if (me) {
         setSelectedPlayer(me.id)
       }
-    } catch (error) {
-      console.error('Failed to load players:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const loadLocations = async () => {
-    try {
-      const res = await locationsApi.getAll()
-      setLocations(res.data)
-      // 默认选择紫竹郡
-      const defaultLoc = res.data.find(l => l.name === '紫竹郡') || res.data.find(l => l.isDefault)
+      setLocations(locsRes.data)
+      const defaultLoc = locsRes.data.find(l => l.isDefault) || locsRes.data[0]
       if (defaultLoc) {
         setCorrelationLocationId(defaultLoc.id)
         setLosingStreakLocationId(defaultLoc.id)
       }
     } catch (error) {
-      console.error('Failed to load locations:', error)
+      console.error('Failed to load initial data:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -110,7 +101,6 @@ export default function StatsPage() {
     }
   }
 
-
   const loadCorrelationStats = async () => {
     if (!correlationLocationId || !correlationScore) {
       return
@@ -135,7 +125,14 @@ export default function StatsPage() {
     }
   }
 
-  // 处理趋势图数据
+  const getWeekNumber = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+    const dayNum = d.getUTCDay() || 7
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+  }
+
   const getTrendData = () => {
     if (!stats?.byDate) return []
 
@@ -148,7 +145,6 @@ export default function StatsPage() {
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
 
-    // 获取周期数量
     const periodCount = isCustomPeriod 
       ? (parseInt(customPeriodValue) || 0) 
       : trendPeriodValue
@@ -159,22 +155,17 @@ export default function StatsPage() {
 
     if (trendPeriodType === 'daily') {
       const result = dateEntries.slice(-periodCount).map(item => ({
-        date: item.date.slice(5), // MM-DD
+        date: item.date.slice(5),
         chips: item.chips,
         score: item.score
       }))
-      // 如果没有数据，返回包含0的数据点
-      if (result.length === 0) {
-        return [{ date: '无数据', chips: 0, score: 0 }]
-      }
-      return result
+      return result.length === 0 ? [{ date: '无数据', chips: 0, score: 0 }] : result
     } else if (trendPeriodType === 'weekly') {
-      // 按周聚合
       const weeklyMap: { [key: string]: { chips: number; score: number; count: number } } = {}
       dateEntries.forEach(item => {
         const date = new Date(item.date)
         const weekStart = new Date(date)
-        weekStart.setDate(date.getDate() - date.getDay()) // 周日为周开始
+        weekStart.setDate(date.getDate() - date.getDay())
         const weekKey = `${weekStart.getFullYear()}-W${getWeekNumber(weekStart)}`
         
         if (!weeklyMap[weekKey]) {
@@ -191,19 +182,13 @@ export default function StatsPage() {
           chips: data.chips,
           score: data.score
         }))
-        .slice(-periodCount) // 显示最近N周
+        .slice(-periodCount)
       
-      // 如果没有数据，返回包含0的数据点
-      if (result.length === 0) {
-        return [{ date: '无数据', chips: 0, score: 0 }]
-      }
-      return result
+      return result.length === 0 ? [{ date: '无数据', chips: 0, score: 0 }] : result
     } else {
-      // 按月聚合
       const monthlyMap: { [key: string]: { chips: number; score: number; count: number } } = {}
       dateEntries.forEach(item => {
-        const monthKey = item.date.slice(0, 7) // YYYY-MM
-        
+        const monthKey = item.date.slice(0, 7)
         if (!monthlyMap[monthKey]) {
           monthlyMap[monthKey] = { chips: 0, score: 0, count: 0 }
         }
@@ -214,44 +199,26 @@ export default function StatsPage() {
       
       const result = Object.entries(monthlyMap)
         .map(([month, data]) => ({
-          date: month.slice(5), // MM
+          date: month.slice(5),
           chips: data.chips,
           score: data.score
         }))
-        .slice(-periodCount) // 显示最近N个月
+        .slice(-periodCount)
       
-      // 如果没有数据，返回包含0的数据点
-      if (result.length === 0) {
-        return [{ date: '无数据', chips: 0, score: 0 }]
-      }
-      return result
+      return result.length === 0 ? [{ date: '无数据', chips: 0, score: 0 }] : result
     }
   }
 
-  // 获取周数
-  const getWeekNumber = (date: Date): number => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-    const dayNum = d.getUTCDay() || 7
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-  }
-
-  // 生成年份选项（基于实际数据的最早年份）
   const getYearOptions = () => {
     const currentYear = new Date().getFullYear()
     let earliestYear = currentYear
-    
-    // 从stats.byDate中提取最早年份
     if (stats?.byDate) {
       const dates = Object.keys(stats.byDate)
       if (dates.length > 0) {
         const sortedDates = dates.sort()
-        const earliestDate = sortedDates[0]
-        earliestYear = parseInt(earliestDate.slice(0, 4))
+        earliestYear = parseInt(sortedDates[0].slice(0, 4))
       }
     }
-    
     const years = []
     for (let i = currentYear; i >= earliestYear; i--) {
       years.push(i)
@@ -268,115 +235,246 @@ export default function StatsPage() {
   }
 
   const trendData = getTrendData()
-  const getTrendTitle = () => {
-    const periodCount = isCustomPeriod 
-      ? (parseInt(customPeriodValue) || 0) 
-      : trendPeriodValue
-    
-    if (periodCount <= 0) {
-      if (trendPeriodType === 'daily') {
-        return '每日趋势（请输入有效数字）'
-      } else if (trendPeriodType === 'weekly') {
-        return '每周趋势（请输入有效数字）'
-      } else {
-        return '每月趋势（请输入有效数字）'
-      }
-    }
-    
-    if (trendPeriodType === 'daily') {
-      return `每日趋势（最近${periodCount}天）`
-    } else if (trendPeriodType === 'weekly') {
-      return `每周趋势（最近${periodCount}周）`
-    } else {
-      return `每月趋势（最近${periodCount}个月）`
-    }
-  }
-  const trendTitle = getTrendTitle()
+  const periodCount = isCustomPeriod ? (parseInt(customPeriodValue) || 0) : trendPeriodValue
+  const trendTitle = periodCount <= 0 
+    ? '趋势图' 
+    : `${trendPeriodType === 'daily' ? '每日' : trendPeriodType === 'weekly' ? '每周' : '每月'}趋势（最近${periodCount}${trendPeriodType === 'daily' ? '天' : trendPeriodType === 'weekly' ? '周' : '个月'}）`
 
-  // 处理周期值变化
-  const handlePeriodValueChange = (value: string) => {
-    if (value === 'custom') {
-      setIsCustomPeriod(true)
-    } else {
-      setIsCustomPeriod(false)
-      setTrendPeriodValue(parseInt(value))
-    }
-  }
+  // 汇总总览数据按当前Tab计算
+  let currentOverviewProfit = 0
+  let currentOverviewGames = 0
+  let currentOverviewWinRate = 0
+  let currentOverviewWins = 0
+  let currentOverviewLosses = 0
+  let currentIncome = 0
+  let currentExpense = 0
+  let currentAvgChips = 0
+  let currentAvgScore = 0
 
-  // 处理自定义周期值变化
-  const handleCustomPeriodChange = (value: string) => {
-    setCustomPeriodValue(value)
-    const numValue = parseInt(value)
-    if (!isNaN(numValue) && numValue > 0) {
-      // 值有效时，数据会在 getTrendData 中自动更新
-    }
+  if (overviewTab === 'overall' && stats) {
+    currentOverviewProfit = stats.overall.totalChips
+    currentOverviewGames = stats.overall.totalGames
+    currentOverviewWinRate = stats.overall.winRate
+    currentOverviewWins = stats.overall.wins
+    currentOverviewLosses = stats.overall.losses
+    currentAvgChips = Math.round(stats.overall.avgChips)
+    currentAvgScore = stats.overall.avgScore
+  } else if (overviewTab === 'annual' && annualStats) {
+    currentOverviewProfit = annualStats.overall.profit
+    currentOverviewGames = annualStats.overall.totalGames
+    currentOverviewWinRate = Math.round(annualStats.overall.winRate)
+    currentOverviewWins = annualStats.overall.wins
+    currentOverviewLosses = annualStats.overall.losses
+    currentIncome = annualStats.overall.income
+    currentExpense = annualStats.overall.expense
+  } else if (overviewTab === 'lunar' && lunarAnnualStats) {
+    currentOverviewProfit = lunarAnnualStats.overall.profit
+    currentOverviewGames = lunarAnnualStats.overall.totalGames
+    currentOverviewWinRate = Math.round(lunarAnnualStats.overall.winRate)
+    currentOverviewWins = lunarAnnualStats.overall.wins
+    currentOverviewLosses = lunarAnnualStats.overall.losses
+    currentIncome = lunarAnnualStats.overall.income
+    currentExpense = lunarAnnualStats.overall.expense
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-3 sm:py-6 space-y-4 sm:space-y-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-5 space-y-3 sm:space-y-4 pb-28">
+      {/* 顶部标题栏 */}
       <div className="flex items-center justify-between">
-        <h2 className="text-base sm:text-2xl font-bold text-text">数据统计</h2>
         <div className="flex items-center gap-2">
-          <Link
-            to="/stats/archive"
-            className="text-sm text-text-secondary hover:text-primary px-2 py-1 rounded border border-gray-300"
+          <h2 className="text-base sm:text-xl font-bold text-text">数据统计</h2>
+          <button
+            onClick={toggleHideAmounts}
+            className="p-1 text-text-secondary hover:text-primary text-sm"
           >
-            更多
-          </Link>
-          <div className="relative">
-            <button
-              onClick={() => setShowPlayerSelect(!showPlayerSelect)}
-              className="text-sm text-text-secondary hover:text-primary px-2 py-1 rounded border border-gray-300"
-            >
-              {players.find(p => p.id === selectedPlayer)?.name || '选择玩家'}
-            </button>
-            {showPlayerSelect && (
-              <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
-                {players.map(player => (
-                  <button
-                    key={player.id}
-                    onClick={() => {
-                      setSelectedPlayer(player.id)
-                      setShowPlayerSelect(false)
-                    }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${
-                      selectedPlayer === player.id ? 'bg-blue-50 text-blue-600' : 'text-text'
-                    }`}
-                  >
-                    {player.name} {player.isMe && '(我)'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+            {hideAmounts ? '💰' : '💸'}
+          </button>
         </div>
+        <Link
+          to="/stats/archive"
+          className="text-xs sm:text-sm text-text-secondary hover:text-primary px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+        >
+          对手统计 →
+        </Link>
       </div>
 
       {stats && (
         <>
-          {/* 1. 趋势图 - 放在最前面 */}
+          {/* 1. 核心看板（合并总体 / 公历年 / 农历年 + 按地点统计） */}
+          <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+            {/* 胶囊切换 */}
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100">
+              <div className="flex items-center bg-gray-100/80 p-0.5 rounded-lg text-xs font-medium">
+                <button
+                  onClick={() => setOverviewTab('overall')}
+                  className={`px-3 py-1 rounded-md transition-all ${
+                    overviewTab === 'overall' ? 'bg-white text-primary shadow-sm font-bold' : 'text-text-secondary hover:text-text'
+                  }`}
+                >
+                  总体
+                </button>
+                <button
+                  onClick={() => setOverviewTab('annual')}
+                  className={`px-3 py-1 rounded-md transition-all ${
+                    overviewTab === 'annual' ? 'bg-white text-primary shadow-sm font-bold' : 'text-text-secondary hover:text-text'
+                  }`}
+                >
+                  公历年
+                </button>
+                <button
+                  onClick={() => setOverviewTab('lunar')}
+                  className={`px-3 py-1 rounded-md transition-all ${
+                    overviewTab === 'lunar' ? 'bg-white text-primary shadow-sm font-bold' : 'text-text-secondary hover:text-text'
+                  }`}
+                >
+                  农历年
+                </button>
+              </div>
+
+              {/* 年份选择 */}
+              {overviewTab === 'annual' && (
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
+                >
+                  {getYearOptions().map(year => (
+                    <option key={year} value={year}>{year}年</option>
+                  ))}
+                </select>
+              )}
+              {overviewTab === 'lunar' && (
+                <select
+                  value={selectedLunarYear}
+                  onChange={(e) => setSelectedLunarYear(parseInt(e.target.value))}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
+                >
+                  {getYearOptions().map(year => (
+                    <option key={year} value={year}>{year}年</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* 大字号指标 */}
+            <div className="text-center mb-2">
+              <div
+                className={`text-4xl font-bold tracking-tight ${
+                  currentOverviewProfit >= 0 ? 'text-accent-red' : 'text-accent-green'
+                }`}
+              >
+                {formatAmount(currentOverviewProfit)}
+              </div>
+              <div className="text-[10px] font-medium text-text-light uppercase tracking-wider mt-0.5">
+                {overviewTab === 'overall' ? '历史总损益' : `${overviewTab === 'annual' ? selectedYear : selectedLunarYear}年度净利润`}
+              </div>
+              <div className="flex items-center justify-center gap-2 mt-1 text-[10px] text-text-light font-medium">
+                <span>共 {currentOverviewGames} 场</span>
+                <span className="text-gray-300">|</span>
+                <span>胜率 {currentOverviewWinRate}%</span>
+                <span className="text-gray-300">|</span>
+                <span>{currentOverviewWins}胜 {currentOverviewLosses}负</span>
+              </div>
+            </div>
+
+            {/* 次级指标条 */}
+            <div className="flex justify-between items-center px-6 py-2 bg-gray-50/60 rounded-xl mt-3 text-center">
+              {overviewTab === 'overall' ? (
+                <>
+                  <div className="flex-1">
+                    <div className={`text-sm font-bold ${currentAvgChips >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                      {formatAmount(currentAvgChips)}
+                    </div>
+                    <div className="text-[9px] text-text-light font-medium">每局平均金额</div>
+                  </div>
+                  <div className="h-6 w-px bg-gray-200"></div>
+                  <div className="flex-1">
+                    <div className={`text-sm font-bold ${currentAvgScore >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                      {currentAvgScore >= 0 ? '+' : ''}{currentAvgScore}分
+                    </div>
+                    <div className="text-[9px] text-text-light font-medium">每局平均分数</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-accent-red">
+                      {hideAmounts ? '***' : `+${currentIncome.toLocaleString()}`}
+                    </div>
+                    <div className="text-[9px] text-text-light font-medium">总赢</div>
+                  </div>
+                  <div className="h-6 w-px bg-gray-200"></div>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-accent-green">
+                      {hideAmounts ? '***' : `-${currentExpense.toLocaleString()}`}
+                    </div>
+                    <div className="text-[9px] text-text-light font-medium">总输</div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 总体模式下：按地点紧凑统计表格 */}
+            {overviewTab === 'overall' && stats.byLocation && Object.keys(stats.byLocation).length > 0 && (
+              <div className="mt-4 overflow-hidden border border-gray-100 rounded-xl">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-gray-50/80 border-b border-gray-100">
+                    <tr>
+                      <th className="px-3 py-1.5 text-[9px] font-bold text-text-light uppercase tracking-wider">地点</th>
+                      <th className="px-3 py-1.5 text-[9px] font-bold text-text-light uppercase tracking-wider text-center">场次/胜率</th>
+                      <th className="px-3 py-1.5 text-[9px] font-bold text-text-light uppercase tracking-wider text-right">损益额度</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {Object.entries(stats.byLocation)
+                      .sort(([, a]: [string, any], [, b]: [string, any]) => b.games - a.games)
+                      .map(([locName, data]: [string, any]) => (
+                        <tr key={locName}>
+                          <td className="px-3 py-2 text-[11px] font-bold text-text truncate max-w-[120px]">
+                            {locName}
+                          </td>
+                          <td className="px-3 py-2 text-[10px] text-text-secondary text-center font-medium">
+                            {data.games}场 / {data.games > 0 ? Math.round((data.wins / data.games) * 100) : 0}%
+                          </td>
+                          <td className={`px-3 py-2 text-[11px] font-bold text-right ${data.totalChips >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                            {formatAmount(data.totalChips)}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* 2. 趋势图 */}
           {trendData.length > 0 && (
-            <div className="card">
-              <div className="mb-4">
-                <h3 className="text-base sm:text-xl font-semibold text-text mb-3">{trendTitle}</h3>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  {/* 类型选择：日/周/月 */}
+            <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+              <div className="mb-3">
+                <h3 className="text-sm sm:text-base font-semibold text-text mb-2.5">{trendTitle}</h3>
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <select
                     value={trendPeriodType}
                     onChange={(e) => setTrendPeriodType(e.target.value as 'daily' | 'weekly' | 'monthly')}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
                   >
                     <option value="daily">日</option>
                     <option value="weekly">周</option>
                     <option value="monthly">月</option>
                   </select>
                   
-                  {/* 周期值选择：7/15/30/自定义 */}
                   {!isCustomPeriod ? (
                     <select
                       value={trendPeriodValue}
-                      onChange={(e) => handlePeriodValueChange(e.target.value)}
-                      className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                      onChange={(e) => {
+                        if (e.target.value === 'custom') {
+                          setIsCustomPeriod(true)
+                        } else {
+                          setIsCustomPeriod(false)
+                          setTrendPeriodValue(parseInt(e.target.value))
+                        }
+                      }}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
                     >
                       <option value="7">7</option>
                       <option value="15">15</option>
@@ -388,28 +486,27 @@ export default function StatsPage() {
                       <input
                         type="number"
                         value={customPeriodValue}
-                        onChange={(e) => handleCustomPeriodChange(e.target.value)}
-                        placeholder="输入数字"
+                        onChange={(e) => setCustomPeriodValue(e.target.value)}
+                        placeholder="天数"
                         min="1"
-                        className="w-20 sm:w-24 text-xs sm:text-sm border border-gray-300 rounded px-2 py-1"
+                        className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1"
                       />
                       <button
                         onClick={() => {
                           setIsCustomPeriod(false)
                           setCustomPeriodValue('')
                         }}
-                        className="text-xs sm:text-sm text-text-secondary hover:text-text px-1"
+                        className="text-xs text-text-secondary hover:text-text px-1"
                       >
                         ×
                       </button>
                     </div>
                   )}
 
-                  {/* 地点筛选 */}
                   <select
                     value={trendLocationId}
                     onChange={(e) => setTrendLocationId(e.target.value)}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
                   >
                     <option value="">全部地点</option>
                     {locations.map(loc => (
@@ -417,11 +514,10 @@ export default function StatsPage() {
                     ))}
                   </select>
 
-                  {/* 数据类型：金额/分数 */}
                   <select
                     value={trendDataType}
                     onChange={(e) => setTrendDataType(e.target.value as 'chips' | 'score')}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
                   >
                     <option value="chips">金额</option>
                     <option value="score">分数</option>
@@ -429,155 +525,49 @@ export default function StatsPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={trendData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E0E0E0" />
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={trendData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F3F4" />
                     <XAxis 
                       dataKey="date" 
-                      stroke="#5F6368"
-                      tick={{ fontSize: '0.75rem' }}
-                      className="text-xs sm:text-sm"
+                      stroke="#9AA0A6"
+                      tick={{ fontSize: '0.7rem' }}
                     />
                     <YAxis 
-                      stroke="#5F6368"
-                      tick={{ fontSize: '0.75rem' }}
-                      className="text-xs sm:text-sm"
+                      stroke="#9AA0A6"
+                      tick={{ fontSize: '0.7rem' }}
+                      tickFormatter={(val) => (hideAmounts && trendDataType === 'chips' ? '***' : String(val))}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px' }}
-                      labelStyle={{ color: '#202124' }}
+                      contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0E0E0', borderRadius: '8px', fontSize: '0.75rem' }}
+                      formatter={(val: any) => [hideAmounts && trendDataType === 'chips' ? '***' : val, trendDataType === 'chips' ? '金额' : '分数']}
                     />
-                    <ReferenceLine y={0} stroke="#FF6B6B" strokeWidth={2} strokeDasharray="5 5" label={{ value: "0", position: "right", fill: "#FF6B6B", fontSize: 12 }} />
-                    <Line type="monotone" dataKey={trendDataType} stroke="#4285F4" strokeWidth={2} />
+                    <ReferenceLine y={0} stroke="#EA4335" strokeWidth={1.5} strokeDasharray="4 4" />
+                    <Line type="monotone" dataKey={trendDataType} stroke="#1A73E8" strokeWidth={2} dot={{ r: 2 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
 
-
-
-          {/* 3. 下午晚上关联统计 */}
-          <div className="card">
-            <h3 className="text-base sm:text-xl font-semibold text-text mb-3 sm:mb-4">📊 下午-晚上关联统计</h3>
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="text-xs sm:text-sm text-text-secondary">地点：</span>
-                  <select
-                    value={correlationLocationId}
-                    onChange={(e) => setCorrelationLocationId(e.target.value)}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-                  >
-                    {locations.map(loc => (
-                      <option key={loc.id} value={loc.id}>{loc.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="text-xs sm:text-sm text-text-secondary">分数类型：</span>
-                  <button
-                    onClick={() => setCorrelationScoreType('win')}
-                    className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-lg ${
-                      correlationScoreType === 'win'
-                        ? 'bg-primary text-white'
-                        : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    赢
-                  </button>
-                  <button
-                    onClick={() => setCorrelationScoreType('lose')}
-                    className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded-lg ${
-                      correlationScoreType === 'lose'
-                        ? 'bg-primary text-white'
-                        : 'bg-white text-text border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    输
-                  </button>
-                </div>
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <span className="text-xs sm:text-sm text-text-secondary">分数：</span>
-                  <input
-                    type="number"
-                    value={correlationScore}
-                    onChange={(e) => setCorrelationScore(e.target.value)}
-                    placeholder="输入分数"
-                    className="w-20 sm:w-24 text-xs sm:text-sm border border-gray-300 rounded px-2 py-1"
-                    min="1"
-                  />
-                </div>
-                <button
-                  onClick={loadCorrelationStats}
-                  disabled={!correlationLocationId || !correlationScore}
-                  className="px-3 sm:px-4 py-1 text-xs sm:text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  查询
-                </button>
-              </div>
-
-              {correlationStats && (
-                <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
-                  <div className="mb-2 sm:mb-3">
-                    <p className="text-xs sm:text-sm text-text-secondary mb-1">
-                      统计条件：{locations.find(l => l.id === correlationLocationId)?.name}，下午{correlationScoreType === 'win' ? '赢' : '输'} ≥ {correlationStats.threshold}分
-                    </p>
-                    <p className="text-xs sm:text-sm text-text-secondary">
-                      符合条件的日期数：{correlationStats.validDatesCount} 天
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                    <div className="text-center">
-                      <div className="text-base sm:text-2xl font-bold text-text">
-                        {correlationStats.eveningStats.totalGames}
-                      </div>
-                      <div className="text-xs text-text-light mt-1">晚上总场次</div>
-                    </div>
-                    <div className="text-center">
-                      <div className={`text-base sm:text-2xl font-bold ${
-                        correlationStats.eveningStats.winRate >= 50 ? 'text-accent-red' : 'text-accent-green'
-                      }`}>
-                        {correlationStats.eveningStats.winRate}%
-                      </div>
-                      <div className="text-xs text-text-light mt-1">晚上胜率</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs sm:text-sm text-text">
-                        {correlationStats.eveningStats.wins}胜 {correlationStats.eveningStats.losses}负
-                      </div>
-                      <div className="text-xs text-text-light mt-1">晚上战绩</div>
-                    </div>
-                  </div>
-                  <button
-                    className="btn-primary w-full mt-4 py-2 text-sm"
-                    onClick={() => navigate(`/dynamic-stats?type=correlation&threshold=${correlationStats.threshold}&locationId=${correlationLocationId || ''}&scoreType=${correlationScoreType}`)}
-                  >
-                    查看详细记录
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 连败统计 */}
+          {/* 3. 连败统计 */}
           {losingStreakStats && losingStreakStats.streaks && losingStreakStats.streaks.length > 0 && (
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base sm:text-xl font-semibold text-text">📉 连败统计</h3>
-                <div className="flex gap-2">
+            <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm sm:text-base font-semibold text-text">📉 连败统计</h3>
+                <div className="flex gap-1.5">
                   <select
                     value={losingStreakMode}
                     onChange={(e) => setLosingStreakMode(e.target.value as 'chips' | 'score')}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
                   >
-                    <option value="chips">显示金额</option>
-                    <option value="score">显示分数</option>
+                    <option value="chips">金额</option>
+                    <option value="score">分数</option>
                   </select>
                   <select
                     value={losingStreakLocationId}
                     onChange={(e) => setLosingStreakLocationId(e.target.value)}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
                   >
                     <option value="">全部地点</option>
                     {locations.map(loc => (
@@ -587,32 +577,39 @@ export default function StatsPage() {
                 </div>
               </div>
               
-              {/* 摘要信息 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                <StatCard label="总天数" value={losingStreakStats.summary.totalDays} size="small" />
-                <StatCard label="连输次数" value={losingStreakStats.summary.streakCount} size="small" />
-                <StatCard label="最长连输" value={`${losingStreakStats.metrics.maxStreakDays}天`} size="small" />
-                <StatCard 
-                  label={`最大连输${losingStreakMode === 'chips' ? '金额' : '分数'}`}
-                  value={losingStreakStats.metrics[losingStreakMode].maxStreakAmount} 
-                  size="small" 
-                  color="red" 
-                  prefix={losingStreakMode === 'chips' ? '¥' : ''} 
-                />
+              {/* 4 宫格紧凑指标 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
+                  <div className="text-[10px] text-text-light font-medium">总天数</div>
+                  <div className="text-base font-bold text-text mt-0.5">{losingStreakStats.summary.totalDays}</div>
+                </div>
+                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
+                  <div className="text-[10px] text-text-light font-medium">连输次数</div>
+                  <div className="text-base font-bold text-text mt-0.5">{losingStreakStats.summary.streakCount}</div>
+                </div>
+                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
+                  <div className="text-[10px] text-text-light font-medium">最长连输</div>
+                  <div className="text-base font-bold text-text mt-0.5">{losingStreakStats.metrics.maxStreakDays}天</div>
+                </div>
+                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
+                  <div className="text-[10px] text-text-light font-medium">最大连输{losingStreakMode === 'chips' ? '金额' : '分数'}</div>
+                  <div className="text-base font-bold text-accent-green mt-0.5">
+                    {losingStreakMode === 'chips' ? formatAmount(losingStreakStats.metrics.chips.maxStreakAmount, '¥') : `${losingStreakStats.metrics.score.maxStreakAmount}分`}
+                  </div>
+                </div>
               </div>
 
               {/* 建议准备 */}
-              <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                <h4 className="font-semibold text-blue-800 mb-2">
+              <div className="bg-blue-50/70 p-2.5 rounded-xl mb-3">
+                <div className="text-xs font-bold text-blue-900 mb-1.5">
                   💡 建议准备{losingStreakMode === 'chips' ? '金额' : '分数'}
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 text-sm">
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-[11px]">
                   {['99', '95', '90', '75', '50'].map(p => (
-                    <div key={p}>
-                      <span className="text-gray-600">覆盖{p}%：</span>
+                    <div key={p} className="bg-white/80 rounded-lg px-2 py-1">
+                      <span className="text-gray-500">{p}%: </span>
                       <span className="font-bold text-blue-900">
-                        {losingStreakMode === 'chips' ? '¥' : ''}
-                        {losingStreakStats.suggestions[losingStreakMode][`cover${p}`]}
+                        {losingStreakMode === 'chips' ? formatAmount(losingStreakStats.suggestions.chips[`cover${p}`], '¥') : losingStreakStats.suggestions.score[`cover${p}`]}
                       </span>
                     </div>
                   ))}
@@ -620,37 +617,31 @@ export default function StatsPage() {
               </div>
 
               {/* 连输列表 */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b">
-                      <th className="py-2 px-3 text-left font-medium text-gray-500 whitespace-nowrap">期间</th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">天数</th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">
+              <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="py-1.5 px-2.5 text-left font-medium text-gray-500 whitespace-nowrap">期间</th>
+                      <th className="py-1.5 px-2.5 text-right font-medium text-gray-500 whitespace-nowrap">天数</th>
+                      <th className="py-1.5 px-2.5 text-right font-medium text-gray-500 whitespace-nowrap">
                         总输{losingStreakMode === 'chips' ? '金额' : '分数'}
                       </th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">
-                        日均{losingStreakMode === 'chips' ? '输额' : '输分'}
-                      </th>
-                      <th className="py-2 px-3 text-right font-medium text-gray-500 whitespace-nowrap">场次</th>
+                      <th className="py-1.5 px-2.5 text-right font-medium text-gray-500 whitespace-nowrap">场次</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-gray-50">
                     {(expandedLosingStreaks ? losingStreakStats.streaks : losingStreakStats.streaks.slice(0, 5)).map((streak: any, index: number) => {
                       const totalLoss = losingStreakMode === 'chips' ? streak.totalLoss : streak.totalScoreLoss
                       return (
-                        <tr key={index} className="border-b last:border-0 hover:bg-gray-50">
-                          <td className="py-2 px-3 text-gray-900 whitespace-nowrap">
-                            {streak.startDate} ~ {streak.endDate}
+                        <tr key={index} className="hover:bg-gray-50/50">
+                          <td className="py-1.5 px-2.5 text-text whitespace-nowrap">
+                            {streak.startDate.slice(5)} ~ {streak.endDate.slice(5)}
                           </td>
-                          <td className="py-2 px-3 text-right text-gray-900">{streak.days}</td>
-                          <td className="py-2 px-3 text-right text-green-600 font-medium">
-                            {losingStreakMode === 'chips' ? '¥' : ''}{totalLoss}
+                          <td className="py-1.5 px-2.5 text-right text-text">{streak.days}</td>
+                          <td className="py-1.5 px-2.5 text-right text-accent-green font-semibold">
+                            {losingStreakMode === 'chips' ? formatAmount(-totalLoss, '¥') : `-${totalLoss}`}
                           </td>
-                          <td className="py-2 px-3 text-right text-gray-600">
-                            {losingStreakMode === 'chips' ? '¥' : ''}{Math.round(totalLoss / streak.days)}
-                          </td>
-                          <td className="py-2 px-3 text-right text-gray-600">{streak.gameCounts.reduce((a:number, b:number) => a + b, 0)}</td>
+                          <td className="py-1.5 px-2.5 text-right text-gray-500">{streak.gameCounts.reduce((a:number, b:number) => a + b, 0)}</td>
                         </tr>
                       )
                     })}
@@ -659,7 +650,7 @@ export default function StatsPage() {
                 {losingStreakStats.streaks.length > 5 && (
                   <button
                     onClick={() => setExpandedLosingStreaks(!expandedLosingStreaks)}
-                    className="w-full text-center mt-2 text-xs text-primary hover:text-primary/80 py-2 hover:bg-gray-50 rounded"
+                    className="w-full text-center text-xs text-primary hover:text-primary/80 py-1.5 bg-gray-50/50 hover:bg-gray-100/50 transition-colors"
                   >
                     {expandedLosingStreaks ? '收起' : `展开全部 (${losingStreakStats.streaks.length})`}
                   </button>
@@ -668,178 +659,99 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* 4. 本年统计 */}
-          {annualStats && (
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base sm:text-xl font-semibold text-text">📅 本年统计</h3>
+          {/* 4. 下午-晚上关联统计 */}
+          <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+            <h3 className="text-sm sm:text-base font-semibold text-text mb-3">📊 下午-晚上关联统计</h3>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  className="text-sm border border-gray-300 rounded px-2 py-1"
+                  value={correlationLocationId}
+                  onChange={(e) => setCorrelationLocationId(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-text"
                 >
-                  {getYearOptions().map(year => (
-                    <option key={year} value={year}>{year}年</option>
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
                 </select>
-              </div>
-              
-              {/* 赢输利润 */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <StatCard 
-                  label="赢" 
-                  value={annualStats.overall.income} 
-                  color="green"
-                  size="small"
-                />
-                <StatCard 
-                  label="输" 
-                  value={annualStats.overall.expense} 
-                  color="red"
-                  size="small"
-                />
-                <StatCard 
-                  label="利润" 
-                  value={annualStats.overall.profit} 
-                  color={annualStats.overall.profit >= 0 ? 'green' : 'red'}
-                  size="small"
-                />
-              </div>
 
-              {/* 胜场、输场、胜率 */}
-              <div className="grid grid-cols-3 gap-4">
-                <StatCard label="胜场" value={annualStats.overall.wins} color="green" size="small" />
-                <StatCard label="输场" value={annualStats.overall.losses} color="red" size="small" />
-                <StatCard label="胜率" value={`${annualStats.overall.winRate}%`} size="small" />
-              </div>
-            </div>
-          )}
+                <div className="flex items-center bg-gray-100 rounded-lg p-0.5 text-xs">
+                  <button
+                    onClick={() => setCorrelationScoreType('win')}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                      correlationScoreType === 'win' ? 'bg-white text-primary shadow-sm font-bold' : 'text-text-secondary'
+                    }`}
+                  >
+                    赢
+                  </button>
+                  <button
+                    onClick={() => setCorrelationScoreType('lose')}
+                    className={`px-2 py-0.5 rounded-md font-medium transition-all ${
+                      correlationScoreType === 'lose' ? 'bg-white text-primary shadow-sm font-bold' : 'text-text-secondary'
+                    }`}
+                  >
+                    输
+                  </button>
+                </div>
 
-          {/* 3. 农历年统计 */}
-          {lunarAnnualStats && (
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base sm:text-xl font-semibold text-text">🐉 农历年统计</h3>
-                <select
-                  value={selectedLunarYear}
-                  onChange={(e) => setSelectedLunarYear(parseInt(e.target.value))}
-                  className="text-sm border border-gray-300 rounded px-2 py-1"
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-text-secondary">≥</span>
+                  <input
+                    type="number"
+                    value={correlationScore}
+                    onChange={(e) => setCorrelationScore(e.target.value)}
+                    placeholder="分数"
+                    className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1"
+                    min="1"
+                  />
+                  <span className="text-xs text-text-secondary">分</span>
+                </div>
+
+                <button
+                  onClick={loadCorrelationStats}
+                  disabled={!correlationLocationId || !correlationScore}
+                  className="px-3 py-1 text-xs rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
                 >
-                  {getYearOptions().map(year => (
-                    <option key={year} value={year}>{year}年</option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* 赢输利润 */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <StatCard 
-                  label="赢" 
-                  value={lunarAnnualStats.overall.income} 
-                  color="green"
-                  size="small"
-                />
-                <StatCard 
-                  label="输" 
-                  value={lunarAnnualStats.overall.expense} 
-                  color="red"
-                  size="small"
-                />
-                <StatCard 
-                  label="利润" 
-                  value={lunarAnnualStats.overall.profit} 
-                  color={lunarAnnualStats.overall.profit >= 0 ? 'green' : 'red'}
-                  size="small"
-                />
+                  查询
+                </button>
               </div>
 
-              {/* 胜场、输场、胜率 */}
-              <div className="grid grid-cols-3 gap-4">
-                <StatCard label="胜场" value={lunarAnnualStats.overall.wins} color="green" size="small" />
-                <StatCard label="输场" value={lunarAnnualStats.overall.losses} color="red" size="small" />
-                <StatCard label="胜率" value={`${lunarAnnualStats.overall.winRate}%`} size="small" />
-              </div>
-            </div>
-          )}
-
-          {/* 4. 总体统计 */}
-          <div className="card">
-            <h3 className="text-base sm:text-xl font-semibold text-text mb-4">总体统计</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <StatCard label="总局数" value={stats.overall.totalGames} />
-              <StatCard 
-                label="总金额" 
-                value={stats.overall.totalChips} 
-                color={stats.overall.totalChips >= 0 ? 'green' : 'red'}
-                prefix={stats.overall.totalChips >= 0 ? '+' : ''}
-              />
-              <StatCard label="胜率" value={`${stats.overall.winRate}%`} />
-              <StatCard 
-                label="平均金额" 
-                value={Math.round(stats.overall.avgChips)}
-                color={stats.overall.avgChips >= 0 ? 'green' : 'red'}
-                prefix={stats.overall.avgChips >= 0 ? '+' : ''}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <StatCard label="胜局" value={stats.overall.wins} color="green" />
-              <StatCard label="负局" value={stats.overall.losses} color="red" />
+              {correlationStats && (
+                <div className="p-3 bg-gray-50/70 rounded-xl">
+                  <div className="mb-2 text-xs text-text-secondary">
+                    符合条件共 {correlationStats.validDatesCount} 天，晚上战绩如下：
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center py-1">
+                    <div>
+                      <div className="text-lg font-bold text-text">{correlationStats.eveningStats.totalGames}</div>
+                      <div className="text-[10px] text-text-light">晚上总场次</div>
+                    </div>
+                    <div>
+                      <div className={`text-lg font-bold ${
+                        correlationStats.eveningStats.winRate >= 50 ? 'text-accent-red' : 'text-accent-green'
+                      }`}>
+                        {correlationStats.eveningStats.winRate}%
+                      </div>
+                      <div className="text-[10px] text-text-light">晚上胜率</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-text mt-1">
+                        {correlationStats.eveningStats.wins}胜 {correlationStats.eveningStats.losses}负
+                      </div>
+                      <div className="text-[10px] text-text-light">晚上战绩</div>
+                    </div>
+                  </div>
+                  <button
+                    className="w-full mt-2.5 py-1.5 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors"
+                    onClick={() => navigate(`/dynamic-stats?type=correlation&threshold=${correlationStats.threshold}&locationId=${correlationLocationId || ''}&scoreType=${correlationScoreType}`)}
+                  >
+                    查看详细对局记录 →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* 5. 按地点统计 - 按局数排序 */}
-          {Object.keys(stats.byLocation).length > 0 && (
-            <div className="card">
-              <h3 className="text-base sm:text-xl font-semibold text-text mb-4">按地点统计</h3>
-              <div className="space-y-3">
-                {Object.entries(stats.byLocation)
-                  .sort(([, a]: [string, any], [, b]: [string, any]) => b.games - a.games) // 按局数从大到小排序
-                  .map(([location, data]: [string, any]) => (
-                    <div key={location} className="bg-gray-50 rounded-lg p-2 sm:p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm sm:text-base text-primary font-semibold">📍 {location}</span>
-                        <span className="text-sm text-text-light">{data.games} 局</span>
-                      </div>
-                      <div className="flex justify-between items-start text-xs sm:text-sm">
-                        <div className="text-center flex-1">
-                          <div className="text-text-light">金额</div>
-                          <div className={data.totalChips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
-                            {data.totalChips >= 0 ? '+' : ''}{data.totalChips}
-                          </div>
-                        </div>
-                        <div className="text-center flex-1">
-                          <div className="text-text-light">胜/负</div>
-                          <div className="text-text">{data.wins} / {data.losses}</div>
-                        </div>
-                        <div className="text-center flex-1">
-                          <div className="text-text-light">胜率</div>
-                          <div className="text-text">
-                            {data.games > 0 ? Math.round((data.wins / data.games) * 100) : 0}%
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
         </>
       )}
-    </div>
-  )
-}
-
-function StatCard({ label, value, color, prefix, size = 'normal' }: any) {
-  const colorClass = color === 'green' ? 'text-accent-red' : color === 'red' ? 'text-accent-green' : 'text-primary'
-  const sizeClass = size === 'small' ? 'text-base sm:text-2xl' : 'text-lg sm:text-2xl'
-  
-  return (
-    <div className="card text-center">
-      <div className={`${sizeClass} font-bold ${colorClass}`}>
-        {prefix}{value}
-      </div>
-      <div className="text-xs text-text-light mt-1">{label}</div>
     </div>
   )
 }

@@ -10,7 +10,10 @@ function generateId() {
   return 'c' + randomBytes(12).toString('base64url');
 }
 
-const dbPath = path.join(__dirname, '../backend/data/griffin.db');
+const dbUrl = process.env.DATABASE_URL || process.env.DB_PATH;
+const dbPath = dbUrl
+  ? (dbUrl.startsWith('file:') ? dbUrl.replace(/^file:/, '') : dbUrl)
+  : path.join(__dirname, '../backend/data/griffin.db');
 const db = new Database(dbPath);
 
 const username = process.argv[2];

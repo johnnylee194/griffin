@@ -304,4 +304,16 @@ router.get('/stats/monthly', (req: AuthRequest, res) => {
   }
 });
 
+router.get('/stats/daily', (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const { date, locationId } = req.query;
+    const stats = StatsService.getDailyBattleStats(userId, date as string, locationId as string);
+    res.json(stats);
+  } catch (error: any) {
+    console.error('Failed to get daily stats:', error);
+    res.status(500).json({ error: error.message || 'Failed to get daily stats' });
+  }
+});
+
 export default router;

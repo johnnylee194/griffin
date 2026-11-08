@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { StatsService } from '../services/stats.service';
+import { getLogicalDateString, getTimeSlot, getLogicalTimestampRange } from '../utils/time';
 
 const router = Router();
 
@@ -28,16 +29,11 @@ router.get('/player/:playerId', (req: AuthRequest, res) => {
     const params: any[] = [playerId, userId];
     
     if (startDate || endDate) {
-      if (startDate && endDate) {
-        dateFilter = ' AND g.created_at BETWEEN ? AND ?';
-        params.push(startDate as string, endDate as string);
-      } else if (startDate) {
-        dateFilter = ' AND g.created_at >= ?';
-        params.push(startDate as string);
-      } else if (endDate) {
-        dateFilter = ' AND g.created_at <= ?';
-        params.push(endDate as string);
-      }
+      const s = (startDate as string) || '1970-01-01';
+      const e = (endDate as string) || '2099-12-31';
+      const range = getLogicalTimestampRange(s, e);
+      dateFilter = ' AND g.created_at >= ? AND g.created_at <= ?';
+      params.push(range.startTimestamp, range.endTimestamp);
     }
 
     // 添加地点筛选
@@ -101,7 +97,7 @@ router.get('/player/:playerId', (req: AuthRequest, res) => {
 
     // 按日期统计
     const dailyStatsMap = records.reduce((acc: any, r) => {
-      const date = r.gameCreatedAt.split('T')[0];
+      const date = getLogicalDateString(r.gameCreatedAt);
       if (!acc[date]) {
         acc[date] = {
           games: 0,
@@ -586,9 +582,7 @@ router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
       SELECT 
         pr.score,
         pr.chips,
-        g.created_at as createdAt,
-        DATE(g.created_at) as gameDate,
-        CAST(strftime('%H', g.created_at) AS INTEGER) as hour
+        g.created_at as createdAt
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ?
@@ -598,31 +592,19 @@ router.get('/afternoon-evening-correlation', (req: AuthRequest, res) => {
       ORDER BY g.created_at ASC
     `).all(mePlayer.id, userId, locationId) as any[];
     
-    // 按日期分组（同一天可能有多个下午场和晚上场）
+    // 按逻辑日期分组
     const gamesByDate: Record<string, { afternoon: any[]; evening: any[] }> = {};
     
     allRecords.forEach(record => {
-      const date = record.gameDate;
+      const date = getLogicalDateString(record.createdAt);
       if (!gamesByDate[date]) {
         gamesByDate[date] = { afternoon: [], evening: [] };
       }
       
-      const gameTime = new Date(record.createdAt);
-      const h = gameTime.getHours();
-      const m = gameTime.getMinutes();
-      const s = gameTime.getSeconds();
-      const ts = h * 3600 + m * 60 + s;
-
-      let timeSlot: 'afternoon' | 'evening' | 'other' = 'other';
-      if (ts > 12 * 3600 && ts <= 18 * 3600) {
-        timeSlot = 'afternoon';
-      } else if (ts > 18 * 3600 || ts === 0) {
-        timeSlot = 'evening';
-      }
-
-      if (timeSlot === 'afternoon') {
+      const slot = getTimeSlot(record.createdAt);
+      if (slot === 'afternoon') {
         gamesByDate[date].afternoon.push(record);
-      } else if (timeSlot === 'evening') {
+      } else if (slot === 'evening') {
         gamesByDate[date].evening.push(record);
       }
     });
@@ -701,10 +683,9 @@ router.get('/losing-streaks', (req: AuthRequest, res) => {
     // 构建查询
     let query = `
       SELECT 
-        DATE(g.created_at) as gameDate,
-        SUM(pr.chips) as dailyTotal,
-        SUM(pr.score) as dailyScoreTotal,
-        COUNT(*) as gameCount
+        g.created_at as createdAt,
+        pr.chips,
+        pr.score
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ? AND g.user_id = ?
@@ -721,22 +702,30 @@ router.get('/losing-streaks', (req: AuthRequest, res) => {
       params.push(locationId);
     }
 
-    query += `
-      GROUP BY DATE(g.created_at)
-      ORDER BY gameDate ASC
-    `;
+    query += ` ORDER BY g.created_at ASC`;
+    const rows = db.prepare(query).all(...params) as any[];
 
-    const dailyStats = db.prepare(query).all(...params) as any[];
+    // 按逻辑日期聚合并按日期升序
+    const dailyMap: Record<string, { totalChips: number; totalScore: number; gameCount: number }> = {};
+    rows.forEach(r => {
+      const date = getLogicalDateString(r.createdAt);
+      if (!dailyMap[date]) {
+        dailyMap[date] = { totalChips: 0, totalScore: 0, gameCount: 0 };
+      }
+      dailyMap[date].totalChips += (r.chips || 0);
+      dailyMap[date].totalScore += (r.score || 0);
+      dailyMap[date].gameCount += 1;
+    });
 
-    // 格式化数据
-    const formattedDailyStats = dailyStats.map(stat => ({
-      date: stat.gameDate,
-      totalChips: stat.dailyTotal,
-      totalScore: stat.dailyScoreTotal,
-      gameCount: stat.gameCount,
-      isWin: stat.dailyTotal > 0,
-      lossAmount: stat.dailyTotal < 0 ? Math.abs(stat.dailyTotal) : 0,
-      lossScore: stat.dailyScoreTotal < 0 ? Math.abs(stat.dailyScoreTotal) : 0
+    const sortedDates = Object.keys(dailyMap).sort();
+    const formattedDailyStats = sortedDates.map(date => ({
+      date,
+      totalChips: dailyMap[date].totalChips,
+      totalScore: dailyMap[date].totalScore,
+      gameCount: dailyMap[date].gameCount,
+      isWin: dailyMap[date].totalChips > 0,
+      lossAmount: dailyMap[date].totalChips < 0 ? Math.abs(dailyMap[date].totalChips) : 0,
+      lossScore: dailyMap[date].totalScore < 0 ? Math.abs(dailyMap[date].totalScore) : 0
     }));
 
     // 分析连输
@@ -880,9 +869,7 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
       SELECT
         pr.score,
         pr.chips,
-        g.created_at as createdAt,
-        DATE(g.created_at) as gameDate,
-        CAST(strftime('%H', g.created_at) AS INTEGER) as hour
+        g.created_at as createdAt
       FROM player_records pr
       JOIN games g ON pr.game_id = g.id
       WHERE pr.player_id = ?
@@ -902,27 +889,15 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
     const gamesByDate: Record<string, { afternoon: any[]; evening: any[] }> = {};
 
     allRecords.forEach(record => {
-      const date = record.gameDate;
+      const date = getLogicalDateString(record.createdAt);
       if (!gamesByDate[date]) {
         gamesByDate[date] = { afternoon: [], evening: [] };
       }
 
-      const gameTime = new Date(record.createdAt);
-      const h = gameTime.getHours();
-      const m = gameTime.getMinutes();
-      const s = gameTime.getSeconds();
-      const ts = h * 3600 + m * 60 + s;
-
-      let timeSlot: 'afternoon' | 'evening' | 'other' = 'other';
-      if (ts > 12 * 3600 && ts <= 18 * 3600) {
-        timeSlot = 'afternoon';
-      } else if (ts > 18 * 3600 || ts === 0) {
-        timeSlot = 'evening';
-      }
-
-      if (timeSlot === 'afternoon') {
+      const slot = getTimeSlot(record.createdAt);
+      if (slot === 'afternoon') {
         gamesByDate[date].afternoon.push(record);
-      } else if (timeSlot === 'evening') {
+      } else if (slot === 'evening') {
         gamesByDate[date].evening.push(record);
       }
     });
@@ -951,13 +926,6 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
     let gamesWhereConditions = ['g.user_id = ?'];
     let gamesParams: any[] = [userId];
 
-    if (validDates.length > 0) {
-      gamesWhereConditions.push(`DATE(g.created_at) IN (${validDates.map(() => '?').join(',')})`);
-      gamesParams.push(...validDates);
-    } else {
-      gamesWhereConditions.push('1=0');
-    }
-
     if (locationId) {
       gamesWhereConditions.push(`g.location_id = ?`);
       gamesParams.push(locationId);
@@ -974,7 +942,8 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
     `;
     gamesParams.push(mePlayer.id);
 
-    const games = db.prepare(gamesQuery).all(...gamesParams) as any[];
+    const rawGames = db.prepare(gamesQuery).all(...gamesParams) as any[];
+    const games = rawGames.filter(g => validDates.includes(getLogicalDateString(g.created_at)));
 
     if (games.length === 0) {
       return res.json({
@@ -997,27 +966,8 @@ router.get('/correlation/details', (req: AuthRequest, res) => {
         WHERE pr.game_id = ? AND pr.player_id = ?
       `).get(game.chip_rate_id, game.id, mePlayer.id) as any;
 
-      const gameDate = new Date(game.created_at);
-      const hour = gameDate.getHours();
-      const minute = gameDate.getMinutes();
-      const second = gameDate.getSeconds();
-      const ts = hour * 3600 + minute * 60 + second;
-
-      let timeSlot = 'other';
-      if (ts > 0 && ts <= 8 * 3600) {
-        timeSlot = 'lateNight';
-      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
-        timeSlot = 'morning';
-      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
-        timeSlot = 'afternoon';
-      } else {
-        timeSlot = 'evening';
-      }
-
-      const year = gameDate.getFullYear();
-      const month = String(gameDate.getMonth() + 1).padStart(2, '0');
-      const day = String(gameDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+      const timeSlot = getTimeSlot(game.created_at);
+      const dateStr = getLogicalDateString(game.created_at);
 
       return {
         ...game,

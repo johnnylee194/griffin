@@ -1,6 +1,13 @@
 import db from '../database';
 import { Lunar } from 'lunar-javascript';
-import { getLocalDate, getLocalDateString } from '../utils/time';
+import {
+  getLocalDate,
+  getLocalDateString,
+  getLogicalDateString,
+  getTimeSlot,
+  getLogicalTimestampRange
+} from '../utils/time';
+import { GameService } from './game.service';
 
 export interface DailyCumulativeStat {
   date: string;
@@ -14,10 +21,10 @@ export interface MonthlyStats {
   availableLocations: Array<{ id: string; name: string }>;
   earliestMonth: { year: number; month: number } | null;
   overall: StatSummary;
-  lateNight: StatSummary;
   morning: StatSummary;
   afternoon: StatSummary;
   evening: StatSummary;
+  lateNight: StatSummary;
   byGameType: Record<string, GameTypeStat>;
   byLocation: Record<string, LocationStat>;
   dailyCumulative: DailyCumulativeStat[];
@@ -41,13 +48,23 @@ export interface LocationStat extends StatSummary {
   name: string;
 }
 
+export interface DailyBattleStats {
+  logicalDate: string;
+  totalGames: number;
+  totalProfit: number;
+  morningProfit: number;
+  afternoonProfit: number;
+  eveningProfit: number;
+  lateNightProfit: number;
+  games: any[];
+}
+
 export class StatsService {
   static getMonthlyStats(userId: string, year: number, month: number, locationId?: string): MonthlyStats {
-    const firstDayOfMonth = new Date(year, month - 1, 1);
-    const firstDayOfNextMonth = new Date(year, month, 1);
-
-    const startDate = firstDayOfMonth.toISOString();
-    const endDate = firstDayOfNextMonth.toISOString();
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstLogicalDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastLogicalDate = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    const { startTimestamp, endTimestamp } = getLogicalTimestampRange(firstLogicalDate, lastLogicalDate);
 
     const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
     if (!mePlayer) {
@@ -69,9 +86,9 @@ export class StatsService {
       WHERE pr.player_id = ?
         AND g.user_id = ?
         AND g.created_at >= ?
-        AND g.created_at < ?
+        AND g.created_at <= ?
     `;
-    const params: any[] = [mePlayer.id, userId, startDate, endDate];
+    const params: any[] = [mePlayer.id, userId, startTimestamp, endTimestamp];
 
     if (locationId) {
       query += ` AND g.location_id = ?`;
@@ -81,14 +98,11 @@ export class StatsService {
     query += ` ORDER BY g.created_at ASC`;
     const records = db.prepare(query).all(...params) as any[];
 
-    // Calculate daily cumulative stats
-    const chinaTime = getLocalDate();
-    const isCurrentMonth = chinaTime.getUTCFullYear() === year && (chinaTime.getUTCMonth() + 1) === month;
-    const isPastMonth = chinaTime.getUTCFullYear() > year || (chinaTime.getUTCFullYear() === year && (chinaTime.getUTCMonth() + 1) > month);
-    const todayDateStr = getLocalDateString();
-
-    // Get number of days in the requested month
-    const daysInMonth = new Date(year, month, 0).getDate();
+    // Calculate daily cumulative stats based on logical date
+    const todayLogicalDate = getLogicalDateString();
+    const [currentLogicalYear, currentLogicalMonth] = todayLogicalDate.split('-').map(Number);
+    const isCurrentMonth = currentLogicalYear === year && currentLogicalMonth === month;
+    const isPastMonth = currentLogicalYear > year || (currentLogicalYear === year && currentLogicalMonth > month);
 
     const dailyData: Record<string, { profit: number; games: number }> = {};
     for (let i = 1; i <= daysInMonth; i++) {
@@ -97,9 +111,7 @@ export class StatsService {
     }
 
     records.forEach(record => {
-      // Group by East 8 timezone date
-      const recordDateStr = String(record.createdAt).slice(0, 10);
-
+      const recordDateStr = getLogicalDateString(record.createdAt);
       if (dailyData[recordDateStr]) {
         dailyData[recordDateStr].profit += (record.chips || 0);
         dailyData[recordDateStr].games += 1;
@@ -116,10 +128,10 @@ export class StatsService {
       if (isPastMonth) {
         shouldCalculate = true;
       } else if (isCurrentMonth) {
-        if (dateStr <= todayDateStr) {
+        if (dateStr <= todayLogicalDate) {
           shouldCalculate = true;
         }
-      } // isFutureMonth -> shouldCalculate = false
+      }
 
       if (shouldCalculate) {
         const dailyProfit = dailyData[dateStr].profit;
@@ -150,12 +162,12 @@ export class StatsService {
         AND g.user_id = ?
         AND l.user_id = ?
         AND g.created_at >= ?
-        AND g.created_at < ?
+        AND g.created_at <= ?
       ORDER BY l.name
     `;
-    const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, userId, startDate, endDate) as any[];
+    const availableLocations = db.prepare(locationQuery).all(mePlayer.id, userId, userId, startTimestamp, endTimestamp) as any[];
 
-    // Get earliest month
+    // Get earliest month in logical dates
     const earliestDateQuery = `
       SELECT MIN(g.created_at) as earliest_date
       FROM player_records pr
@@ -167,10 +179,11 @@ export class StatsService {
     const earliestDateResult = db.prepare(earliestDateQuery).get(mePlayer.id, userId) as any;
     let earliestMonth = null;
     if (earliestDateResult && earliestDateResult.earliest_date) {
-      const date = new Date(earliestDateResult.earliest_date);
+      const earliestLogicalDate = getLogicalDateString(earliestDateResult.earliest_date);
+      const [ey, em] = earliestLogicalDate.split('-').map(Number);
       earliestMonth = {
-        year: date.getFullYear(),
-        month: date.getMonth() + 1
+        year: ey,
+        month: em
       };
     }
 
@@ -185,20 +198,16 @@ export class StatsService {
     });
 
     const overall = initialStat();
-    const lateNight = initialStat();
     const morning = initialStat();
     const afternoon = initialStat();
     const evening = initialStat();
+    const lateNight = initialStat();
     const byGameType: Record<string, GameTypeStat> = {};
     const byLocation: Record<string, LocationStat> = {};
 
     records.forEach(record => {
       const chips = record.chips || 0;
-      const gameTime = new Date(record.createdAt);
-      const hour = gameTime.getHours();
-      const minute = gameTime.getMinutes();
-      const second = gameTime.getSeconds();
-      const ts = hour * 3600 + minute * 60 + second;
+      const slot = getTimeSlot(record.createdAt);
 
       const updateStat = (stat: StatSummary) => {
         stat.totalGames++;
@@ -213,15 +222,14 @@ export class StatsService {
 
       updateStat(overall);
 
-      // (0, 8h] Late Night, (8h, 12h] Morning, (12h, 18h] Afternoon, Else Evening
-      if (ts > 0 && ts <= 8 * 3600) {
-        updateStat(lateNight);
-      } else if (ts > 8 * 3600 && ts <= 12 * 3600) {
+      if (slot === 'morning') {
         updateStat(morning);
-      } else if (ts > 12 * 3600 && ts <= 18 * 3600) {
+      } else if (slot === 'afternoon') {
         updateStat(afternoon);
-      } else {
+      } else if (slot === 'evening') {
         updateStat(evening);
+      } else {
+        updateStat(lateNight);
       }
 
       const gtId = record.gameTypeId || 'unknown';
@@ -243,10 +251,10 @@ export class StatsService {
     };
 
     finalizeStat(overall);
-    finalizeStat(lateNight);
     finalizeStat(morning);
     finalizeStat(afternoon);
     finalizeStat(evening);
+    finalizeStat(lateNight);
     Object.values(byGameType).forEach(finalizeStat);
     Object.values(byLocation).forEach(finalizeStat);
 
@@ -255,10 +263,10 @@ export class StatsService {
       availableLocations: availableLocations.map(loc => ({ id: loc.location_id, name: loc.name })),
       earliestMonth,
       overall,
-      lateNight,
       morning,
       afternoon,
       evening,
+      lateNight,
       byGameType,
       byLocation,
       dailyCumulative
@@ -271,25 +279,29 @@ export class StatsService {
       throw new Error('Current user not found');
     }
 
-    let startDate: string;
-    let endDate: string;
+    let startTimestamp: string;
+    let endTimestamp: string;
     let resultYear: number;
+    let displayStartDate: string;
+    let displayEndDate: string;
 
     if (useLunar) {
-      // Use lunar-javascript to get the solar date range of the lunar year
       const lunar = (Lunar as any).fromYmd(year, 1, 1);
       const solarStart = lunar.getSolar();
-
-      // Get the last day of this lunar year (day before next lunar year's first day)
       const nextLunar = (Lunar as any).fromYmd(year + 1, 1, 1);
       const solarEnd = nextLunar.getSolar();
 
-      startDate = `${solarStart.toYmd()}T00:00:00`;
-      endDate = `${solarEnd.toYmd()}T00:00:00`;
+      displayStartDate = solarStart.toYmd();
+      displayEndDate = solarEnd.toYmd();
+      startTimestamp = `${displayStartDate}T08:00:01`;
+      endTimestamp = `${displayEndDate}T08:00:00`;
       resultYear = year;
     } else {
-      startDate = `${year}-01-01T00:00:00`;
-      endDate = `${year + 1}-01-01T00:00:00`;
+      displayStartDate = `${year}-01-01`;
+      displayEndDate = `${year}-12-31`;
+      const range = getLogicalTimestampRange(displayStartDate, displayEndDate);
+      startTimestamp = range.startTimestamp;
+      endTimestamp = range.endTimestamp;
       resultYear = year;
     }
 
@@ -300,8 +312,8 @@ export class StatsService {
       WHERE pr.player_id = ?
         AND g.user_id = ?
         AND g.created_at >= ?
-        AND g.created_at < ?
-    `).all(mePlayer.id, userId, startDate, endDate) as any[];
+        AND g.created_at <= ?
+    `).all(mePlayer.id, userId, startTimestamp, endTimestamp) as any[];
 
     let income = 0;
     let expense = 0;
@@ -321,8 +333,8 @@ export class StatsService {
     const totalGames = wins + losses;
     return {
       year: resultYear,
-      startDate: startDate.split('T')[0],
-      endDate: endDate.split('T')[0],
+      startDate: displayStartDate,
+      endDate: displayEndDate,
       overall: {
         income,
         expense,
@@ -332,6 +344,66 @@ export class StatsService {
         totalGames,
         winRate: totalGames > 0 ? parseFloat(((wins / totalGames) * 100).toFixed(2)) : 0
       }
+    };
+  }
+
+  static getDailyBattleStats(userId: string, logicalDate?: string, locationId?: string): DailyBattleStats {
+    const targetDate = logicalDate || getLogicalDateString();
+    const { startTimestamp, endTimestamp } = getLogicalTimestampRange(targetDate, targetDate);
+
+    const mePlayer = db.prepare('SELECT id FROM players WHERE is_me = 1 AND user_id = ?').get(userId) as any;
+    if (!mePlayer) {
+      throw new Error('Current user not found');
+    }
+
+    let query = `
+      SELECT g.id, g.created_at, pr.chips
+      FROM games g
+      JOIN player_records pr ON g.id = pr.game_id
+      WHERE g.user_id = ?
+        AND pr.player_id = ?
+        AND g.created_at >= ?
+        AND g.created_at <= ?
+    `;
+    const params: any[] = [userId, mePlayer.id, startTimestamp, endTimestamp];
+
+    if (locationId) {
+      query += ` AND g.location_id = ?`;
+      params.push(locationId);
+    }
+
+    query += ` ORDER BY g.created_at DESC`;
+    const rows = db.prepare(query).all(...params) as any[];
+
+    let totalProfit = 0;
+    let morningProfit = 0;
+    let afternoonProfit = 0;
+    let eveningProfit = 0;
+    let lateNightProfit = 0;
+
+    const gameIds: string[] = [];
+    rows.forEach(r => {
+      gameIds.push(r.id);
+      const chips = r.chips || 0;
+      totalProfit += chips;
+      const slot = getTimeSlot(r.created_at);
+      if (slot === 'morning') morningProfit += chips;
+      else if (slot === 'afternoon') afternoonProfit += chips;
+      else if (slot === 'evening') eveningProfit += chips;
+      else lateNightProfit += chips;
+    });
+
+    const fullGames = gameIds.map(id => GameService.getGameWithDetails(id, userId)).filter(Boolean);
+
+    return {
+      logicalDate: targetDate,
+      totalGames: fullGames.length,
+      totalProfit,
+      morningProfit,
+      afternoonProfit,
+      eveningProfit,
+      lateNightProfit,
+      games: fullGames
     };
   }
 }

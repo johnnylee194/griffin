@@ -2,13 +2,26 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { randomBytes } from 'crypto';
+import dotenv from 'dotenv';
 
-const dbDir = path.join(__dirname, '../data');
+dotenv.config();
+
+function resolveDbPath(): string {
+  const rawUrl = process.env.DATABASE_URL || process.env.DB_PATH;
+  if (rawUrl) {
+    const cleaned = rawUrl.replace(/^file:/, '');
+    return path.isAbsolute(cleaned) ? cleaned : path.resolve(process.cwd(), cleaned);
+  }
+  return path.join(__dirname, '../data/griffin.db');
+}
+
+const dbFilePath = resolveDbPath();
+const dbDir = path.dirname(dbFilePath);
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const db = new Database(path.join(dbDir, 'griffin.db'));
+const db = new Database(dbFilePath);
 
 // Generate CUID-like ID
 export function generateId(): string {

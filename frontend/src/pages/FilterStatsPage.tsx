@@ -12,6 +12,7 @@ import {
   Legend,
 } from 'chart.js';
 import { customFiltersApi, statsApi, locationsApi, playersApi, CustomFilter, FilterStats, Location, Player } from '../api/client';
+import { getLogicalDateString, getTimeSlot } from '../utils/dateUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -164,9 +165,9 @@ export const FilterStatsPage: React.FC = () => {
           <div>
             <div className="text-xs text-gray-500">胜/负</div>
             <div className="text-lg font-bold text-text">
-              <span className="text-green-600">{data.wins}</span>
+              <span className="text-accent-red">{data.wins}</span>
               <span className="text-gray-400 mx-1">/</span>
-              <span className="text-red-600">{data.losses}</span>
+              <span className="text-accent-green">{data.losses}</span>
             </div>
           </div>
           <div>
@@ -175,23 +176,23 @@ export const FilterStatsPage: React.FC = () => {
           </div>
           <div>
             <div className="text-xs text-gray-500">总分</div>
-            <div className={`text-lg font-bold ${data.totalScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-lg font-bold ${data.totalScore >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
               {data.totalScore >= 0 ? '+' : ''}{data.totalScore}
             </div>
           </div>
           <div>
             <div className="text-xs text-gray-500">总金额</div>
-            <div className={`text-lg font-bold ${data.totalChips >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-lg font-bold ${data.totalChips >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
               {data.totalChips >= 0 ? '+' : ''}¥{data.totalChips}
             </div>
           </div>
           <div>
             <div className="text-xs text-gray-500">平均每局</div>
             <div className="text-sm">
-              <div className={data.avgScorePerGame >= 0 ? 'text-green-600' : 'text-red-600'}>
+              <div className={data.avgScorePerGame >= 0 ? 'text-accent-red' : 'text-accent-green'}>
                 {data.avgScorePerGame >= 0 ? '+' : ''}{data.avgScorePerGame.toFixed(1)}分
               </div>
-              <div className={data.avgChipsPerGame >= 0 ? 'text-green-600' : 'text-red-600'}>
+              <div className={data.avgChipsPerGame >= 0 ? 'text-accent-red' : 'text-accent-green'}>
                 {data.avgChipsPerGame >= 0 ? '+' : ''}¥{data.avgChipsPerGame.toFixed(0)}
               </div>
             </div>
@@ -199,15 +200,15 @@ export const FilterStatsPage: React.FC = () => {
           <div>
             <div className="text-xs text-gray-500">单局最大盈利</div>
             <div className="text-sm">
-              <div className="text-green-600">+{data.maxWinScore}分</div>
-              <div className="text-green-600">+¥{data.maxWinChips}</div>
+              <div className="text-accent-red">+{data.maxWinScore}分</div>
+              <div className="text-accent-red">+¥{data.maxWinChips}</div>
             </div>
           </div>
           <div>
             <div className="text-xs text-gray-500">单局最大亏损</div>
             <div className="text-sm">
-              <div className="text-red-600">{data.maxLossScore}分</div>
-              <div className="text-red-600">¥{data.maxLossChips}</div>
+              <div className="text-accent-green">{data.maxLossScore}分</div>
+              <div className="text-accent-green">¥{data.maxLossChips}</div>
             </div>
           </div>
           {showDailyStats && data.maxDayWinScore !== undefined && (
@@ -215,15 +216,15 @@ export const FilterStatsPage: React.FC = () => {
               <div>
                 <div className="text-xs text-gray-500">单日最大盈利</div>
                 <div className="text-sm">
-                  <div className="text-green-600">+{data.maxDayWinScore}分</div>
-                  <div className="text-green-600">+¥{data.maxDayWinChips}</div>
+                  <div className="text-accent-red">+{data.maxDayWinScore}分</div>
+                  <div className="text-accent-red">+¥{data.maxDayWinChips}</div>
                 </div>
               </div>
               <div>
                 <div className="text-xs text-gray-500">单日最大亏损</div>
                 <div className="text-sm">
-                  <div className="text-red-600">{data.maxDayLossScore}分</div>
-                  <div className="text-red-600">¥{data.maxDayLossChips}</div>
+                  <div className="text-accent-green">{data.maxDayLossScore}分</div>
+                  <div className="text-accent-green">¥{data.maxDayLossChips}</div>
                 </div>
               </div>
             </>
@@ -379,10 +380,10 @@ export const FilterStatsPage: React.FC = () => {
 
         {/* 分时段统计 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderStatCard('凌晨场 (00:00-08:00)', stats.lateNight, false)}
           {renderStatCard('上午场 (08:00-12:00)', stats.morning, false)}
           {renderStatCard('下午场 (12:00-18:00)', stats.afternoon, false)}
           {renderStatCard('晚上场 (18:00-24:00)', stats.evening, false)}
+          {renderStatCard('凌晨场 (00:00-08:00)', stats.lateNight, false)}
         </div>
 
         {/* 按日曲线图 */}
@@ -501,9 +502,7 @@ export const FilterStatsPage: React.FC = () => {
               {(() => {
                 const grouped: { [date: string]: typeof stats.games } = {};
                 stats.games.forEach(game => {
-                  // 确保日期格式正确，只取日期部分
-                  const dateStr = typeof game.createdAt === 'string' ? game.createdAt : String(game.createdAt);
-                  const date = dateStr.includes(' ') ? dateStr.split(' ')[0] : dateStr.split('T')[0];
+                  const date = getLogicalDateString(game.createdAt);
                   if (!grouped[date]) {
                     grouped[date] = [];
                   }
@@ -526,18 +525,17 @@ export const FilterStatsPage: React.FC = () => {
                   dateGames.forEach(game => {
                     const myRecord = game.records.find(r => r.player.isMe);
                     if (myRecord && myRecord.chips !== null) {
-                      const date = new Date(game.createdAt);
-                      const totalSeconds = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
-
-                      totalScore += myRecord.chips;
-                      if (totalSeconds > 0 && totalSeconds <= 8 * 3600) {
-                        lateNightScore += myRecord.chips;
-                      } else if (totalSeconds > 8 * 3600 && totalSeconds <= 12 * 3600) {
-                        morningScore += myRecord.chips;
-                      } else if (totalSeconds > 12 * 3600 && totalSeconds <= 18 * 3600) {
-                        afternoonScore += myRecord.chips;
+                      const chips = myRecord.chips;
+                      totalScore += chips;
+                      const slot = getTimeSlot(game.createdAt);
+                      if (slot === 'morning') {
+                        morningScore += chips;
+                      } else if (slot === 'afternoon') {
+                        afternoonScore += chips;
+                      } else if (slot === 'evening') {
+                        eveningScore += chips;
                       } else {
-                        eveningScore += myRecord.chips;
+                        lateNightScore += chips;
                       }
                     }
                   });
@@ -550,28 +548,28 @@ export const FilterStatsPage: React.FC = () => {
                           <span className="text-sm font-semibold text-text">{displayDate}</span>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
                             <span>
-                              总计<span className={`ml-0.5 font-bold ${totalScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              总计<span className={`ml-0.5 font-bold ${totalScore >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                                 {totalScore >= 0 ? '+' : ''}{totalScore}
                               </span>
                             </span>
                             <span>
-                              凌晨<span className={`ml-0.5 font-bold ${lateNightScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {lateNightScore >= 0 ? '+' : ''}{lateNightScore}
-                              </span>
-                            </span>
-                            <span>
-                              上午<span className={`ml-0.5 font-bold ${morningScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              上午<span className={`ml-0.5 font-bold ${morningScore >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                                 {morningScore >= 0 ? '+' : ''}{morningScore}
                               </span>
                             </span>
                             <span>
-                              下午<span className={`ml-0.5 font-bold ${afternoonScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              下午<span className={`ml-0.5 font-bold ${afternoonScore >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                                 {afternoonScore >= 0 ? '+' : ''}{afternoonScore}
                               </span>
                             </span>
                             <span>
-                              晚上<span className={`ml-0.5 font-bold ${eveningScore >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              晚上<span className={`ml-0.5 font-bold ${eveningScore >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                                 {eveningScore >= 0 ? '+' : ''}{eveningScore}
+                              </span>
+                            </span>
+                            <span>
+                              凌晨<span className={`ml-0.5 font-bold ${lateNightScore >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                                {lateNightScore >= 0 ? '+' : ''}{lateNightScore}
                               </span>
                             </span>
                           </div>
@@ -613,7 +611,7 @@ export const FilterStatsPage: React.FC = () => {
                                       <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-gray-700'}>
                                         {record.player.name}
                                       </span>
-                                      <span className={record.chips >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                      <span className={record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
                                         {record.chips >= 0 ? '+' : ''}{record.chips}
                                       </span>
                                     </div>

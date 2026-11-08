@@ -7,6 +7,8 @@ import {
   MonthlyCumulativeChart,
   DailyCumulativeStat,
 } from "../components/MonthlyCumulativeChart";
+import { getLogicalDateFromDate } from "../utils/dateUtils";
+import { usePrivacyMode } from "../hooks/usePrivacyMode";
 
 interface GameTypeStats {
   name: string;
@@ -87,12 +89,22 @@ interface MonthlyStats {
 
 export default function HomePage() {
   const { user } = useAuth();
-  const [recentGames, setRecentGames] = useState<Game[]>([]);
+  const { hideAmounts, toggleHideAmounts, formatAmount } = usePrivacyMode();
+  const [dailyBattle, setDailyBattle] = useState<{
+    logicalDate: string;
+    totalGames: number;
+    totalProfit: number;
+    morningProfit: number;
+    afternoonProfit: number;
+    eveningProfit: number;
+    lateNightProfit: number;
+    games: Game[];
+  } | null>(null);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
+  const logicalNow = getLogicalDateFromDate();
+  const currentYear = logicalNow.getFullYear();
+  const currentMonth = logicalNow.getMonth() + 1;
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
@@ -101,12 +113,6 @@ export default function HomePage() {
   const [earliestYear, setEarliestYear] = useState<number | null>(null);
   const [earliestMonth, setEarliestMonth] = useState<number | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [hideAmounts, setHideAmounts] = useState(false);
-
-  const formatAmount = (amount: number) => {
-    if (hideAmounts) return "***";
-    return `${amount >= 0 ? "+" : ""}${amount.toLocaleString()}`;
-  };
 
   useEffect(() => {
     loadData();
@@ -114,11 +120,10 @@ export default function HomePage() {
 
   const loadData = async () => {
     try {
-      const [gamesRes, statsRes] = await Promise.all([
-        gamesApi.getAll({
-          limit: 5,
+      const [battleRes, statsRes] = await Promise.all([
+        gamesApi.getDailyStats({
           locationId: selectedLocationId || undefined,
-        } as any),
+        }),
         apiClient.get("/games/stats/monthly", {
           params: {
             year: selectedYear,
@@ -127,7 +132,7 @@ export default function HomePage() {
           },
         }),
       ]);
-      setRecentGames(gamesRes.data);
+      setDailyBattle(battleRes.data);
       setMonthlyStats(statsRes.data);
       if (statsRes.data.earliestMonth) {
         setEarliestYear(statsRes.data.earliestMonth.year);
@@ -230,7 +235,7 @@ export default function HomePage() {
               👁️
             </button>
             <button
-              onClick={() => setHideAmounts(!hideAmounts)}
+              onClick={toggleHideAmounts}
               className="p-1 text-text-secondary hover:text-primary"
             >
               {hideAmounts ? "💰" : "💸"}
@@ -561,28 +566,61 @@ export default function HomePage() {
 
         <div className="pb-2">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-text">最近对局</h3>
+            <h3 className="text-sm font-semibold text-text">
+              当日战绩 {dailyBattle?.logicalDate ? `(${dailyBattle.logicalDate.slice(5)})` : ""}
+            </h3>
             <Link
               to="/history"
               state={{ locationId: selectedLocationId }}
               className="text-primary text-xs hover:underline"
             >
-              查看全部 →
+              查看全部历史 →
             </Link>
           </div>
 
-          {recentGames.length === 0 ? (
+          {!dailyBattle || dailyBattle.totalGames === 0 ? (
             <div className="bg-white rounded-2xl p-6 text-center text-text-light text-xs border border-gray-100">
-              还没有对局记录，
+              今日暂无对局记录，
               <Link to="/new-game" className="text-primary hover:underline">
                 开始记录第一局
               </Link>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
-              {recentGames.map((game) => (
-                <GameCard key={game.id} game={game} hideAmounts={hideAmounts} />
-              ))}
+            <div className="space-y-2">
+              {/* 今日汇总条 */}
+              <div className="bg-white rounded-xl border border-gray-100 p-2.5 flex items-center justify-between text-xs">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>
+                    总计：
+                    <span className={`font-bold ${dailyBattle.totalProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>
+                      {formatAmount(dailyBattle.totalProfit)}
+                    </span>
+                  </span>
+                  <span className="text-gray-300">|</span>
+                  <span className="text-text-secondary">
+                    上午 <span className={`font-medium ${dailyBattle.morningProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.morningProfit)}</span>
+                  </span>
+                  <span className="text-text-secondary">
+                    下午 <span className={`font-medium ${dailyBattle.afternoonProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.afternoonProfit)}</span>
+                  </span>
+                  <span className="text-text-secondary">
+                    晚上 <span className={`font-medium ${dailyBattle.eveningProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.eveningProfit)}</span>
+                  </span>
+                  <span className="text-text-secondary">
+                    凌晨 <span className={`font-medium ${dailyBattle.lateNightProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.lateNightProfit)}</span>
+                  </span>
+                </div>
+                <div className="text-text-light font-medium ml-2 whitespace-nowrap">
+                  {dailyBattle.totalGames} 局
+                </div>
+              </div>
+
+              {/* 今日对局列表 */}
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                {dailyBattle.games.map((game) => (
+                  <GameCard key={game.id} game={game} hideAmounts={hideAmounts} />
+                ))}
+              </div>
             </div>
           )}
         </div>

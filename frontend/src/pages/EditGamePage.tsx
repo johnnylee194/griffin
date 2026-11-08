@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { playersApi, locationsApi, gamesApi, chipRatesApi, gameTypesApi, Player, Location, ChipRate, LocationGameType } from '../api/client'
 import NumPad from '../components/NumPad'
 import LocationSelect from '../components/LocationSelect'
+import { getLogicalDateString, getLogicalDateFromDate, formatYMD, buildQuickGameTime } from '../utils/dateUtils'
 
 export default function EditGamePage() {
   const navigate = useNavigate()
@@ -262,46 +263,40 @@ export default function EditGamePage() {
 
   const setQuickDate = (type: 'today' | 'yesterday') => {
     setSelectedDate(type)
-    const date = new Date()
-    if (type === 'yesterday') {
-      date.setDate(date.getDate() - 1)
-    }
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    
+    const logicalToday = getLogicalDateString()
+    const d = getLogicalDateFromDate()
+    d.setDate(d.getDate() - 1)
+    const logicalYesterday = formatYMD(d)
+    const baseLogicalDate = type === 'today' ? logicalToday : logicalYesterday
     const currentTime = gameTime ? gameTime.split('T')[1] : '18:00'
-    setGameTime(`${year}-${month}-${day}T${currentTime}`)
+    setGameTime(buildQuickGameTime(baseLogicalDate, selectedTime, currentTime))
   }
 
   const setQuickTime = (type: 'morning' | 'afternoon' | 'evening' | 'latenight') => {
     setSelectedTime(type)
-    const currentDate = gameTime ? gameTime.split('T')[0] : new Date().toISOString().split('T')[0]
-    let hours = '18'
-    if (type === 'morning') hours = '11'
-    else if (type === 'afternoon') hours = '17'
-    else if (type === 'evening') hours = '23'
-    else if (type === 'latenight') hours = '01'
-
-    const minutes = '00'
-    setGameTime(`${currentDate}T${hours}:${minutes}`)
+    const logicalToday = getLogicalDateString()
+    const currentLogicalDate = gameTime ? getLogicalDateString(gameTime) : logicalToday
+    setGameTime(buildQuickGameTime(currentLogicalDate, type))
   }
 
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGameTime(e.target.value)
-    const date = e.target.value.split('T')[0]
-    const time = e.target.value.split('T')[1]
-    const today = new Date().toISOString().split('T')[0]
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const val = e.target.value
+    setGameTime(val)
+    const logicalDate = getLogicalDateString(val)
+    const logicalToday = getLogicalDateString()
+    const d = getLogicalDateFromDate()
+    d.setDate(d.getDate() - 1)
+    const logicalYesterday = formatYMD(d)
     
-    if (date === today) {
+    if (logicalDate === logicalToday) {
       setSelectedDate('today')
-    } else if (date === yesterday) {
+    } else if (logicalDate === logicalYesterday) {
       setSelectedDate('yesterday')
     } else {
       setSelectedDate(null)
     }
-    
+
+    const time = val.split('T')[1]
     if (time === '11:00') {
       setSelectedTime('morning')
     } else if (time === '17:00') {
