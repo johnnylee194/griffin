@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { customFiltersApi, locationsApi, playersApi, gameTypesApi, Location, Player, GameType } from '../api/client';
+import { getLogicalDateFromDate } from '../utils/dateUtils';
 
 export const FilterConfigPage: React.FC = () => {
   const navigate = useNavigate();
@@ -73,7 +74,7 @@ export const FilterConfigPage: React.FC = () => {
   const handleTimePresetChange = (preset: string) => {
     setTimePreset(preset);
     
-    const today = new Date();
+    const today = getLogicalDateFromDate();
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
     
     switch (preset) {
@@ -228,7 +229,7 @@ export const FilterConfigPage: React.FC = () => {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="例如：紫竹郡小付老唐本月数据"
+            placeholder="例如：周末茶楼三人局本月数据"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
           />
         </div>
@@ -395,8 +396,7 @@ export const FilterConfigPage: React.FC = () => {
             <li>• 所有对局都包含"我"</li>
             <li>• 选择对手后，只显示包含"我"和所有选中对手的对局</li>
             <li>• 不选对手则显示"我"参与的所有对局</li>
-            <li>• 统计时段：下午12:00-19:00，晚上19:00-24:00</li>
-            <li>• 0:00-12:00的对局不参与统计，但会提示</li>
+            <li>• 统计时段：上午08:00-12:00，下午12:00-18:00，晚上18:00-24:00，凌晨00:00-08:00（凌晨算前一天）</li>
           </ul>
         </div>
       </div>

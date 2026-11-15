@@ -22,7 +22,8 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // 中间件
-app.use(cors());
+const corsOrigin = process.env.FRONTEND_URL;
+app.use(cors(corsOrigin ? { origin: corsOrigin.split(',').map(s => s.trim()), credentials: true } : undefined));
 app.use(express.json());
 
 // 公开路由（不需要认证）

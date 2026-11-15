@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { gamesApi, Game, locationsApi, Location } from '../api/client'
 import { format } from 'date-fns'
-import { getTimeSlot } from '../utils/timeUtils'
+import { getLogicalDateString, getLogicalDateFromDate, getTimeSlot } from '../utils/dateUtils'
 
 export default function HistoryPage() {
   const navigate = useNavigate()
@@ -11,8 +11,9 @@ export default function HistoryPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'win' | 'lose'>('all')
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
+  const logicalNow = getLogicalDateFromDate()
+  const [selectedYear, setSelectedYear] = useState<number>(logicalNow.getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState<number>(logicalNow.getMonth() + 1)
   const [selectedDay, setSelectedDay] = useState<string>('all')
   const [selectedLocationId, setSelectedLocationId] = useState<string>(
     (locationState.state as any)?.locationId || ''
@@ -52,8 +53,8 @@ export default function HistoryPage() {
     const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear
     const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1
     gamesApi.getAll({
-      startDate: `${selectedYear}-${pad(selectedMonth)}-01T00:00:00`,
-      endDate: `${nextYear}-${pad(nextMonth)}-01T00:00:00`,
+      startDate: `${selectedYear}-${pad(selectedMonth)}-01T08:00:01`,
+      endDate: `${nextYear}-${pad(nextMonth)}-01T08:00:01`,
     })
       .then(res => { if (!cancelled) setGames(res.data) })
       .catch(error => console.error('Failed to load games:', error))
@@ -98,10 +99,8 @@ export default function HistoryPage() {
 
   const getFilteredAndGroupedGames = () => {
     let filtered = games.filter(game => {
-      const gameDate = new Date(game.createdAt)
-      const gameYear = gameDate.getFullYear()
-      const gameMonth = gameDate.getMonth() + 1
-      const gameDay = gameDate.getDate()
+      const logicalDateStr = getLogicalDateString(game.createdAt)
+      const [gameYear, gameMonth, gameDay] = logicalDateStr.split('-').map(Number)
 
       if (gameYear !== selectedYear || gameMonth !== selectedMonth) {
         return false
@@ -125,20 +124,20 @@ export default function HistoryPage() {
 
     const grouped: { [date: string]: Game[] } = {}
     filtered.forEach(game => {
-      const date = format(new Date(game.createdAt), 'yyyy-MM-dd')
+      const date = getLogicalDateString(game.createdAt)
       if (!grouped[date]) {
         grouped[date] = []
       }
       grouped[date].push(game)
     })
 
-    const dailyStats: { [date: string]: { total: number; lateNight: number; morning: number; afternoon: number; evening: number } } = {}
+    const dailyStats: { [date: string]: { total: number; morning: number; afternoon: number; evening: number; lateNight: number } } = {}
     Object.keys(grouped).forEach(date => {
       let total = 0
-      let lateNight = 0
       let morning = 0
       let afternoon = 0
       let evening = 0
+      let lateNight = 0
 
       grouped[date].forEach(game => {
         const myRecord = getMyRecord(game)
@@ -146,14 +145,14 @@ export default function HistoryPage() {
           const chips = myRecord.chips
           total += chips
           const slot = getTimeSlot(game.createdAt)
-          if (slot === 'lateNight') lateNight += chips
-          else if (slot === 'morning') morning += chips
+          if (slot === 'morning') morning += chips
           else if (slot === 'afternoon') afternoon += chips
-          else evening += chips
+          else if (slot === 'evening') evening += chips
+          else lateNight += chips
         }
       })
 
-      dailyStats[date] = { total, lateNight, morning, afternoon, evening }
+      dailyStats[date] = { total, morning, afternoon, evening, lateNight }
     })
 
     return { grouped, dailyStats }
@@ -253,11 +252,6 @@ export default function HistoryPage() {
                         </span>
                       </span>
                       <span>
-                        凌晨<span className={`ml-0.5 font-bold ${stats.lateNight >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                          {stats.lateNight >= 0 ? '+' : ''}{stats.lateNight}
-                        </span>
-                      </span>
-                      <span>
                         上午<span className={`ml-0.5 font-bold ${stats.morning >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                           {stats.morning >= 0 ? '+' : ''}{stats.morning}
                         </span>
@@ -270,6 +264,11 @@ export default function HistoryPage() {
                       <span>
                         晚上<span className={`ml-0.5 font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
                           {stats.evening >= 0 ? '+' : ''}{stats.evening}
+                        </span>
+                      </span>
+                      <span>
+                        凌晨<span className={`ml-0.5 font-bold ${stats.lateNight >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {stats.lateNight >= 0 ? '+' : ''}{stats.lateNight}
                         </span>
                       </span>
                     </div>

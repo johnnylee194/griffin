@@ -3,6 +3,7 @@ import db, { generateId } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { GameService } from '../services/game.service';
 import { StatsService } from '../services/stats.service';
+import { getLogicalDateString, getLogicalTimestampRange } from '../utils/time';
 
 const router = Router();
 
@@ -219,20 +220,19 @@ router.post('/:id/stats', authMiddleware, (req: AuthRequest, res: Response) => {
     const playerIds = filter.player_ids ? JSON.parse(filter.player_ids) : [];
     const gameTypeIds = filter.game_type_ids ? JSON.parse(filter.game_type_ids) : [];
     const startDate = filter.start_date;
-    const endDate = filter.end_date === 'TODAY' ? new Date().toISOString().split('T')[0] : filter.end_date;
+    const endDate = filter.end_date === 'TODAY' ? getLogicalDateString() : filter.end_date;
 
     // 构建查询条件
     let whereConditions = ['g.user_id = ?'];
     let params: any[] = [userId];
 
-    // 日期条件
-    if (startDate) {
-      whereConditions.push('DATE(g.created_at) >= ?');
-      params.push(startDate);
-    }
-    if (endDate) {
-      whereConditions.push('DATE(g.created_at) <= ?');
-      params.push(endDate);
+    // 日期条件：基于逻辑日期范围
+    if (startDate || endDate) {
+      const s = startDate || '1970-01-01';
+      const e = endDate || '2099-12-31';
+      const range = getLogicalTimestampRange(s, e);
+      whereConditions.push('g.created_at >= ? AND g.created_at <= ?');
+      params.push(range.startTimestamp, range.endTimestamp);
     }
 
     // 地点条件
