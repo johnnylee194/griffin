@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { gamesApi, apiClient, Game } from "../api/client";
 import { useAuth } from "../contexts/AuthContext";
 import { FilterListModal } from "../components/FilterListModal";
@@ -88,6 +88,7 @@ interface MonthlyStats {
 }
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { hideAmounts, toggleHideAmounts, formatAmount } = usePrivacyMode();
   const [dailyBattle, setDailyBattle] = useState<{
@@ -241,7 +242,7 @@ export default function HomePage() {
               {hideAmounts ? "💰" : "💸"}
             </button>
             <button
-              onClick={() => (window.location.href = "/settings")}
+              onClick={() => navigate('/settings')}
               className="p-1 text-text-secondary hover:text-primary"
             >
               ⚙️

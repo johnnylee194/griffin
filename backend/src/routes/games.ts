@@ -12,18 +12,10 @@ router.use(authMiddleware);
 router.get('/', (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { limit, offset, locationId } = req.query;
+    const { limit, offset, locationId, startDate, endDate } = req.query;
     
     let query = `
-      SELECT 
-        g.id,
-        g.location_id as locationId,
-        g.game_type_id as gameTypeId,
-        g.chip_rate_id as chipRateId,
-        g.is_complete as isComplete,
-        g.note,
-        g.created_at as createdAt,
-        g.updated_at as updatedAt
+      SELECT g.id
       FROM games g
       WHERE g.user_id = ?
     `;
@@ -35,6 +27,16 @@ router.get('/', (req: AuthRequest, res) => {
       params.push(locationId);
     }
 
+    // 时间范围过滤（左闭右开，格式与存储一致：YYYY-MM-DDTHH:mm:ss）
+    if (startDate) {
+      query += ' AND g.created_at >= ?';
+      params.push(startDate as string);
+    }
+    if (endDate) {
+      query += ' AND g.created_at < ?';
+      params.push(endDate as string);
+    }
+
     query += ' ORDER BY g.created_at DESC';
 
     if (limit) {
@@ -42,13 +44,16 @@ router.get('/', (req: AuthRequest, res) => {
       params.push(parseInt(limit as string));
     }
     if (offset) {
+      // SQLite 要求 OFFSET 前必须有 LIMIT
+      if (!limit) query += ' LIMIT -1';
       query += ' OFFSET ?';
       params.push(parseInt(offset as string));
     }
     
-    const games = db.prepare(query).all(...params);
+    const games = db.prepare(query).all(...params) as { id: string }[];
     
-    const gamesWithDetails = games.map((game: any) => GameService.getGameWithDetails(game.id, userId));
+    // 批量查询详情（固定查询次数），替代逐条 getGameWithDetails 的 N+1 查询
+    const gamesWithDetails = GameService.getGamesWithDetails(games.map(g => g.id), userId);
     
     res.json(gamesWithDetails);
   } catch (error) {

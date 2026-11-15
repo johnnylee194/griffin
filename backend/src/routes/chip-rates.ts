@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import db, { generateId } from '../database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { getLocalTimestamp } from '../utils/time';
 
 const router = Router();
 
@@ -132,21 +133,25 @@ router.post('/', (req: AuthRequest, res) => {
     `).get(locationId, gameTypeId) as { count: number };
     const shouldBeDefault = chipRateCount.count === 0 || isDefault;
 
-    if (shouldBeDefault) {
-      db.prepare(`
-        UPDATE location_chip_rates 
-        SET is_default = 0 
-        WHERE location_id = ? AND game_type_id = ?
-      `).run(locationId, gameTypeId);
-    }
-
     const id = generateId();
-    const now = new Date().toISOString().split('T')[0] + 'T' + new Date().toTimeString().split(' ')[0];
+    const now = getLocalTimestamp();
 
-    db.prepare(`
-      INSERT INTO location_chip_rates (id, location_id, game_type_id, chip_rate, is_default, note, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, locationId, gameTypeId, chipRate, shouldBeDefault ? 1 : 0, note || null, now);
+    const createTx = db.transaction(() => {
+      if (shouldBeDefault) {
+        db.prepare(`
+          UPDATE location_chip_rates 
+          SET is_default = 0 
+          WHERE location_id = ? AND game_type_id = ?
+        `).run(locationId, gameTypeId);
+      }
+
+      db.prepare(`
+        INSERT INTO location_chip_rates (id, location_id, game_type_id, chip_rate, is_default, note, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(id, locationId, gameTypeId, chipRate, shouldBeDefault ? 1 : 0, note || null, now);
+    });
+
+    createTx();
 
     const chipRateRecord = db.prepare(`
       SELECT 
@@ -189,14 +194,6 @@ router.put('/:id', (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Chip rate not found' });
     }
 
-    if (isDefault) {
-      db.prepare(`
-        UPDATE location_chip_rates 
-        SET is_default = 0 
-        WHERE location_id = ? AND game_type_id = ? AND id != ?
-      `).run(chipRateRecord.location_id, chipRateRecord.game_type_id, id);
-    }
-
     const updateFields: string[] = [];
     const values: any[] = [];
 
@@ -222,11 +219,22 @@ router.put('/:id', (req: AuthRequest, res) => {
 
     if (updateFields.length > 0) {
       values.push(id);
-      db.prepare(`
-        UPDATE location_chip_rates 
-        SET ${updateFields.join(', ')} 
-        WHERE id = ?
-      `).run(...values);
+      const updateTx = db.transaction(() => {
+        if (isDefault) {
+          db.prepare(`
+            UPDATE location_chip_rates 
+            SET is_default = 0 
+            WHERE location_id = ? AND game_type_id = ? AND id != ?
+          `).run(chipRateRecord.location_id, chipRateRecord.game_type_id, id);
+        }
+
+        db.prepare(`
+          UPDATE location_chip_rates 
+          SET ${updateFields.join(', ')} 
+          WHERE id = ?
+        `).run(...values);
+      });
+      updateTx();
     }
 
     const updated = db.prepare(`

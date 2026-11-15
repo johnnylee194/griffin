@@ -22,6 +22,7 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const db = new Database(dbFilePath);
+db.pragma('foreign_keys = ON');
 
 // Generate CUID-like ID
 export function generateId(): string {

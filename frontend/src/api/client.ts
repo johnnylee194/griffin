@@ -29,8 +29,12 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      console.warn('⚠️ Token 过期或无效，需要重新登录');
-      // 可以在这里触发登出逻辑
+      console.warn('⚠️ Token 过期或无效，清除凭证并跳转登录');
+      localStorage.removeItem('token');
+      delete apiClient.defaults.headers.common['Authorization'];
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -160,7 +164,7 @@ export interface DailyBattleStats {
 }
 
 export const gamesApi = {
-  getAll: (params?: { limit?: number; offset?: number }) => 
+  getAll: (params?: { limit?: number; offset?: number; locationId?: string; startDate?: string; endDate?: string }) => 
     apiClient.get<Game[]>('/games', { params }),
   getDailyStats: (params?: { date?: string; locationId?: string }) =>
     apiClient.get<DailyBattleStats>('/games/stats/daily', { params }),
