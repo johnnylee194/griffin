@@ -570,8 +570,8 @@ export default function StatsPage() {
 
           {/* 3. 连败统计 */}
           {losingStreakStats && losingStreakStats.streaks && losingStreakStats.streaks.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-white rounded-2xl shadow-sm p-3.5 sm:p-4 border border-gray-100">
+              <div className="flex items-center justify-between mb-2.5">
                 <h3 className="text-sm sm:text-base font-semibold text-text">📉 连败统计</h3>
                 <div className="flex gap-1.5">
                   <select
@@ -595,73 +595,95 @@ export default function StatsPage() {
                 </div>
               </div>
               
-              {/* 4 宫格紧凑指标 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
-                  <div className="text-[10px] text-text-light font-medium">总天数</div>
-                  <div className="text-base font-bold text-text mt-0.5">{losingStreakStats.summary.totalDays}</div>
+              {/* 单行紧凑核心指标条 */}
+              <div className="flex items-center justify-between bg-gray-50/70 px-2 py-2 rounded-xl mb-2.5 text-center">
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-text">{losingStreakStats.summary.totalDays}</div>
+                  <div className="text-[9px] text-text-light font-medium mt-0.5">总天数</div>
                 </div>
-                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
-                  <div className="text-[10px] text-text-light font-medium">连输次数</div>
-                  <div className="text-base font-bold text-text mt-0.5">{losingStreakStats.summary.streakCount}</div>
+                <div className="h-6 w-px bg-gray-200" />
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-text">{losingStreakStats.summary.streakCount}</div>
+                  <div className="text-[9px] text-text-light font-medium mt-0.5">连输次数</div>
                 </div>
-                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
-                  <div className="text-[10px] text-text-light font-medium">最长连输</div>
-                  <div className="text-base font-bold text-text mt-0.5">{losingStreakStats.metrics.maxStreakDays}天</div>
+                <div className="h-6 w-px bg-gray-200" />
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-text">{losingStreakStats.metrics.maxStreakDays}天</div>
+                  <div className="text-[9px] text-text-light font-medium mt-0.5">最长连输</div>
                 </div>
-                <div className="bg-gray-50/70 p-2.5 rounded-xl text-center">
-                  <div className="text-[10px] text-text-light font-medium">最大连输{losingStreakMode === 'chips' ? '金额' : '分数'}</div>
-                  <div className="text-base font-bold text-accent-green mt-0.5">
-                    {losingStreakMode === 'chips' ? formatAmount(losingStreakStats.metrics.chips.maxStreakAmount, '¥') : `${losingStreakStats.metrics.score.maxStreakAmount}分`}
+                <div className="h-6 w-px bg-gray-200" />
+                <div className="flex-[1.3]">
+                  <div className="text-sm font-bold text-accent-green">
+                    {losingStreakMode === 'chips'
+                      ? (hideAmounts ? '***' : `-¥${losingStreakStats.metrics.chips.maxStreakAmount.toLocaleString()}`)
+                      : `-${losingStreakStats.metrics.score.maxStreakAmount}分`}
+                  </div>
+                  <div className="text-[9px] text-text-light font-medium mt-0.5">
+                    最大连输{losingStreakMode === 'chips' ? '金额' : '分数'}
                   </div>
                 </div>
               </div>
 
-              {/* 建议准备 */}
-              <div className="bg-blue-50/70 p-2.5 rounded-xl mb-3">
-                <div className="text-xs font-bold text-blue-900 mb-1.5">
-                  💡 建议准备{losingStreakMode === 'chips' ? '金额' : '分数'}
+              {/* 建议准备：单行 5 列无留白 */}
+              <div className="bg-blue-50/60 px-2.5 py-2 rounded-xl mb-2.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-blue-900">
+                    💡 建议准备{losingStreakMode === 'chips' ? '金额' : '分数'}
+                  </span>
+                  <span className="text-[9px] text-blue-600/80 font-medium">按历史单日亏损分位</span>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-[11px]">
+                <div className="grid grid-cols-5 gap-1 text-center">
                   {['99', '95', '90', '75', '50'].map(p => (
-                    <div key={p} className="bg-white/80 rounded-lg px-2 py-1 whitespace-nowrap">
-                      <span className="text-gray-500">{p}%: </span>
-                      <span className="font-bold text-blue-900">
+                    <div key={p} className="bg-white/90 rounded-lg py-1 px-1">
+                      <div className="text-[9px] text-gray-400 font-medium leading-tight">{p}%</div>
+                      <div className="text-[11px] font-bold text-blue-900 leading-tight mt-0.5 whitespace-nowrap">
                         {losingStreakMode === 'chips'
                           ? (hideAmounts ? '***' : `¥${losingStreakStats.suggestions.chips[`cover${p}`].toLocaleString()}`)
                           : losingStreakStats.suggestions.score[`cover${p}`]}
-                      </span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* 连输列表 */}
-              <div className="overflow-x-auto border border-gray-100 rounded-xl">
-                <table className="min-w-full text-xs">
-                  <thead className="bg-gray-50 border-b border-gray-100">
+              <div className="overflow-hidden border border-gray-100 rounded-xl">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-gray-50/80 border-b border-gray-100">
                     <tr>
-                      <th className="py-1.5 px-2.5 text-left font-medium text-gray-500 whitespace-nowrap">期间</th>
-                      <th className="py-1.5 px-2.5 text-right font-medium text-gray-500 whitespace-nowrap">天数</th>
-                      <th className="py-1.5 px-2.5 text-right font-medium text-gray-500 whitespace-nowrap">
+                      <th className="py-1.5 px-3 text-[9px] font-bold text-text-light uppercase tracking-wider whitespace-nowrap">期间</th>
+                      <th className="py-1.5 px-2 text-[9px] font-bold text-text-light uppercase tracking-wider text-center whitespace-nowrap">天数 / 场次</th>
+                      <th className="py-1.5 px-2 text-[9px] font-bold text-text-light uppercase tracking-wider text-right whitespace-nowrap">
+                        日均{losingStreakMode === 'chips' ? '输额' : '输分'}
+                      </th>
+                      <th className="py-1.5 px-3 text-[9px] font-bold text-text-light uppercase tracking-wider text-right whitespace-nowrap">
                         总输{losingStreakMode === 'chips' ? '金额' : '分数'}
                       </th>
-                      <th className="py-1.5 px-2.5 text-right font-medium text-gray-500 whitespace-nowrap">场次</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {(expandedLosingStreaks ? losingStreakStats.streaks : losingStreakStats.streaks.slice(0, 5)).map((streak: any, index: number) => {
                       const totalLoss = losingStreakMode === 'chips' ? streak.totalLoss : streak.totalScoreLoss
+                      const avgLoss = Math.round(totalLoss / streak.days)
+                      const totalGames = streak.gameCounts.reduce((a: number, b: number) => a + b, 0)
                       return (
                         <tr key={index} className="hover:bg-gray-50/50">
-                          <td className="py-1.5 px-2.5 text-text whitespace-nowrap">
+                          <td className="py-1.5 px-3 text-[11px] font-medium text-text whitespace-nowrap">
                             {streak.startDate.slice(5)} ~ {streak.endDate.slice(5)}
                           </td>
-                          <td className="py-1.5 px-2.5 text-right text-text">{streak.days}</td>
-                          <td className="py-1.5 px-2.5 text-right text-accent-green font-semibold">
-                            {losingStreakMode === 'chips' ? formatAmount(-totalLoss, '¥') : `-${totalLoss}`}
+                          <td className="py-1.5 px-2 text-[10px] text-text-secondary text-center font-medium whitespace-nowrap">
+                            {streak.days}天 / {totalGames}场
                           </td>
-                          <td className="py-1.5 px-2.5 text-right text-gray-500">{streak.gameCounts.reduce((a:number, b:number) => a + b, 0)}</td>
+                          <td className="py-1.5 px-2 text-[10px] text-text-secondary text-right font-medium whitespace-nowrap">
+                            {losingStreakMode === 'chips'
+                              ? (hideAmounts ? '***' : `-¥${avgLoss.toLocaleString()}`)
+                              : `-${avgLoss}`}
+                          </td>
+                          <td className="py-1.5 px-3 text-[11px] text-accent-green font-bold text-right whitespace-nowrap">
+                            {losingStreakMode === 'chips'
+                              ? (hideAmounts ? '***' : `-¥${totalLoss.toLocaleString()}`)
+                              : `-${totalLoss}`}
+                          </td>
                         </tr>
                       )
                     })}
@@ -670,7 +692,7 @@ export default function StatsPage() {
                 {losingStreakStats.streaks.length > 5 && (
                   <button
                     onClick={() => setExpandedLosingStreaks(!expandedLosingStreaks)}
-                    className="w-full text-center text-xs text-primary hover:text-primary/80 py-1.5 bg-gray-50/50 hover:bg-gray-100/50 transition-colors"
+                    className="w-full text-center text-xs text-primary hover:text-primary/80 py-1.5 bg-gray-50/50 hover:bg-gray-100/50 transition-colors border-t border-gray-100"
                   >
                     {expandedLosingStreaks ? '收起' : `展开全部 (${losingStreakStats.streaks.length})`}
                   </button>
