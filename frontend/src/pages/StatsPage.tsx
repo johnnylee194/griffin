@@ -226,6 +226,18 @@ export default function StatsPage() {
     return years
   }
 
+  const getOverallDateSpan = () => {
+    if (!stats?.byDate) return null
+    const dates = Object.keys(stats.byDate).sort()
+    if (dates.length === 0) return null
+    const startDate = dates[0]
+    const endDate = dates[dates.length - 1]
+    const [sy, sm, sd] = startDate.split('-').map(Number)
+    const [ey, em, ed] = endDate.split('-').map(Number)
+    const spanDays = Math.round((Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd)) / 86400000) + 1
+    return { startDate, endDate, spanDays }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -235,6 +247,7 @@ export default function StatsPage() {
   }
 
   const trendData = getTrendData()
+  const overallDateSpan = getOverallDateSpan()
   const periodCount = isCustomPeriod ? (parseInt(customPeriodValue) || 0) : trendPeriodValue
   const trendTitle = periodCount <= 0 
     ? '趋势图' 
@@ -375,6 +388,11 @@ export default function StatsPage() {
                 <span className="text-gray-300">|</span>
                 <span>{currentOverviewWins}胜 {currentOverviewLosses}负</span>
               </div>
+              {overviewTab === 'overall' && overallDateSpan && (
+                <div className="text-[10px] text-text-light font-medium mt-1">
+                  {overallDateSpan.startDate} ~ {overallDateSpan.endDate} · 共 {overallDateSpan.spanDays} 天
+                </div>
+              )}
             </div>
 
             {/* 次级指标条 */}
@@ -606,10 +624,12 @@ export default function StatsPage() {
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-[11px]">
                   {['99', '95', '90', '75', '50'].map(p => (
-                    <div key={p} className="bg-white/80 rounded-lg px-2 py-1">
+                    <div key={p} className="bg-white/80 rounded-lg px-2 py-1 whitespace-nowrap">
                       <span className="text-gray-500">{p}%: </span>
                       <span className="font-bold text-blue-900">
-                        {losingStreakMode === 'chips' ? formatAmount(losingStreakStats.suggestions.chips[`cover${p}`], '¥') : losingStreakStats.suggestions.score[`cover${p}`]}
+                        {losingStreakMode === 'chips'
+                          ? (hideAmounts ? '***' : `¥${losingStreakStats.suggestions.chips[`cover${p}`].toLocaleString()}`)
+                          : losingStreakStats.suggestions.score[`cover${p}`]}
                       </span>
                     </div>
                   ))}
