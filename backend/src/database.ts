@@ -23,6 +23,7 @@ if (!fs.existsSync(dbDir)) {
 
 const db = new Database(dbFilePath);
 db.pragma('foreign_keys = ON');
+db.pragma('busy_timeout = 5000');
 
 // Generate CUID-like ID
 export function generateId(): string {
@@ -124,25 +125,31 @@ export const initDatabase = () => {
   if (hasNameOnlyUnique) {
     console.log('🔄 Migrating locations table: changing UNIQUE constraint from (name) to (user_id, name)...');
     const hasData = db.prepare('SELECT COUNT(*) as count FROM locations').get() as { count: number };
-    // Disable FK checks for the entire migration (old data may have NULL user_id, and we drop locations which is referenced by other tables)
+    // Disable FK checks outside transaction (SQLite requires PRAGMA foreign_keys to be set outside transactions)
     db.exec(`PRAGMA foreign_keys=OFF`);
-    db.exec(`DROP TABLE IF EXISTS locations_new`);
-    db.exec(`
-      CREATE TABLE locations_new (
-        id TEXT PRIMARY KEY,
-        user_id TEXT,
-        name TEXT NOT NULL,
-        is_default INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        UNIQUE(user_id, name)
-      )
-    `);
-    db.exec(`INSERT INTO locations_new (id, user_id, name, is_default, created_at) SELECT id, user_id, name, is_default, created_at FROM locations`);
-    db.exec(`DROP TABLE locations`);
-    db.exec(`ALTER TABLE locations_new RENAME TO locations`);
-    db.exec(`PRAGMA foreign_keys=ON`);
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_locations_user ON locations(user_id)`);
-    console.log('✅ Migrated locations UNIQUE constraint: preserved ' + hasData.count + ' rows');
+    try {
+      const migrateLocationsTx = db.transaction(() => {
+        db.exec(`DROP TABLE IF EXISTS locations_new`);
+        db.exec(`
+          CREATE TABLE locations_new (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            name TEXT NOT NULL,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(user_id, name)
+          )
+        `);
+        db.exec(`INSERT INTO locations_new (id, user_id, name, is_default, created_at) SELECT id, user_id, name, is_default, created_at FROM locations`);
+        db.exec(`DROP TABLE locations`);
+        db.exec(`ALTER TABLE locations_new RENAME TO locations`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_locations_user ON locations(user_id)`);
+      });
+      migrateLocationsTx();
+      console.log('✅ Migrated locations UNIQUE constraint: preserved ' + hasData.count + ' rows');
+    } finally {
+      db.exec(`PRAGMA foreign_keys=ON`);
+    }
   }
 
   // ─── 游戏玩法表 ──────────────────────────────────────────
@@ -302,31 +309,39 @@ export const initDatabase = () => {
   if (needsPrMigration) {
     console.log('🔄 Migrating player_records table: making score/chips nullable...');
     const hasData = db.prepare('SELECT COUNT(*) as count FROM player_records').get() as { count: number };
-    db.exec(`DROP TABLE IF EXISTS player_records_new`);
-    db.exec(`
-      CREATE TABLE player_records_new (
-        id TEXT PRIMARY KEY,
-        game_id TEXT NOT NULL,
-        player_id TEXT NOT NULL,
-        score INTEGER,
-        chips INTEGER,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-        FOREIGN KEY (player_id) REFERENCES players(id),
-        UNIQUE(game_id, player_id)
-      )
-    `);
-    db.exec(`
-      INSERT INTO player_records_new (id, game_id, player_id, score, chips, created_at)
-      SELECT id, game_id, player_id, score, chips, created_at FROM player_records
-    `);
-    db.exec(`DROP TABLE player_records`);
-    db.exec(`ALTER TABLE player_records_new RENAME TO player_records`);
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_records_game ON player_records(game_id);
-      CREATE INDEX IF NOT EXISTS idx_records_player ON player_records(player_id);
-    `);
-    console.log('✅ Migrated player_records table to allow NULL score/chips (' + hasData.count + ' rows)');
+    db.exec(`PRAGMA foreign_keys=OFF`);
+    try {
+      const migratePrTx = db.transaction(() => {
+        db.exec(`DROP TABLE IF EXISTS player_records_new`);
+        db.exec(`
+          CREATE TABLE player_records_new (
+            id TEXT PRIMARY KEY,
+            game_id TEXT NOT NULL,
+            player_id TEXT NOT NULL,
+            score INTEGER,
+            chips INTEGER,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+            FOREIGN KEY (player_id) REFERENCES players(id),
+            UNIQUE(game_id, player_id)
+          )
+        `);
+        db.exec(`
+          INSERT INTO player_records_new (id, game_id, player_id, score, chips, created_at)
+          SELECT id, game_id, player_id, score, chips, created_at FROM player_records
+        `);
+        db.exec(`DROP TABLE player_records`);
+        db.exec(`ALTER TABLE player_records_new RENAME TO player_records`);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_records_game ON player_records(game_id);
+          CREATE INDEX IF NOT EXISTS idx_records_player ON player_records(player_id);
+        `);
+      });
+      migratePrTx();
+      console.log('✅ Migrated player_records table to allow NULL score/chips (' + hasData.count + ' rows)');
+    } finally {
+      db.exec(`PRAGMA foreign_keys=ON`);
+    }
   }
 
   console.log('✅ Database initialized successfully');
