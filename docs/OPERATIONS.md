@@ -57,9 +57,14 @@ APP_ENV=dev
 ### 数据库隔离
 
 每个环境有独立的数据库文件：
-- 生产：`~/griffin/backend/data/griffin.db`
-- 测试：`~/griffin-test/backend/data/griffin.db`
-- 本地：`./backend/data/griffin.db`
+- 生产：`~/griffin/data/griffin.db`
+- 测试：`~/griffin-test/data/griffin.db`
+- 本地开发：`./backend/data/griffin.db`
+
+将生产最新数据同步到测试环境：
+```bash
+sudo cp ~/griffin/data/griffin.db ~/griffin-test/data/griffin.db
+```
 
 ---
 
@@ -119,38 +124,61 @@ docker-compose up -d --build
 
 ---
 
-## 数据备份策略
+## 数据备份策略（GitHub 私有仓库增量备份）
 
-### 自动备份脚本
+生产环境通过 `scripts/backup.sh` 定期将 `data/griffin.db` 导出为纯文本 SQL（`griffin.sql`），提交并推送至独立的 GitHub 私有仓库：
+- **省空间**：本地不堆积多个 `.db` 文件，Git 对纯文本 `.sql` 自动增量压缩，且可在 GitHub 查看每次新增对局的 diff。
+- **防污染**：仅在生产环境的 `~/griffin/backend/.env` 中配置 `BACKUP_REPO_PATH`，测试环境不配置（自动跳过）。
+- **防损坏**：导出前自动执行 `PRAGMA integrity_check` 校验数据库完好性。
+
+### 1. 初始化私有备份仓库（首次配置）
+
+1. 在 GitHub 创建一个独立的私有仓库。
+2. 在服务器上克隆该私有仓库（不要放在 `~/griffin` 目录内）：
 
 ```bash
-cat > ~/griffin/backup.sh << 'EOF'
-#!/bin/bash
-BACKUP_DIR="$HOME/griffin/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-mkdir -p $BACKUP_DIR
-cp $HOME/griffin/backend/data/griffin.db $BACKUP_DIR/griffin_$DATE.db
-find $BACKUP_DIR -name "griffin_*.db" -mtime +7 -delete
-EOF
-
-chmod +x ~/griffin/backup.sh
+cd ~
+git clone git@github.com:YOUR_USERNAME/YOUR_BACKUP_REPO.git /path/to/your-backup-repo
 ```
 
-### 定时备份（每天凌晨 2 点）
+3. 在**生产环境** `~/griffin/backend/.env` 中添加备份仓库路径（测试环境 `~/griffin-test/backend/.env` 不要配）：
+
+```env
+BACKUP_REPO_PATH=/path/to/your-backup-repo
+```
+
+4. 手动试跑一次确认成功：
+
+```bash
+~/griffin/scripts/backup.sh
+```
+
+### 2. 配置定时备份（每天凌晨 04:00）
 
 ```bash
 crontab -e
-# 添加行：0 2 * * * $HOME/griffin/backup.sh
+# 添加以下行（每天凌晨 4 点自动检测并备份，无数据变化时自动跳过 commit）：
+0 4 * * * $HOME/griffin/scripts/backup.sh
 ```
 
-### 备份验证
+### 3. 从备份恢复数据库
+
+如果需要将备份的 `griffin.sql` 恢复为 SQLite 数据库文件：
 
 ```bash
-# 确认备份文件存在
-ls -la ~/griffin/backups/
+# 1. 停止容器
+cd ~/griffin && docker compose down
 
-# 验证数据库完整性
-sqlite3 ~/griffin/backups/griffin_latest.db "SELECT COUNT(*) FROM games;"
+# 2. （可选）在备份仓库切换到指定历史版本
+# cd /path/to/your-backup-repo && git log --oneline && git checkout <commit-hash>
+
+# 3. 移走旧库并从 griffin.sql 导入恢复
+mv ~/griffin/data/griffin.db ~/griffin/data/griffin.db.broken
+sqlite3 ~/griffin/data/griffin.db < /path/to/your-backup-repo/griffin.sql
+
+# 4. 验证恢复后的记录数并重新启动服务
+sqlite3 ~/griffin/data/griffin.db "SELECT COUNT(*) FROM games;"
+cd ~/griffin && docker compose up -d
 ```
 
 ---

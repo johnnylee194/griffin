@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { initDatabase } from './database';
+import db, { initDatabase } from './database';
 import authRoutes from './routes/auth';
 import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
@@ -69,7 +69,24 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // 启动服务器
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`🚀 Griffin API server is running on port ${port}`);
 });
+
+// 优雅关闭数据库连接
+const shutdown = (signal: string) => {
+  console.log(`Received ${signal}, closing server and database...`);
+  server.close(() => {
+    try {
+      db.close();
+      console.log('✅ Database connection closed');
+    } catch (err) {
+      console.error('Error closing database:', err);
+    }
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
