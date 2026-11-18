@@ -77,64 +77,6 @@ router.get('/', (req: AuthRequest, res) => {
   }
 });
 
-// 获取单个玩家（包含其游戏记录）
-router.get('/:id', (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const { id } = req.params;
-
-    // 验证玩家是否属于当前用户
-    const player = db.prepare(`
-      SELECT 
-        id,
-        name,
-        avatar,
-        is_me as isMe,
-        created_at as createdAt,
-        updated_at as updatedAt
-      FROM players
-      WHERE id = ? AND user_id = ?
-    `).get(id, userId) as any;
-
-    if (!player) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
-
-    // 获取玩家的游戏记录（只查询当前用户的游戏）
-    const records = db.prepare(`
-      SELECT 
-        pr.id,
-        pr.game_id as gameId,
-        pr.player_id as playerId,
-        pr.score,
-        pr.chips,
-        pr.created_at as createdAt,
-        g.location_id as locationId,
-        lcr.chip_rate as chipRate,
-        g.is_complete as isComplete,
-        g.note,
-        g.created_at as gameCreatedAt
-      FROM player_records pr
-      JOIN games g ON pr.game_id = g.id
-      LEFT JOIN location_chip_rates lcr ON g.chip_rate_id = lcr.id
-      WHERE pr.player_id = ? AND g.user_id = ?
-      ORDER BY g.created_at DESC
-    `).all(id, userId) as any[];
-
-    res.json({
-      ...player,
-      isMe: Boolean(player.isMe),
-      records: records.map((r: any) => ({
-        ...r,
-        isComplete: Boolean(r.isComplete)
-      }))
-    });
-  } catch (error) {
-    console.error('Failed to fetch player:', error);
-    res.status(500).json({ error: 'Failed to fetch player' });
-  }
-});
-
 // 创建玩家
 router.post('/', (req: AuthRequest, res) => {
   try {

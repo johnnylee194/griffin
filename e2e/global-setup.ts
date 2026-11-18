@@ -1,12 +1,19 @@
 import { execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 async function globalSetup() {
   console.log('Setting up E2E database...');
   try {
     const backendPath = path.resolve(__dirname, '../backend');
+    const e2eDataDir = path.resolve(__dirname, 'data');
+    if (!fs.existsSync(e2eDataDir)) {
+      fs.mkdirSync(e2eDataDir, { recursive: true });
+    }
+    const e2eDbPath = path.join(e2eDataDir, 'e2e.db');
+
     execSync(`node -e "
-      const db = require('better-sqlite3')('./data/griffin.db');
+      const db = require('better-sqlite3')('${e2eDbPath.replace(/\\/g, '/')}');
       const now = new Date().toISOString();
       db.prepare('INSERT OR IGNORE INTO users (id, username, password, name, created_at) VALUES (?, ?, ?, ?, ?)').run('e2e-user-id', 'e2e_test', '\\$2b\\$10\\$eBDX81TBsef9feqFlxG/cu1yUfKR/f9Q11S8E2OZuhWIkDJ9ZexrW', 'E2E User', now);
       db.prepare('UPDATE users SET password = ? WHERE username = ?').run('\\$2b\\$10\\$eBDX81TBsef9feqFlxG/cu1yUfKR/f9Q11S8E2OZuhWIkDJ9ZexrW', 'e2e_test');

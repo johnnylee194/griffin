@@ -7,12 +7,10 @@ services:
       - "20020:3000"
     volumes:
       - ./data:/app/data
-      - ./backend/.env:/app/.env  # 挂载.env文件（如果存在）
+    env_file:
+      - path: ./.env
+        required: false
     environment:
       - NODE_ENV=production
-      - APP_ENV=test
       - PORT=3000
       - DATABASE_URL=file:./data/griffin.db
-      # VPS代理服务配置（如果.env文件不存在，可以在这里直接配置）
-      # - JWT_SECRET=${JWT_SECRET}
-

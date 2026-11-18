@@ -4,21 +4,32 @@ import fs from 'fs';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 
-dotenv.config();
+const parentDir = path.resolve(__dirname, '..');
+export const PROJECT_ROOT = path.basename(parentDir) === 'backend'
+  ? path.resolve(parentDir, '..')
+  : parentDir;
+
+dotenv.config({ path: path.join(PROJECT_ROOT, '.env') });
 
 function resolveDbPath(): string {
+  if (process.env.VITEST || process.env.NODE_ENV === 'test') {
+    return ':memory:';
+  }
   const rawUrl = process.env.DATABASE_URL || process.env.DB_PATH;
   if (rawUrl) {
     const cleaned = rawUrl.replace(/^file:/, '');
-    return path.isAbsolute(cleaned) ? cleaned : path.resolve(process.cwd(), cleaned);
+    if (cleaned === ':memory:') return ':memory:';
+    return path.isAbsolute(cleaned) ? cleaned : path.resolve(PROJECT_ROOT, cleaned);
   }
-  return path.join(__dirname, '../data/griffin.db');
+  return path.join(PROJECT_ROOT, 'data/griffin.db');
 }
 
 const dbFilePath = resolveDbPath();
-const dbDir = path.dirname(dbFilePath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+if (dbFilePath !== ':memory:') {
+  const dbDir = path.dirname(dbFilePath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 }
 
 const db = new Database(dbFilePath);
@@ -42,7 +53,6 @@ export const initDatabase = () => {
 
   // 创建用户表
   // 原始 commit: 121adc3 — replace Prisma with better-sqlite3
-  // 经过多次迁移，目前完整结构包含 birth_date, birth_time 等
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -52,6 +62,9 @@ export const initDatabase = () => {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+
+  // 清理已废弃的运势缓存表
+  db.exec(`DROP TABLE IF EXISTS horoscope_cache`);
 
   // 迁移：users.name
   // 来源: 140c78f — 用户账户增加名字字段并支持在设置中修改

@@ -45,52 +45,6 @@ router.get('/location/:locationId/game-type/:gameTypeId', (req: AuthRequest, res
   }
 });
 
-// 为了向后兼容，保留原来的接口（使用地点的默认玩法）
-router.get('/location/:locationId', (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const { locationId } = req.params;
-
-    const location = db.prepare(`
-      SELECT id FROM locations WHERE id = ? AND user_id = ?
-    `).get(locationId, userId) as any;
-
-    if (!location) {
-      return res.status(404).json({ error: 'Location not found' });
-    }
-
-    const defaultGameType = db.prepare(`
-      SELECT game_type_id FROM location_game_types WHERE location_id = ? AND is_default = 1
-    `).get(locationId) as any;
-
-    if (!defaultGameType) {
-      return res.json([]);
-    }
-
-    const chipRates = db.prepare(`
-      SELECT 
-        id,
-        location_id as locationId,
-        game_type_id as gameTypeId,
-        chip_rate as chipRate,
-        is_default as isDefault,
-        note,
-        created_at as createdAt
-      FROM location_chip_rates
-      WHERE location_id = ? AND game_type_id = ?
-      ORDER BY is_default DESC, created_at DESC
-    `).all(locationId, defaultGameType.game_type_id) as any[];
-
-    res.json(chipRates.map((cr: any) => ({
-      ...cr,
-      isDefault: Boolean(cr.isDefault)
-    })));
-  } catch (error) {
-    console.error('Failed to fetch chip rates:', error);
-    res.status(500).json({ error: 'Failed to fetch chip rates' });
-  }
-});
-
 // 创建倍率规则
 router.post('/', (req: AuthRequest, res) => {
   try {

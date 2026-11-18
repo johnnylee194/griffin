@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { gamesApi, Game, locationsApi, Location } from '../api/client'
-import { format } from 'date-fns'
 import { getLogicalDateString, getLogicalDateFromDate, getTimeSlot } from '../utils/dateUtils'
 
 export default function HistoryPage() {
@@ -237,8 +236,8 @@ export default function HistoryPage() {
           {sortedDates.map(date => {
             const dateGames = grouped[date]
             const stats = dailyStats[date]
-            const dateObj = new Date(date)
-            const displayDate = format(dateObj, 'yyyy年MM月dd日')
+            const [y, m, d] = date.split('-')
+            const displayDate = `${y}年${m}月${d}日`
             
             return (
               <div key={date} className="card bg-gray-50 p-3">

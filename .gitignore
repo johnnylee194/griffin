@@ -17,6 +17,7 @@ build/
 # IDE
 .vscode/
 .idea/
+.trae/
 *.swp
 *.swo
 *~
@@ -31,37 +32,17 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 data/
-postgres-data/
-
-# Excel files
-*.xls
-*.xlsx
 
 # Logs
 logs/
 *.log
 
-# Testing
+# Testing & Playwright Outputs
 coverage/
-
-# Prisma
-backend/prisma/migrations/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-
-# Trae IDE
-.trae/
-
-# Playwright Test Outputs
 test-results/
 playwright-report/
 playwright/.cache/
 blob-report/
-
-# E2E Test Outputs
 e2e/test-results/
+e2e/playwright-report/
+e2e/data/
