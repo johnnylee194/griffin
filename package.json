@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "麻将记分与数据分析应用",
   "scripts": {
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "build:backend": "cd backend && npm run build",
@@ -16,8 +16,5 @@
     "statistics"
   ],
   "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "@playwright/test": "^1.64.1"
-  }
+  "license": "MIT"
 }

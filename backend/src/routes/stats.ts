@@ -136,43 +136,6 @@ router.get('/player/:playerId', (req: AuthRequest, res) => {
   }
 });
 
-// 获取总体统计
-router.get('/overview', (req: AuthRequest, res) => {
-  try {
-    const userId = req.user!.id;
-    const { startDate, endDate } = req.query;
-
-    let dateFilter = '';
-    const params: any[] = [userId];
-    
-    if (startDate || endDate) {
-      if (startDate && endDate) {
-        dateFilter = ' AND created_at BETWEEN ? AND ?';
-        params.push(startDate as string, endDate as string);
-      } else if (startDate) {
-        dateFilter = ' AND created_at >= ?';
-        params.push(startDate as string);
-      } else if (endDate) {
-        dateFilter = ' AND created_at <= ?';
-        params.push(endDate as string);
-      }
-    }
-
-    const totalGames = db.prepare(`SELECT COUNT(*) as count FROM games WHERE user_id = ?${dateFilter}`).get(...params) as { count: number };
-    const totalPlayers = db.prepare('SELECT COUNT(*) as count FROM players WHERE user_id = ?').get(userId) as { count: number };
-    const totalLocations = db.prepare('SELECT COUNT(*) as count FROM locations WHERE user_id = ?').get(userId) as { count: number };
-
-    res.json({
-      totalGames: totalGames.count,
-      totalPlayers: totalPlayers.count,
-      totalLocations: totalLocations.count
-    });
-  } catch (error) {
-    console.error('Failed to fetch overview stats:', error);
-    res.status(500).json({ error: 'Failed to fetch overview stats' });
-  }
-});
-
 // 获取年度统计（支持年份参数）
 router.get('/annual', (req: AuthRequest, res) => {
   try {

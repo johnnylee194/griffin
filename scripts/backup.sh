@@ -5,10 +5,10 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$PROJECT_DIR/backend/.env"
+ENV_FILE="$PROJECT_DIR/.env"
 DB_FILE="$PROJECT_DIR/data/griffin.db"
 
-# 1. 从 backend/.env 读取 BACKUP_REPO_PATH（若环境变量未预设）
+# 1. 从 .env 读取 BACKUP_REPO_PATH（若环境变量未预设）
 if [ -z "${BACKUP_REPO_PATH:-}" ] && [ -f "$ENV_FILE" ]; then
   RAW_PATH=$(grep -E '^[[:space:]]*BACKUP_REPO_PATH=' "$ENV_FILE" | tail -n 1 | cut -d '=' -f 2- | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" || true)
   # 支持 ~ 展开为主目录
@@ -16,7 +16,7 @@ if [ -z "${BACKUP_REPO_PATH:-}" ] && [ -f "$ENV_FILE" ]; then
 fi
 
 if [ -z "${BACKUP_REPO_PATH:-}" ]; then
-  echo "ℹ️  未配置 BACKUP_REPO_PATH（仅生产环境需在 backend/.env 中设置），跳过备份。"
+  echo "ℹ️  未配置 BACKUP_REPO_PATH（仅生产环境需在 .env 中设置），跳过备份。"
   exit 0
 fi
 

@@ -27,34 +27,25 @@ else
   echo "Docker 已安装"
 fi
 
-# 安装 Docker Compose
+# 安装 Docker Compose 插件
 echo "3. 安装 Docker Compose..."
-if ! command -v docker-compose &> /dev/null; then
+if ! docker compose version &> /dev/null; then
   apt install docker-compose-plugin -y
   echo "Docker Compose 安装完成"
 else
   echo "Docker Compose 已安装"
 fi
 
-# 安装 Git
-echo "4. 安装 Git..."
-if ! command -v git &> /dev/null; then
-  apt install git -y
-  echo "Git 安装完成"
-else
-  echo "Git 已安装"
-fi
-
-# 项目将克隆到用户主目录
-echo "5. 准备完成..."
-echo "项目将克隆到用户主目录 ~/griffin"
+# 安装 Git 與 SQLite3（备份脚本需要 sqlite3）
+echo "4. 安装 Git 与 SQLite3..."
+apt install git sqlite3 -y
 
 echo ""
 echo "=== 初始化完成 ==="
 echo ""
 echo "下一步："
-echo "1. 克隆项目：cd ~ && git clone https://github.com/YOUR_USERNAME/griffin.git"
-echo "2. 配置环境变量：编辑 ~/griffin/docker-compose.yml"
-echo "3. 启动服务：cd ~/griffin && docker-compose up -d --build"
+echo "1. 克隆项目：cd ~ && git clone https://github.com/YOUR_USERNAME/griffin.git && cd griffin"
+echo "2. 配置环境变量：cp .env.example .env && nano .env"
+echo "3. 启动服务：docker compose up -d --build"
+echo "4. 创建管理员：node scripts/add-user.js <username> <password> [显示名称]"
 echo ""
-

@@ -1,8 +1,6 @@
 import db from '../database';
 import { Lunar } from 'lunar-javascript';
 import {
-  getLocalDate,
-  getLocalDateString,
   getLogicalDateString,
   getTimeSlot,
   getLogicalTimestampRange
@@ -104,7 +102,6 @@ export interface DetailedAnalysisResult {
   afternoon: DetailedStatsSummary;
   evening: DetailedStatsSummary;
   dailyStats: DailyAggregationStat[];
-  hasOtherTimeGames: boolean;
   games: any[];
 }
 
@@ -483,7 +480,6 @@ export class StatsService {
       afternoon: emptySummary(),
       evening: emptySummary(),
       dailyStats: [],
-      hasOtherTimeGames: false,
       games: [],
     };
   }
@@ -516,8 +512,6 @@ export class StatsService {
         timeSlot,
       };
     });
-
-    const hasOtherTimeGames = gameDetails.some(g => g.timeSlot === 'other');
 
     const calculateStats = (detailGames: any[]): DetailedStatsSummary => {
       const totalGames = detailGames.length;
@@ -650,7 +644,6 @@ export class StatsService {
       afternoon,
       evening,
       dailyStats,
-      hasOtherTimeGames,
       games: gamesWithDetails,
     };
   }

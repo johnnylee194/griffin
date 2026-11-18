@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import db, { initDatabase } from './database';
+import db, { initDatabase, PROJECT_ROOT } from './database';
 import authRoutes from './routes/auth';
 import playerRoutes from './routes/players';
 import locationRoutes from './routes/locations';
@@ -13,7 +13,7 @@ import gameTypeRoutes from './routes/game-types';
 import customFilterRoutes from './routes/custom-filters';
 import { authMiddleware } from './middleware/auth';
 
-dotenv.config({ override: true });
+dotenv.config({ path: path.join(PROJECT_ROOT, '.env') });
 
 // 初始化数据库
 initDatabase();

@@ -1,19 +1,33 @@
 // 添加用户的脚本
 // 使用方法: node scripts/add-user.js <username> <password> [name]
 
+const path = require('path');
+const fs = require('fs');
+const { randomBytes } = require('crypto');
+
+// 支持从根目录或 scripts/ 目录直接运行（自动加载 backend/node_modules）
+const projectRoot = path.resolve(__dirname, '..');
+const backendModules = path.join(projectRoot, 'backend', 'node_modules');
+if (fs.existsSync(backendModules) && !module.paths.includes(backendModules)) {
+  module.paths.unshift(backendModules);
+}
+
+const dotenv = require('dotenv');
+dotenv.config({ path: path.join(projectRoot, '.env') });
+
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
-const path = require('path');
-const { randomBytes } = require('crypto');
 
 function generateId() {
   return 'c' + randomBytes(12).toString('base64url');
 }
 
 const dbUrl = process.env.DATABASE_URL || process.env.DB_PATH;
-const dbPath = dbUrl
-  ? (dbUrl.startsWith('file:') ? dbUrl.replace(/^file:/, '') : dbUrl)
-  : path.join(__dirname, '../backend/data/griffin.db');
+const cleanedUrl = dbUrl ? dbUrl.replace(/^file:/, '') : '';
+const dbPath = cleanedUrl
+  ? (path.isAbsolute(cleanedUrl) ? cleanedUrl : path.resolve(projectRoot, cleanedUrl))
+  : path.join(projectRoot, 'data/griffin.db');
+
 const db = new Database(dbPath);
 
 const username = process.argv[2];
@@ -47,10 +61,10 @@ try {
   console.log(`   - 用户名: ${username}`);
   console.log(`   - 显示名: ${name}`);
   console.log(`   - 用户ID: ${userId}`);
+  console.log(`   - 数据库: ${dbPath}`);
 } catch (error) {
   console.error('❌ 创建用户失败:', error.message);
   process.exit(1);
 } finally {
   db.close();
 }
-

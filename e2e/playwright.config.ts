@@ -20,7 +20,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'cd ../backend && JWT_SECRET=testsecret npm run dev',
+      command: 'cd ../backend && DATABASE_URL=file:./e2e/data/e2e.db JWT_SECRET=testsecret npm run dev',
       url: 'http://localhost:3000/api/games',
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

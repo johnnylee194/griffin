@@ -7,7 +7,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 300000, // 5分钟超时（运势生成需要较长时间）
+  timeout: 30000,
 });
 
 // 请求拦截器：添加 token
@@ -114,7 +114,6 @@ export interface Game {
 // API 方法
 export const playersApi = {
   getAll: (locationId?: string) => apiClient.get<Player[]>('/players', locationId ? { params: { location_id: locationId } } : undefined),
-  getOne: (id: string) => apiClient.get<Player>(`/players/${id}`),
   create: (data: Partial<Player>) => apiClient.post<Player>('/players', data),
   update: (id: string, data: Partial<Player>) => apiClient.put<Player>(`/players/${id}`, data),
   delete: (id: string) => apiClient.delete(`/players/${id}`),
@@ -144,7 +143,6 @@ export const gameTypesApi = {
 export const chipRatesApi = {
   getByLocationAndGameType: (locationId: string, gameTypeId: string) => 
     apiClient.get<ChipRate[]>(`/chip-rates/location/${locationId}/game-type/${gameTypeId}`),
-  getByLocation: (locationId: string) => apiClient.get<ChipRate[]>(`/chip-rates/location/${locationId}`),
   create: (data: { locationId: string; gameTypeId: string; chipRate: number; isDefault?: boolean; note?: string }) => 
     apiClient.post<ChipRate>('/chip-rates', data),
   update: (id: string, data: { chipRate?: number; isDefault?: boolean; note?: string }) => 
@@ -193,8 +191,6 @@ export const gamesApi = {
 export const statsApi = {
   getPlayerStats: (playerId: string, params?: { startDate?: string; endDate?: string; locationId?: string }) =>
     apiClient.get(`/stats/player/${playerId}`, { params }),
-  getOverview: (params?: { startDate?: string; endDate?: string }) =>
-    apiClient.get('/stats/overview', { params }),
   getAnnual: (year?: number) => apiClient.get('/stats/annual', { params: year ? { year } : {} }),
   getLunarAnnual: (year?: number) => apiClient.get('/stats/lunar-annual', { params: year ? { year } : {} }),
   getPlayerPerformance: () => apiClient.get('/stats/player-performance'),
@@ -330,7 +326,6 @@ export interface FilterStats {
     afternoonGames: number;
     eveningGames: number;
   }>;
-  hasOtherTimeGames: boolean;
   games: Array<{
     id: string;
     createdAt: string;

@@ -12,19 +12,13 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@lunisolar/plugin-char8ex": "^0.2.5",
-    "@lunisolar/plugin-takesound": "^0.1.2",
-    "@lunisolar/plugin-thegods": "^0.1.4",
-    "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.2.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "lunar-javascript": "^1.7.0",
-    "lunisolar": "^2.6.0",
-    "xlsx": "^0.18.5"
+    "lunar-javascript": "^1.7.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

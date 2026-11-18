@@ -420,15 +420,6 @@ export const FilterStatsPage: React.FC = () => {
           </div>
         )}
 
-        {/* 提示：非统计时段对局 */}
-        {stats.hasOtherTimeGames && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="text-sm text-yellow-900">
-              ⚠️ 有对局记录在 0:00-12:00 时段，未参与统计
-            </div>
-          </div>
-        )}
-
         {/* 汇总统计 */}
         {renderStatCard('总体统计', stats.overall)}
 
