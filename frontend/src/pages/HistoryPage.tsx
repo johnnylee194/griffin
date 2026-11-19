@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { gamesApi, Game, locationsApi, Location } from '../api/client'
-import { getLogicalDateString, getLogicalDateFromDate, getTimeSlot } from '../utils/dateUtils'
+import { getLogicalDateString, getTimeSlot } from '../utils/dateUtils'
+
+const PAGE_SIZE = 30
 
 export default function HistoryPage() {
   const navigate = useNavigate()
@@ -9,34 +11,12 @@ export default function HistoryPage() {
   const [games, setGames] = useState<Game[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [filter, setFilter] = useState<'all' | 'win' | 'lose'>('all')
-  const logicalNow = getLogicalDateFromDate()
-  const [selectedYear, setSelectedYear] = useState<number>(logicalNow.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState<number>(logicalNow.getMonth() + 1)
-  const [selectedDay, setSelectedDay] = useState<string>('all')
   const [selectedLocationId, setSelectedLocationId] = useState<string>(
     (locationState.state as any)?.locationId || ''
   )
-
-  const handleMonthChange = (month: number) => {
-    setSelectedMonth(month)
-    if (selectedDay !== 'all') {
-      const daysInMonth = new Date(selectedYear, month, 0).getDate()
-      if (parseInt(selectedDay) > daysInMonth) {
-        setSelectedDay('all')
-      }
-    }
-  }
-
-  const handleYearChange = (year: number) => {
-    setSelectedYear(year)
-    if (selectedDay !== 'all') {
-      const daysInMonth = new Date(year, selectedMonth, 0).getDate()
-      if (parseInt(selectedDay) > daysInMonth) {
-        setSelectedDay('all')
-      }
-    }
-  }
 
   // 地点列表只需加载一次
   useEffect(() => {
@@ -45,28 +25,53 @@ export default function HistoryPage() {
       .catch(error => console.error('Failed to load locations:', error))
   }, [])
 
-  // 按所选年月从服务端拉取对局，避免一次性加载全部历史记录
+  // 按时间倒序分页拉取最近对局
   useEffect(() => {
-    let cancelled = false // 快速切换月份时丢弃过期响应
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear
-    const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1
+    let cancelled = false
+    setLoading(true)
     gamesApi.getAll({
-      startDate: `${selectedYear}-${pad(selectedMonth)}-01T08:00:01`,
-      endDate: `${nextYear}-${pad(nextMonth)}-01T08:00:01`,
+      limit: PAGE_SIZE,
+      offset: 0,
+      locationId: selectedLocationId || undefined,
     })
-      .then(res => { if (!cancelled) setGames(res.data) })
+      .then(res => {
+        if (!cancelled) {
+          setGames(res.data)
+          setHasMore(res.data.length === PAGE_SIZE)
+        }
+      })
       .catch(error => console.error('Failed to load games:', error))
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [selectedYear, selectedMonth])
+  }, [selectedLocationId])
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const res = await gamesApi.getAll({
+        limit: PAGE_SIZE,
+        offset: games.length,
+        locationId: selectedLocationId || undefined,
+      })
+      setGames(prev => {
+        const existingIds = new Set(prev.map(g => g.id))
+        return [...prev, ...res.data.filter(g => !existingIds.has(g.id))]
+      })
+      setHasMore(res.data.length === PAGE_SIZE)
+    } catch (error) {
+      console.error('Failed to load more games:', error)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('确定要删除这条记录吗？')) return
     
     try {
       await gamesApi.delete(id)
-      setGames(games.filter(g => g.id !== id))
+      setGames(prev => prev.filter(g => g.id !== id))
       alert('删除成功')
     } catch (error) {
       console.error('Failed to delete game:', error)
@@ -78,41 +83,8 @@ export default function HistoryPage() {
     return game.records.find(r => r.player.isMe && r.chips !== null)
   }
 
-  const getYearOptions = () => {
-    const currentYear = new Date().getFullYear()
-    const years = []
-    for (let i = currentYear; i >= currentYear - 5; i--) {
-      years.push(i)
-    }
-    return years
-  }
-
-  const getDayOptions = () => {
-    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate()
-    const days = ['all']
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(String(i))
-    }
-    return days
-  }
-
   const getFilteredAndGroupedGames = () => {
-    let filtered = games.filter(game => {
-      const logicalDateStr = getLogicalDateString(game.createdAt)
-      const [gameYear, gameMonth, gameDay] = logicalDateStr.split('-').map(Number)
-
-      if (gameYear !== selectedYear || gameMonth !== selectedMonth) {
-        return false
-      }
-
-      if (selectedDay !== 'all' && gameDay !== parseInt(selectedDay)) {
-        return false
-      }
-
-      if (selectedLocationId && game.locationId !== selectedLocationId) {
-        return false
-      }
-
+    const filtered = games.filter(game => {
       if (filter === 'all') return true
       const myRecord = getMyRecord(game)
       if (!myRecord || myRecord.chips === null) return false
@@ -169,66 +141,45 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl sm:text-2xl font-bold text-text">对局历史</h2>
-        <div className="text-sm text-text-light">当月共 {games.length} 局</div>
-      </div>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 pb-24 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg sm:text-xl font-bold text-text whitespace-nowrap">对局历史</h2>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="relative">
+            <select
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              className="appearance-none text-xs font-medium bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 pr-6 text-text max-w-[116px] truncate focus:outline-none focus:border-primary"
+            >
+              <option value="">全部地点</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+              <span className="text-[8px] text-gray-400">▼</span>
+            </div>
+          </div>
 
-      <div className="card">
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={selectedYear}
-            onChange={(e) => handleYearChange(parseInt(e.target.value))}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-          >
-            {getYearOptions().map(year => (
-              <option key={year} value={year}>{year}年</option>
-            ))}
-          </select>
-          <select
-            value={selectedMonth}
-            onChange={(e) => handleMonthChange(parseInt(e.target.value))}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-          >
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
-              <option key={month} value={month}>{month}月</option>
-            ))}
-          </select>
-          <select
-            value={selectedDay}
-            onChange={(e) => setSelectedDay(e.target.value)}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-          >
-            <option value="all">全部日期</option>
-            {getDayOptions().slice(1).map(day => (
-              <option key={day} value={day}>{day}日</option>
-            ))}
-          </select>
-          <select
-            value={selectedLocationId}
-            onChange={(e) => setSelectedLocationId(e.target.value)}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-          >
-            <option value="">全部地点</option>
-            {locations.map(loc => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
-            ))}
-          </select>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as 'all' | 'win' | 'lose')}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-text"
-          >
-            <option value="all">全部输赢</option>
-            <option value="win">盈利</option>
-            <option value="lose">亏损</option>
-          </select>
+          <div className="relative">
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'win' | 'lose')}
+              className="appearance-none text-xs font-medium bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 pr-6 text-text focus:outline-none focus:border-primary"
+            >
+              <option value="all">全部输赢</option>
+              <option value="win">仅盈利</option>
+              <option value="lose">仅亏损</option>
+            </select>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+              <span className="text-[8px] text-gray-400">▼</span>
+            </div>
+          </div>
         </div>
       </div>
 
       {sortedDates.length === 0 ? (
-        <div className="card text-center text-text-light py-8">
+        <div className="bg-white rounded-2xl border border-gray-100 text-center text-text-light text-xs py-8">
           没有找到记录
         </div>
       ) : (
@@ -238,100 +189,114 @@ export default function HistoryPage() {
             const stats = dailyStats[date]
             const [y, m, d] = date.split('-')
             const displayDate = `${y}年${m}月${d}日`
+            const activeSlots = [
+              { key: 'morning', label: '上午', profit: stats.morning },
+              { key: 'afternoon', label: '下午', profit: stats.afternoon },
+              { key: 'evening', label: '晚上', profit: stats.evening },
+              { key: 'lateNight', label: '凌晨', profit: stats.lateNight },
+            ].filter(
+              s => s.profit !== 0 || dateGames.some(g => getTimeSlot(g.createdAt) === s.key)
+            )
             
             return (
-              <div key={date} className="card bg-gray-50 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex flex-col space-y-1">
-                    <span className="text-base font-semibold text-text">{displayDate}</span>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-light">
-                      <span>
-                        总计<span className={`ml-0.5 font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                          {stats.total >= 0 ? '+' : ''}{stats.total}
-                        </span>
-                      </span>
-                      <span>
-                        上午<span className={`ml-0.5 font-bold ${stats.morning >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                          {stats.morning >= 0 ? '+' : ''}{stats.morning}
-                        </span>
-                      </span>
-                      <span>
-                        下午<span className={`ml-0.5 font-bold ${stats.afternoon >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                          {stats.afternoon >= 0 ? '+' : ''}{stats.afternoon}
-                        </span>
-                      </span>
-                      <span>
-                        晚上<span className={`ml-0.5 font-bold ${stats.evening >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                          {stats.evening >= 0 ? '+' : ''}{stats.evening}
-                        </span>
-                      </span>
-                      <span>
-                        凌晨<span className={`ml-0.5 font-bold ${stats.lateNight >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
-                          {stats.lateNight >= 0 ? '+' : ''}{stats.lateNight}
-                        </span>
-                      </span>
-                    </div>
+              <div key={date} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="bg-gray-50/70 px-4 py-2.5 border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-text">{displayDate}</span>
+                    <span className="text-xs text-text-light font-medium">{dateGames.length} 局</span>
                   </div>
-                  <div className="text-xs text-text-light">{dateGames.length} 局</div>
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs mt-1">
+                    <span className="text-text-secondary">
+                      总计{' '}
+                      <span className={`font-bold ${stats.total >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                        {stats.total >= 0 ? '+' : ''}{stats.total.toLocaleString()}
+                      </span>
+                    </span>
+                    {activeSlots.length > 0 && (
+                      <span className="text-gray-300">|</span>
+                    )}
+                    {activeSlots.map(slot => (
+                      <span key={slot.key} className="text-text-secondary">
+                        {slot.label}{' '}
+                        <span className={`font-semibold ${slot.profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                          {slot.profit >= 0 ? '+' : ''}{slot.profit.toLocaleString()}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="space-y-2 border-t border-gray-200 pt-2">
+                <div className="divide-y divide-gray-100">
                   {dateGames.map(game => {
-                    const date = new Date(game.createdAt)
-                    const dateStr = date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
-                    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                    const gameDate = new Date(game.createdAt)
+                    const dateStr = gameDate.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+                    const timeStr = gameDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                    const myRecord = getMyRecord(game)
+                    const profit = myRecord?.chips ?? 0
+                    const otherRecords = game.records.filter(r => !r.player.isMe)
                     
                     return (
-                      <div key={game.id} className="bg-white rounded-lg p-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2 flex-wrap">
-                            <span className="text-xs text-text-light">
-                              {game.location.name} 
-                              {game.gameType && ` · ${game.gameType.name}`}
-                              {' · '}
-                              {game.chipRate}
-                            </span>
-                            <span className="text-[10px] sm:text-xs text-text-light">
-                              {dateStr} {timeStr}
-                            </span>
+                      <div key={game.id} className="px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-text">
+                                {game.location.name}
+                              </span>
+                              <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-md font-semibold">
+                                {game.gameType ? `${game.gameType.name} · ${game.chipRate}` : game.chipRate}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-text-light">
+                              <span>{dateStr} {timeStr}</span>
+                              {otherRecords.length > 0 && (
+                                <>
+                                  <span className="text-gray-300">·</span>
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                    {otherRecords.map(record => (
+                                      <span key={record.id} className="inline-flex items-center gap-0.5 text-text-secondary">
+                                        <span>{record.player.name}</span>
+                                        {record.chips !== null && (
+                                          <span className={`font-semibold ${record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                                            {record.chips >= 0 ? '+' : ''}{record.chips.toLocaleString()}
+                                          </span>
+                                        )}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                              {game.note && (
+                                <>
+                                  <span className="text-gray-300">·</span>
+                                  <span className="text-text-secondary truncate max-w-[180px]">
+                                    {game.note}
+                                  </span>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => navigate(`/edit-game/${game.id}`, { state: { from: 'history' } })}
-                              className="text-primary hover:text-blue-700 text-xs"
-                            >
-                              编辑
-                            </button>
-                            <button
-                              onClick={() => handleDelete(game.id)}
-                              className="text-accent-red hover:text-red-600 text-xs"
-                            >
-                              删除
-                            </button>
+
+                          <div className="flex flex-col items-end justify-center gap-1 shrink-0">
+                            <div className={`text-base sm:text-lg font-black leading-tight whitespace-nowrap ${profit >= 0 ? 'text-accent-red' : 'text-accent-green'}`}>
+                              {profit >= 0 ? '+' : ''}{profit.toLocaleString()}
+                            </div>
+                            <div className="flex items-center gap-2.5 text-[11px]">
+                              <button
+                                onClick={() => navigate(`/edit-game/${game.id}`, { state: { from: 'history' } })}
+                                className="text-primary hover:text-blue-700 font-medium"
+                              >
+                                编辑
+                              </button>
+                              <button
+                                onClick={() => handleDelete(game.id)}
+                                className="text-text-light hover:text-accent-red font-medium transition-colors"
+                              >
+                                删除
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          {game.records.map(record => {
-                            if (record.chips === null) {
-                              return (
-                                <div key={record.id} className="flex items-center justify-between text-sm">
-                                  <span className="text-text-secondary">{record.player.name}</span>
-                                  <span className="text-text-light">-</span>
-                                </div>
-                              )
-                            }
-                            return (
-                              <div key={record.id} className="flex items-center justify-between text-sm">
-                                <span className={record.player.isMe ? 'text-primary font-semibold' : 'text-text-secondary'}>
-                                  {record.player.name}
-                                </span>
-                                <span className={record.chips >= 0 ? 'text-accent-red' : 'text-accent-green'}>
-                                  {record.chips >= 0 ? '+' : ''}{record.chips}
-                                </span>
-                              </div>
-                            )
-                          })}
                         </div>
                       </div>
                     )
@@ -340,6 +305,24 @@ export default function HistoryPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="pt-1 text-center">
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="w-full py-2.5 text-xs font-medium text-text-secondary bg-white border border-gray-200 rounded-xl hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 transition-colors"
+          >
+            {loadingMore ? '加载中...' : '加载更多历史记录'}
+          </button>
+        </div>
+      )}
+
+      {!hasMore && games.length > 0 && (
+        <div className="pt-1 text-center text-[11px] text-text-light">
+          已显示全部 {games.length} 局记录
         </div>
       )}
     </div>

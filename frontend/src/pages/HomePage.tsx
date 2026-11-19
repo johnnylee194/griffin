@@ -7,7 +7,7 @@ import {
   MonthlyCumulativeChart,
   DailyCumulativeStat,
 } from "../components/MonthlyCumulativeChart";
-import { getLogicalDateFromDate } from "../utils/dateUtils";
+import { getLogicalDateFromDate, getTimeSlot } from "../utils/dateUtils";
 import { usePrivacyMode } from "../hooks/usePrivacyMode";
 
 interface GameTypeStats {
@@ -536,28 +536,6 @@ export default function HomePage() {
                         </td>
                       </tr>
                     ))}
-
-                    {/* Game Type Stats */}
-                    {Object.values(monthlyStats.byGameType || {})
-                      .sort((a, b) => b.profit - a.profit)
-                      .map((gt, index) => (
-                        <tr
-                          key={`gt-${index}`}
-                          className={gt.totalGames === 0 ? "opacity-30" : ""}
-                        >
-                          <td className="px-3 py-2 text-[11px] font-bold text-text truncate max-w-[100px]">
-                            🀄️ {gt.name}
-                          </td>
-                          <td className="px-3 py-2 text-[10px] text-text-secondary text-center font-medium">
-                            {gt.totalGames}场 / {gt.winRate}%
-                          </td>
-                          <td
-                            className={`px-3 py-2 text-[11px] font-bold text-right ${gt.profit >= 0 ? "text-accent-red" : "text-accent-green"}`}
-                          >
-                            {formatAmount(gt.profit)}
-                          </td>
-                        </tr>
-                      ))}
                   </tbody>
                 </table>
               </div>
@@ -587,37 +565,62 @@ export default function HomePage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-2">
-              {/* 今日汇总条 */}
-              <div className="bg-white rounded-xl border border-gray-100 p-2.5 flex items-center justify-between text-xs">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span>
-                    总计：
-                    <span className={`font-bold ${dailyBattle.totalProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>
-                      {formatAmount(dailyBattle.totalProfit)}
-                    </span>
-                  </span>
-                  <span className="text-gray-300">|</span>
-                  <span className="text-text-secondary">
-                    上午 <span className={`font-medium ${dailyBattle.morningProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.morningProfit)}</span>
-                  </span>
-                  <span className="text-text-secondary">
-                    下午 <span className={`font-medium ${dailyBattle.afternoonProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.afternoonProfit)}</span>
-                  </span>
-                  <span className="text-text-secondary">
-                    晚上 <span className={`font-medium ${dailyBattle.eveningProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.eveningProfit)}</span>
-                  </span>
-                  <span className="text-text-secondary">
-                    凌晨 <span className={`font-medium ${dailyBattle.lateNightProfit >= 0 ? "text-accent-red" : "text-accent-green"}`}>{formatAmount(dailyBattle.lateNightProfit)}</span>
-                  </span>
-                </div>
-                <div className="text-text-light font-medium ml-2 whitespace-nowrap">
-                  {dailyBattle.totalGames} 局
-                </div>
-              </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* 今日汇总头部 */}
+              {(() => {
+                const activeSlots = [
+                  { key: "morning", label: "上午", profit: dailyBattle.morningProfit },
+                  { key: "afternoon", label: "下午", profit: dailyBattle.afternoonProfit },
+                  { key: "evening", label: "晚上", profit: dailyBattle.eveningProfit },
+                  { key: "lateNight", label: "凌晨", profit: dailyBattle.lateNightProfit },
+                ].filter(
+                  (s) =>
+                    s.profit !== 0 ||
+                    dailyBattle.games.some((g) => getTimeSlot(g.createdAt) === s.key)
+                );
+
+                return (
+                  <div className="bg-gray-50/70 px-4 py-2.5 border-b border-gray-100 flex items-center justify-between text-xs">
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                      <span className="text-text-secondary">
+                        总计{" "}
+                        <span
+                          className={`font-bold ${
+                            dailyBattle.totalProfit >= 0
+                              ? "text-accent-red"
+                              : "text-accent-green"
+                          }`}
+                        >
+                          {formatAmount(dailyBattle.totalProfit)}
+                        </span>
+                      </span>
+                      {activeSlots.length > 0 && (
+                        <span className="text-gray-300">|</span>
+                      )}
+                      {activeSlots.map((slot) => (
+                        <span key={slot.key} className="text-text-secondary">
+                          {slot.label}{" "}
+                          <span
+                            className={`font-semibold ${
+                              slot.profit >= 0
+                                ? "text-accent-red"
+                                : "text-accent-green"
+                            }`}
+                          >
+                            {formatAmount(slot.profit)}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="text-text-light font-medium ml-2 whitespace-nowrap">
+                      {dailyBattle.totalGames} 局
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* 今日对局列表 */}
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+              <div className="divide-y divide-gray-100">
                 {dailyBattle.games.map((game) => (
                   <GameCard key={game.id} game={game} hideAmounts={hideAmounts} />
                 ))}
@@ -660,6 +663,7 @@ function GameCard({ game, hideAmounts }: { game: Game; hideAmounts: boolean }) {
 
   const myRecord = game.records.find((r) => r.player.isMe);
   const profit = myRecord?.chips || 0;
+  const otherRecords = game.records.filter((r) => !r.player.isMe);
 
   const formatAmount = (amount: number) => {
     if (hideAmounts) return "***";
@@ -668,44 +672,60 @@ function GameCard({ game, hideAmounts }: { game: Game; hideAmounts: boolean }) {
 
   return (
     <div className="px-4 py-3 active:bg-gray-50 transition-colors">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-text-light">
-              {dateStr} {timeStr}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-text">
+              {game.location.name}
             </span>
-            <span className="text-[10px] text-primary bg-primary/5 px-1.5 py-0.5 rounded-md font-bold">
-              {game.chipRate}
+            <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-md font-semibold">
+              {game.gameType ? `${game.gameType.name} · ${game.chipRate}` : game.chipRate}
             </span>
           </div>
-          <span className="text-sm font-bold text-text mt-0.5">
-            {game.location.name}
-          </span>
+
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-[11px] text-text-light">
+            <span>
+              {dateStr} {timeStr}
+            </span>
+            {otherRecords.length > 0 && (
+              <>
+                <span className="text-gray-300">·</span>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  {otherRecords.map((record) => (
+                    <span key={record.id} className="inline-flex items-center gap-0.5 text-text-secondary">
+                      <span>{record.player.name}</span>
+                      {record.chips !== null && (
+                        <span
+                          className={`font-semibold ${
+                            record.chips >= 0 ? "text-accent-red" : "text-accent-green"
+                          }`}
+                        >
+                          {formatAmount(record.chips)}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+            {game.note && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span className="text-text-secondary truncate max-w-[180px]">
+                  {game.note}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         <div
-          className={`text-lg font-black ${profit >= 0 ? "text-accent-red" : "text-accent-green"}`}
+          className={`text-lg font-black whitespace-nowrap ${
+            profit >= 0 ? "text-accent-red" : "text-accent-green"
+          }`}
         >
           {formatAmount(profit)}
         </div>
-      </div>
-
-      {/* Mini preview of other players */}
-      <div className="flex flex-wrap gap-x-3 mt-1.5 opacity-60">
-        {game.records
-          .filter((r) => !r.player.isMe)
-          .map((record) => (
-            <div key={record.id} className="flex items-center gap-1">
-              <span className="text-[9px] font-medium text-text-secondary">
-                {record.player.name}
-              </span>
-              <span
-                className={`text-[9px] font-bold ${record.chips !== null && record.chips >= 0 ? "text-accent-red" : "text-accent-green"}`}
-              >
-                {record.chips === null ? "-" : formatAmount(record.chips)}
-              </span>
-            </div>
-          ))}
       </div>
     </div>
   );
